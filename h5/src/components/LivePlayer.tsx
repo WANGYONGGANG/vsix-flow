@@ -3,13 +3,14 @@ import { Play, Pause, RotateCcw } from 'lucide-react';
 interface Props {
   isPlaying: boolean;
   progress: number;
+  currentTime?: string;
   onPlay: () => void;
   onPause: () => void;
   onReplay: () => void;
   onSeek: (v: number) => void;
 }
 
-export default function LivePlayer({ isPlaying, progress, onPlay, onPause, onReplay, onSeek }: Props) {
+export default function LivePlayer({ isPlaying, progress, currentTime, onPlay, onPause, onReplay, onSeek }: Props) {
   return (
     <div className="flex items-center gap-2">
       <button
@@ -26,8 +27,10 @@ export default function LivePlayer({ isPlaying, progress, onPlay, onPause, onRep
       >
         <RotateCcw size={16} />
       </button>
+      {currentTime && (
+        <span className="text-xs text-fund-fg/60 font-mono min-w-[36px]">{currentTime}</span>
+      )}
       <div className="flex items-center gap-1 w-24">
-        <span className="text-xs text-fund-fg/50">{Math.floor(progress * 100)}%</span>
         <input
           type="range"
           min={0}

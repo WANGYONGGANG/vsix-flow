@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { mockStore } from '../lib/mockGenerator.js';
 
 const router = Router();
 
-router.get('/', (_req, res) => {
-  res.json(mockStore.getIntraday());
+router.get('/', async (req, res) => {
+  const provider = (req.app.locals.getProvider as () => any)();
+  const data = await provider.getIntraday();
+  res.json(data);
 });
 
 export default router;

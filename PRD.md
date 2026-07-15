@@ -2,7 +2,7 @@
 
 ## 1. 项目概述
 
-构建一个主力资金流向可视化工具，包含 **H5 页面** 与 **VS Code 扩展 (VisX)** 两个版本。核心功能为展示各概念板块在交易日内及历史 45 天内的主力资金净流入曲线，支持明暗主题切换与自适应布局。
+构建一个**实时行业板块主力资金流向**可视化工具，包含 **H5 页面** 与 **VS Code 扩展**两个版本。数据来源为东方财富实时行业资金流向 API，展示当日各行业板块的主力资金净流入/流出走势，支持当日回放动画与倍速播放。
 
 ---
 
@@ -10,258 +10,225 @@
 
 | 功能 | 说明 |
 |------|------|
-| 当日实时流向 | 展示当日 09:30 ~ 15:00（A 股交易时间）各板块资金净流入的实时/收盘曲线 |
-| 45 天历史流向 | 支持切换为近 45 个交易日的日终汇总数据，展示趋势 |
-| 明暗主题 | 提供 Light / Dark 两种主题，支持一键切换，并持久化用户偏好 |
-| 自适应布局 | 适配移动端 H5 与 VS Code Webview 面板宽度，图表随容器自动缩放 |
-| 板块排名标签 | 图表右侧固定展示各板块最新/收盘数值，并按净流入金额排序 |
-| 数据 Tooltip | 鼠标/手指悬停时展示该时间点上各板块的具体数值 |
+| 实时数据展示 | 从东方财富 API 获取约 20 个行业板块的实时主力资金净流入数据 |
+| 当日回放 | 从 09:30:00 到当前时间/15:00:00，折线逐点延伸动画，每秒 1 个数据点 |
+| 倍速播放 | 7 档倍速：1x / 3x / 10x / 30x / 60x / 120x / 240x（1x = 1 数据点/秒） |
+| 秒级数据 | 全天 4 小时交易时间 = 14400 个秒级数据点（去掉午休） |
+| 零线分隔 | Y 轴 0 点处绘制零线，红色=净流入，绿色=净流出 |
+| 末端标签 | 折线末端显示板块名称 + 数值，自动防重叠 |
+| 播放游标 | 回放时竖向虚线游标 + Top/Bottom 3 板块跟随圆点 |
+| 板块排名 | 右侧固定排名列表，按净流入排序，流入/流出之间有分隔线 |
+| 摘要信息 | 顶部显示日期、当前时间（精确到秒）、净流入最多/净流出最多板块 |
+| 明暗主题 | Light / Dark / VS Code 背景 三种主题，CSS 变量切换 |
+| 页面透明度 | 滑块调节 10%~100%，适用于 VS Code 背景模式 |
+| 自动刷新 | 交易时间内按可配置间隔自动刷新数据，收盘后可自动停止 |
+| 防闪烁 | 静默刷新 + 数据对比，内容未变时不触发重渲染 |
 
 ---
 
 ## 3. 数据模型
 
-### 3.1 当日实时数据 (Intraday)
-```typescript
-interface IntradayPoint {
-  time: string;          // "09:30", "09:35" ... "15:00"，5 分钟粒度
-  sectors: Record<string, number>; // { "商业航天": 71.73, "创新药": 29.5, ... }
-}
-```
-
-### 3.2 历史日终数据 (Historical)
-```typescript
-interface HistoricalPoint {
-  date: string;          // "2026-06-01"
-  sectors: Record<string, number>;
-}
-```
-
-### 3.3 板块元信息
+### 3.1 板块元信息
 ```typescript
 interface SectorMeta {
-  name: string;          // 板块名称
-  color: string;         // 固定配色，保证多视图一致性
+  id: string;    // 东方财富行业代码
+  name: string;  // 行业名称，如"银行"、"半导体"
+  color: string; // 固定配色
 }
 ```
 
-> **说明**：项目内置 Mock 数据生成器用于快速演示，同时提供标准化 REST API 接口，可无缝切换至真实数据源。推荐真实数据源见第9节。
+### 3.2 当日分时数据（秒级）
+```typescript
+interface IntradayPoint {
+  time: string;                    // "09:30:00", "09:30:01" ... "15:00:00"
+  sectors: Record<string, number>; // { "银行": 3.21, "半导体": -1.05, ... }，单位：亿
+}
+```
+
+全天交易时间共 **14400 个数据点**：
+- 上午 09:30:00 ~ 11:30:00 = 7200 秒
+- 下午 13:00:00 ~ 15:00:00 = 7200 秒
+- 合计 14400 秒 = 14400 个数据点
+
+### 3.3 数据聚合
+```typescript
+interface FundData {
+  sectors: SectorMeta[];
+  intraday: IntradayPoint[];
+}
+```
+
+> **数据源**：东方财富 `push2.eastmoney.com/api/qt/clist/get`，获取行业板块（`m:90+t:2`）的主力净流入（`f20`字段），转换为亿为单位。分时数据基于当前实时值，通过秒级随机游走构建从 09:30:00 到当前的完整时间序列，每分钟边界处增强漂移以趋近真实值。
 
 ---
 
 ## 4. UI / UX 设计
 
-### 4.1 布局结构（以 H5 为例）
+### 4.1 布局结构
 
 ```
 ┌─────────────────────────────────────────┐
-│  [←]  主力资金流向          [☀/🌙]  │  ← Header + 主题切换
+│  主力资金流向  [东方财富]     [⚙设置]  │  ← Header
 ├─────────────────────────────────────────┤
-│  [当日实时]  [近45天]                   │  ← Tab 切换
+│  07月15日 主力资金流向  时间10:42:15    │  ← 日期 + 摘要
+│  净流入最多:银行 +3.2亿  净流出最多:..  │
 ├─────────────────────────────────────────┤
-│                                         │
-│         ┌──────────────────────┐        │
-│         │                      │ 排名列表 │  ← 图表主体 + 右侧固定排名
-│         │     折线图表区域      │ 商业航天 │
-│         │                      │ 创新药   │
-│         └──────────────────────┘ ...    │
-│  09:30        11:30      14:00          │  ← X轴时间刻度
-│                                         │
-├─────────────────────────────────────────┤
-│  单位：亿                               │  ← 底部说明
+│                        [▶][⟳] 10:42:15 ━━━│  ← 回放控制
+├────────────────────────────────────┬────┤
+│                                    │排名│
+│         折线图表区域               │列表│  ← 图表 + 右侧排名
+│         (线性X轴,折线逐点延伸)      │    │
+│                                    │    │
+│  09:30  10:00  10:30  11:00  11:30│    │
+├────────────────────────────────────┴────┤
+│  单位：亿 | 数据来源：东方财富          │  ← 底部说明
 └─────────────────────────────────────────┘
 ```
 
-### 4.2 配色方案
+### 4.2 交互行为
+
+1. **回放动画**：X 轴使用线性比例尺，范围固定为全天交易时间，折线从左向右逐点延伸，Y 轴随可见数据动态扩展
+2. **播放游标**：竖向虚线 + Top 3 流入 / Bottom 3 流出板块的跟随圆点
+3. **Hover**：鼠标悬停出现竖向指示线，右侧排名列表实时切换为该时间点数值
+4. **末端标签**：可见数据末尾显示各板块数值，按值排序，简单防重叠
+5. **速度控制**：1x 时 1 秒推进 1 个数据点（全程约 4 小时），240x 约 60 秒播完全天
+
+### 4.3 配色方案
+
+**Dark 主题（默认）**
+- 背景：`#0e1116`，文字：`#c9cdd4`，网格：`#2e2e30`
+- 正资金（流入）：`#ff4d4f`，负资金（流出）：`#23c343`
 
 **Light 主题**
-- 背景：`#ffffff`
-- 文字：`#1f2329`
-- 网格线：`#e5e6eb`
-- 正资金：红系 `#f53f3f`
-- 负资金：绿系 `#00b42a`
-- 板块线条：使用高区分度色板（紫、橙、蓝、黄、粉、青等）
+- 背景：`#ffffff`，文字：`#1f2329`，网格：`#e5e6eb`
+- 正资金：`#f53f3f`，负资金：`#00b42a`
 
-**Dark 主题**
-- 背景：`#0e1116`
-- 文字：`#c9cdd4`
-- 网格线：`#2e2e30`
-- 正资金：`#ff4d4f`
-- 负资金：`#23c343`
-- 板块线条：在 Light 基础上适当提亮 10%
-
-### 4.3 交互细节
-
-1. **Tab 切换**：点击“当日实时 / 近45天”切换数据源，图表带 300ms 平滑过渡动画。
-2. **主题切换**：点击右上角图标，CSS 变量整体切换，图表重绘无闪烁。
-3. **Hover/触摸**：在图表区域滑动时，出现垂直指示线，右侧排名列表实时更新为该时间点的数值并重新排序。
-4. **自适应**：图表使用 `ResizeObserver` 监听容器尺寸，任何宽度变化均重算 scale/translate。
-5. **动态推进**：当日实时模式下，曲线从 09:30 开始逐帧绘制至 15:00，模拟盘中真实走势；支持暂停/重播。
+**VS Code 背景模式**
+- 纯黑背景 `#000000`，文字 `#888d93`
 
 ---
 
 ## 5. 技术实现方案
 
-### 5.1 H5 版本
-
-| 选型 | 说明 |
-|------|------|
-| React 19 + TypeScript | 核心框架 |
-| Vite | 构建工具 |
-| VisX (@visx/xy-chart, @visx/shape, @visx/tooltip, @visx/legend) | 图表绘制 |
-| Tailwind CSS | 样式与主题变量 |
-| lucide-react | 图标 |
-
-**关键组件**
-- `FundFlowChart`：封装 VisX 的 `XYChart`，根据 `mode`（realtime / history）渲染不同 X 轴刻度
-- `SectorRankList`：固定在图表右侧的排名列表，支持跟随 Hover 动态排序
-- `ThemeProvider`：通过 React Context + CSS Variables 管理明暗主题
-- `SectorManager`：板块自定义管理（增删改、配色分配）
-- `MockDataService`：生成 Mock 数据，支持 45 天历史与当日 5 分钟粒度数据
-- `LivePlayer`：当日实时动态推进控制器（播放/暂停/重播/调速）
-
-### 5.2 VS Code 扩展 (VisX) 版本
-
-| 选型 | 说明 |
-|------|------|
-| VS Code Webview API | 扩展面板承载 |
-| React 19 + TypeScript | Webview 内框架（与 H5 共享核心组件） |
-| VisX | 与 H5 完全一致 |
-
-**架构**
-```
-extension/
-├── src/
-│   ├── extension.ts          # 激活扩展，注册 TreeView / Panel
-│   ├── panel/
-│   │   └── FundFlowPanel.ts  # 管理 Webview 生命周期与消息通信
-│   └── commands/
-│       └── openFundFlow.ts   # 命令：打开主力资金流向面板
-├── webview/
-│   ├── src/                  # 与 H5 共享的 React 组件
-│   │   ├── App.tsx
-│   │   ├── components/       # FundFlowChart, SectorRankList, ThemeToggle
-│   │   └── hooks/            # useMockData, useTheme
-│   └── index.html
-```
-
-**双形态支持**
-- **Sidebar (侧边栏)**：注册 `fundFlowSidebar` ViewContainer，适合常驻监控
-- **Panel (编辑器区域)**：通过命令面板 / 快捷键打开 `FundFlowPanel`，适合沉浸式分析
-
-**通信机制**
-- 扩展 → Webview：`postMessage` 推送实时数据与主题状态
-- Webview → 扩展：`postMessage` 请求主题持久化（写入 `globalState`）
-
-### 5.3 后端 API 设计 (Node.js + Express)
-
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/api/sectors` | GET | 获取板块列表 |
-| `/api/sectors` | POST/DELETE | 增删板块 |
-| `/api/intraday` | GET | 获取当日实时数据（?date=YYYY-MM-DD） |
-| `/api/historical` | GET | 获取历史数据（?days=45） |
-| `/ws/fundflow` | WebSocket | 实时推送盘中数据（后续接入真实源时启用） |
-
-**数据层抽象**
-- `IDataProvider` 接口定义统一数据规范
-- `MockDataProvider`：开发演示用
-- `AkShareProvider` / `TushareProvider` / `EastMoneyProvider`：真实数据源实现（可按需接入）
-
----
-
-## 6. 文件目录规划
+### 5.1 整体架构
 
 ```
 d:\vsix
-├── PRD.md
 ├── backend/                  # Node.js + Express 后端
 │   ├── src/
-│   │   ├── server.ts
+│   │   ├── server.ts         # 入口，端口 3001
 │   │   ├── routes/
-│   │   │   ├── sectors.ts
-│   │   │   ├── intraday.ts
-│   │   │   └── historical.ts
-│   │   ├── providers/
-│   │   │   ├── IDataProvider.ts
-│   │   │   └── MockDataProvider.ts
-│   │   └── lib/
-│   │       └── mockGenerator.ts
-│   ├── package.json
-│   └── tsconfig.json
-├── h5/                       # H5 前端 (React + Vite + VisX)
-│   ├── index.html
+│   │   │   ├── sectors.ts    # GET /api/sectors（只读，从东方财富获取）
+│   │   │   └── intraday.ts   # GET /api/intraday（秒级实时 + 分时构建）
+│   │   └── providers/
+│   │       ├── types.ts          # IDataProvider 接口
+│   │       └── eastmoneyProvider.ts  # 东方财富数据源实现（秒级 14400 点）
+├── h5/                       # H5 前端（React + Vite + VisX）
 │   ├── src/
-│   │   ├── main.tsx
-│   │   ├── App.tsx
+│   │   ├── App.tsx           # 主应用：状态管理、数据加载、回放控制
 │   │   ├── components/
-│   │   │   ├── FundFlowChart.tsx
-│   │   │   ├── SectorRankList.tsx
-│   │   │   ├── ThemeToggle.tsx
-│   │   │   ├── TimeRangeTabs.tsx
-│   │   │   ├── SectorManager.tsx
-│   │   │   └── LivePlayer.tsx
+│   │   │   ├── FundFlowChart.tsx   # SVG 折线图（线性X轴+动态Y轴+游标）
+│   │   │   ├── SectorRankList.tsx  # 右侧板块排名
+│   │   │   ├── LivePlayer.tsx      # 播放/暂停/重播/进度条
+│   │   │   └── ConfigPanel.tsx     # 设置面板
 │   │   ├── hooks/
-│   │   │   ├── useFundData.ts
-│   │   │   └── useTheme.ts
+│   │   │   └── useTheme.tsx        # 主题 Context + CSS 变量
 │   │   ├── lib/
-│   │   │   ├── api.ts
-│   │   │   └── theme.css
+│   │   │   ├── api.ts              # API 请求封装
+│   │   │   └── theme.css           # CSS 变量定义
 │   │   └── types/
-│   │       └── index.ts
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── tailwind.config.js
+│   │       └── index.ts            # IntradayPoint, SectorMeta, FundData
 └── visx-extension/           # VS Code 扩展
-    ├── package.json
-    ├── tsconfig.json
     ├── src/
-    │   ├── extension.ts
+    │   ├── extension.ts      # 扩展入口，注册命令 + 侧边栏
     │   ├── panel/
-    │   │   └── FundFlowPanel.ts
-    │   └── sidebar/
-    │       └── FundFlowSidebar.ts
-    └── webview/              # 构建时复制 h5/dist 内容
-        └── index.html
+    │   │   └── FundFlowPanel.ts    # WebviewPanel
+    │   ├── sidebar/
+    │   │   └── FundFlowSidebar.ts  # 侧边栏 Webview
+    │   └── background/
+    │       └── FundFlowBackgroundEditor.ts  # Custom Editor 背景模式
+    └── webview/              # H5 构建产物（构建时复制）
 ```
+
+### 5.2 技术选型
+
+| 层 | 选型 | 说明 |
+|----|------|------|
+| 前端框架 | React 19 + TypeScript | H5 与 VS Code Webview 共享 |
+| 构建工具 | Vite | H5 开发/构建 |
+| 图表库 | @visx (scale, shape, axis, grid, tooltip, responsive, event) | SVG 折线图，线性 X 轴 |
+| 样式 | Tailwind CSS + CSS Variables | 主题切换 |
+| 图标 | lucide-react | UI 图标 |
+| 后端 | Node.js + Express + tsx | REST API |
+| 数据源 | 东方财富 push2 API | 行业板块实时资金流向 |
+
+### 5.3 后端 API
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `GET /api/sectors` | GET | 获取约 20 个行业板块列表（只读） |
+| `GET /api/intraday` | GET | 获取当日秒级分时数据（14400 点，09:30:00 ~ 当前时间） |
+| `GET /api/health` | GET | 健康检查 |
+
+### 5.4 秒级数据生成策略
+
+东方财富 API 只提供分钟级快照，秒级数据通过以下方式生成：
+1. 获取每个板块当前主力净流入值（作为全天终值目标）
+2. 从 09:30:00 开始，每秒一个数据点
+3. 非分钟边界：微弱随机游走（`drift=0.005`）+ 微小噪声
+4. 分钟边界（`:00`秒）：增强漂移（`drift=0.08`）以趋近真实值
+5. 全天终值自然收敛到东方财富真实数据
+
+### 5.5 VS Code 扩展
+
+**打开方式**
+- 侧边栏：Activity Bar "主力资金流向" 图标
+- 面板：命令面板 `fundFlow.openPanel`
+- 编辑器背景：命令面板 `fundFlow.openBackground`，Custom Editor 实现纯黑背景叠加代码编辑
+
+**通信机制**
+- 扩展 → Webview：`postMessage` 推送配置
+- Webview → 扩展：`postMessage` 请求配置持久化（`globalState`）
+
+---
+
+## 6. 设置项
+
+| 设置 | 选项 | 默认值 | 说明 |
+|------|------|--------|------|
+| 主题模式 | 亮色 / 暗色 / VS Code背景 | 暗色 | CSS 变量切换 |
+| 回放速度 | 1x / 3x / 10x / 30x / 60x / 120x / 240x | 60x | 1x = 1 数据点/秒 ≈ 4 小时全程 |
+| 数据刷新间隔 | 3s / 6s / 10s / 1min / 5min | 6s | 交易时间内自动刷新 |
+| 开盘自动拉取 | 开/关 | 开 | 交易时间内自动刷新 |
+| 收盘后停止 | 开/关 | 开 | 非交易时间不刷新 |
+| 显示排名列表 | 开/关 | 开 | 右侧板块排名 |
+| 页面透明度 | 10%~100% 滑块 | 30% | 整体透明度 |
+
+配置持久化：H5 使用 localStorage，VS Code 使用 globalState。
 
 ---
 
 ## 7. 性能与兼容性
 
-- **H5**：适配 iOS Safari / Chrome / Edge，最小宽度 320px。
-- **VS Code**：兼容 VS Code 1.80+，Webview 使用 `asWebviewUri` 加载本地资源。
-- **图表性能**：45 天 × 20 板块 ≈ 900 数据点，VisX SVG 渲染无压力；若板块数增加可考虑 Canvas 降级。
-- **Mock 数据**：纯前端生成，不依赖外部网络，首屏加载 < 200ms。
+- **H5**：适配 Chrome / Edge / Safari，最小宽度 320px
+- **VS Code**：兼容 VS Code 1.80+
+- **图表性能**：秒级数据约 14400 点 × 20 板块 ≈ 28.8 万个 SVG 节点
+  - 使用 `scaleLinear`（非 `scaleBand`）避免大量离散 band
+  - `React.memo` + 只渲染 `visibleData`（播放初期仅几十个点）
+  - 全部显示时可能略有卡顿，建议回放后暂停以查看静态图
+- **数据刷新**：JSON.stringify 对比新旧数据，内容未变时不触发 state 更新
 
 ---
 
-## 8. 真实数据源推荐（后续接入）
+## 8. 已知限制
 
-| 数据源 | 类型 | 优缺点 | 适用场景 |
-|--------|------|--------|----------|
-| **AkShare** | Python 开源库 | 免费、覆盖广、含板块资金流向；需 Python 后端 | 个人/研究，快速原型 |
-| **Tushare** | Python SDK | 数据质量高、接口规范；部分高级数据需积分/付费 | 生产环境、量化策略 |
-| **东方财富** | 非官方 API | 实时性好、免费；接口不稳定，需逆向/爬虫维护 | 实时行情展示 |
-| **Sina 财经** | 非官方 API | 简单、直接返回 JSONP；数据维度较少 | 轻量实时数据 |
-| **同花顺 iFinD** | 付费终端 | 数据最全、机构级；费用较高 | 专业投研、机构部署 |
-
-**建议接入路径**：
-1. 初期：使用内置 `MockDataProvider` 完成前后端联调与 UI 打磨
-2. 中期：接入 **AkShare** 搭建 Python 数据采集服务，定时写入数据库
-3. 后期：迁移至 **Tushare Pro** 或 **同花顺 iFinD** 保证数据稳定性
+- 东方财富 API 仅提供实时分钟级快照，秒级数据通过随机游走拟合（终值对齐真实值）
+- 历史数据不可用（东方财富不提供历史板块资金流向接口）
+- 板块列表为东方财富行业板块，不支持自定义增删
+- 非交易时间（周末/夜间）数据为上次交易日的最后快照
+- 秒级数据全部显示时（~14400 点 × 20 线），SVG 渲染可能轻微卡顿
 
 ---
 
-## 9. 已确认需求（v1.1 更新）
-
-1. ✅ **板块自定义**：支持用户增删板块，系统自动分配配色，持久化到 localStorage / 后端
-2. ✅ **动态推进**：当日实时模式带播放/暂停/重播/调速，模拟 09:30 → 15:00 盘中走势
-3. ✅ **双面板形态**：VS Code 扩展同时支持 Sidebar + Panel 两种打开方式
-4. ✅ **后端服务**：Node.js + Express 提供 REST API，预留真实数据切换能力
-5. ✅ **基础版优先**：首期聚焦核心可视化，不下钻个股，不导出图片
-
----
-
-*文档版本：v1.1*  
-*日期：2026-07-14*
+*文档版本：v2.1*
+*日期：2026-07-15*

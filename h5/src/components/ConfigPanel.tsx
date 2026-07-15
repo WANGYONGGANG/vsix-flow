@@ -3,12 +3,11 @@ import { useTheme } from '@/hooks/useTheme';
 
 interface Config {
   interval: number;
-  granularity: number;
+  playbackSpeed: number;
   autoFetch: boolean;
   stopAfterClose: boolean;
   showRankList: boolean;
   bgOpacity: number;
-  dataSource: 'mock' | 'real';
 }
 
 interface Props {
@@ -26,17 +25,20 @@ const INTERVALS = [
   { value: 300000, label: '5分钟' },
 ];
 
-const GRANULARITIES = [1, 5, 15, 30];
+const SPEEDS = [
+  { value: 1, label: '1x' },
+  { value: 3, label: '3x' },
+  { value: 10, label: '10x' },
+  { value: 30, label: '30x' },
+  { value: 60, label: '60x' },
+  { value: 120, label: '120x' },
+  { value: 240, label: '240x' },
+];
 
 const THEMES = [
   { value: 'light', label: '亮色主题' },
   { value: 'dark', label: '暗色主题' },
   { value: 'vscode-bg', label: 'VS Code背景' },
-];
-
-const DATA_SOURCES = [
-  { value: 'mock', label: '模拟数据' },
-  { value: 'real', label: '真实数据源' },
 ];
 
 export default function ConfigPanel({ config, onConfigChange, isOpen, onClose }: Props) {
@@ -54,7 +56,7 @@ export default function ConfigPanel({ config, onConfigChange, isOpen, onClose }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-fund-card border border-fund-border p-6 mx-4">
+      <div className="w-full max-w-md rounded-lg bg-fund-card border border-fund-border p-6 mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Settings size={18} />
@@ -86,14 +88,19 @@ export default function ConfigPanel({ config, onConfigChange, isOpen, onClose }:
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">数据源</label>
-            <div className="grid grid-cols-2 gap-2">
-              {DATA_SOURCES.map((s) => (
+            <label className="block text-sm font-medium mb-2">
+              回放速度
+              <span className="ml-2 text-xs text-fund-fg/40 font-normal">
+                {SPEEDS.find(s => s.value === config.playbackSpeed)?.label || `${config.playbackSpeed}x`}
+              </span>
+            </label>
+            <div className="grid grid-cols-7 gap-1">
+              {SPEEDS.map((s) => (
                 <button
                   key={s.value}
-                  onClick={() => handleChange('dataSource', s.value as Config['dataSource'])}
-                  className={`rounded px-3 py-2 text-sm transition-colors ${
-                    config.dataSource === s.value
+                  onClick={() => handleChange('playbackSpeed', s.value)}
+                  className={`rounded px-1 py-1.5 text-xs transition-colors ${
+                    config.playbackSpeed === s.value
                       ? 'bg-fund-up text-white'
                       : 'bg-fund-bg hover:bg-fund-border/30'
                   }`}
@@ -102,6 +109,7 @@ export default function ConfigPanel({ config, onConfigChange, isOpen, onClose }:
                 </button>
               ))}
             </div>
+            <p className="text-xs text-fund-fg/40 mt-1">1x = 1数据点/秒，240x ≈ 1秒播完全天</p>
           </div>
 
           <div>
@@ -118,25 +126,6 @@ export default function ConfigPanel({ config, onConfigChange, isOpen, onClose }:
                   }`}
                 >
                   {i.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">分钟粒度（K线）</label>
-            <div className="grid grid-cols-4 gap-2">
-              {GRANULARITIES.map((g) => (
-                <button
-                  key={g}
-                  onClick={() => handleChange('granularity', g)}
-                  className={`rounded px-3 py-1.5 text-sm transition-colors ${
-                    config.granularity === g
-                      ? 'bg-fund-up text-white'
-                      : 'bg-fund-bg hover:bg-fund-border/30'
-                  }`}
-                >
-                  {g}分钟
                 </button>
               ))}
             </div>
@@ -172,26 +161,24 @@ export default function ConfigPanel({ config, onConfigChange, isOpen, onClose }:
             </label>
           </div>
 
-          {(window as any).FUND_FLOW_VSCODE && (
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                页面透明度: {(config.bgOpacity * 100).toFixed(0)}%
-              </label>
-              <input
-                type="range"
-                min="0.1"
-                max="1.0"
-                step="0.05"
-                value={config.bgOpacity}
-                onChange={(e) => handleChange('bgOpacity', parseFloat(e.target.value))}
-                className="w-full h-2 rounded-full bg-fund-border appearance-none cursor-pointer"
-              />
-              <div className="flex justify-between text-xs text-fund-fg/60 mt-1">
-                <span>10%</span>
-                <span>100%</span>
-              </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              页面透明度: {(config.bgOpacity * 100).toFixed(0)}%
+            </label>
+            <input
+              type="range"
+              min="0.1"
+              max="1.0"
+              step="0.05"
+              value={config.bgOpacity}
+              onChange={(e) => handleChange('bgOpacity', parseFloat(e.target.value))}
+              className="w-full h-2 rounded-full bg-fund-border appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-fund-fg/60 mt-1">
+              <span>10%</span>
+              <span>100%</span>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
