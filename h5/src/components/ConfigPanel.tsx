@@ -1,183 +1,56 @@
-import { Settings, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 
-interface Config {
-  interval: number;
-  playbackSpeed: number;
-  autoFetch: boolean;
-  stopAfterClose: boolean;
-  showRankList: boolean;
-  bgOpacity: number;
-}
+interface Config { interval: number; playbackSpeed: number; autoFetch: boolean; stopAfterClose: boolean; showRankList: boolean; bgOpacity: number }
+interface Props { config: Config; onConfigChange: (c: Config) => void; isOpen: boolean; onClose: () => void }
 
-interface Props {
-  config: Config;
-  onConfigChange: (config: Config) => void;
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-const INTERVALS = [
-  { value: 3000, label: '3秒' },
-  { value: 6000, label: '6秒' },
-  { value: 10000, label: '10秒' },
-  { value: 60000, label: '1分钟' },
-  { value: 300000, label: '5分钟' },
-];
-
-const SPEEDS = [
-  { value: 1, label: '1x' },
-  { value: 3, label: '3x' },
-  { value: 10, label: '10x' },
-  { value: 30, label: '30x' },
-  { value: 60, label: '60x' },
-  { value: 120, label: '120x' },
-  { value: 240, label: '240x' },
-];
-
-const THEMES = [
-  { value: 'light', label: '亮色主题' },
-  { value: 'dark', label: '暗色主题' },
-  { value: 'vscode-bg', label: 'VS Code背景' },
-];
+const SPEEDS = [1, 3, 10, 30, 60, 120, 240];
+const INTERVALS = [{ v: 3000, l: '3s' }, { v: 6000, l: '6s' }, { v: 10000, l: '10s' }, { v: 60000, l: '1min' }, { v: 300000, l: '5min' }];
+const THEMES = [{ v: 'light', l: '亮色' }, { v: 'dark', l: '暗色' }, { v: 'vscode-bg', l: 'VS Code' }];
 
 export default function ConfigPanel({ config, onConfigChange, isOpen, onClose }: Props) {
   const { theme, setTheme } = useTheme();
-
-  const handleChange = <K extends keyof Config>(key: K, value: Config[K]) => {
-    const newConfig = { ...config, [key]: value };
-    onConfigChange(newConfig);
-    if (typeof window !== 'undefined' && (window as any).FUND_FLOW_VSCODE) {
-      window.postMessage({ type: 'config', config: newConfig });
-    }
+  const set = <K extends keyof Config>(k: K, v: Config[K]) => {
+    const c = { ...config, [k]: v }; onConfigChange(c);
+    if ((window as any).FUND_FLOW_VSCODE) window.postMessage({ type: 'config', config: c });
   };
-
   if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-fund-card border border-fund-border p-6 mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <Settings size={18} />
-            <h2 className="text-lg font-bold">设置</h2>
-          </div>
-          <button onClick={onClose} className="rounded p-1 hover:bg-fund-bg transition-colors">
-            <X size={18} />
-          </button>
+      <div className="w-80 rounded-lg bg-fund-card border border-fund-border p-4 max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold">设置</h2>
+          <button onClick={onClose} className="rounded p-0.5 hover:bg-fund-bg"><X size={15} /></button>
         </div>
-
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2">主题模式</label>
-            <div className="grid grid-cols-3 gap-2">
-              {THEMES.map((t) => (
-                <button
-                  key={t.value}
-                  onClick={() => setTheme(t.value as any)}
-                  className={`rounded px-3 py-2 text-sm transition-colors ${
-                    theme === t.value
-                      ? 'bg-fund-up text-white'
-                      : 'bg-fund-bg hover:bg-fund-border/30'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+            <label className="text-xs font-medium mb-1.5 block">主题</label>
+            <div className="grid grid-cols-3 gap-1">{THEMES.map(t => (
+              <button key={t.v} onClick={() => setTheme(t.v as any)} className={`rounded px-2 py-1 text-xs ${theme === t.v ? 'bg-fund-up text-white' : 'bg-fund-bg hover:bg-fund-border/30'}`}>{t.l}</button>
+            ))}</div>
           </div>
-
           <div>
-            <label className="block text-sm font-medium mb-2">
-              回放速度
-              <span className="ml-2 text-xs text-fund-fg/40 font-normal">
-                {SPEEDS.find(s => s.value === config.playbackSpeed)?.label || `${config.playbackSpeed}x`}
-              </span>
-            </label>
-            <div className="grid grid-cols-7 gap-1">
-              {SPEEDS.map((s) => (
-                <button
-                  key={s.value}
-                  onClick={() => handleChange('playbackSpeed', s.value)}
-                  className={`rounded px-1 py-1.5 text-xs transition-colors ${
-                    config.playbackSpeed === s.value
-                      ? 'bg-fund-up text-white'
-                      : 'bg-fund-bg hover:bg-fund-border/30'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-fund-fg/40 mt-1">1x = 1数据点/秒，240x ≈ 1秒播完全天</p>
+            <label className="text-xs font-medium mb-1.5 block">回放速度 {config.playbackSpeed}x</label>
+            <div className="grid grid-cols-7 gap-1">{SPEEDS.map(s => (
+              <button key={s} onClick={() => set('playbackSpeed', s)} className={`rounded px-1 py-1 text-xs ${config.playbackSpeed === s ? 'bg-fund-up text-white' : 'bg-fund-bg hover:bg-fund-border/30'}`}>{s}x</button>
+            ))}</div>
           </div>
-
           <div>
-            <label className="block text-sm font-medium mb-2">数据刷新间隔</label>
-            <div className="grid grid-cols-5 gap-2">
-              {INTERVALS.map((i) => (
-                <button
-                  key={i.value}
-                  onClick={() => handleChange('interval', i.value)}
-                  className={`rounded px-2 py-1.5 text-xs transition-colors ${
-                    config.interval === i.value
-                      ? 'bg-fund-up text-white'
-                      : 'bg-fund-bg hover:bg-fund-border/30'
-                  }`}
-                >
-                  {i.label}
-                </button>
-              ))}
-            </div>
+            <label className="text-xs font-medium mb-1.5 block">刷新间隔</label>
+            <div className="grid grid-cols-5 gap-1">{INTERVALS.map(i => (
+              <button key={i.v} onClick={() => set('interval', i.v)} className={`rounded px-1 py-1 text-xs ${config.interval === i.v ? 'bg-fund-up text-white' : 'bg-fund-bg hover:bg-fund-border/30'}`}>{i.l}</button>
+            ))}</div>
           </div>
-
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.autoFetch}
-                onChange={(e) => handleChange('autoFetch', e.target.checked)}
-                className="rounded accent-fund-up"
-              />
-              <span className="text-sm">开盘自动拉取数据</span>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.stopAfterClose}
-                onChange={(e) => handleChange('stopAfterClose', e.target.checked)}
-                className="rounded accent-fund-up"
-              />
-              <span className="text-sm">收盘后停止拉取</span>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.showRankList}
-                onChange={(e) => handleChange('showRankList', e.target.checked)}
-                className="rounded accent-fund-up"
-              />
-              <span className="text-sm">显示右侧排名列表</span>
-            </label>
+          <div className="space-y-2">
+            {[['autoFetch', '自动刷新'], ['stopAfterClose', '收盘后停止']].map(([k, l]) => (
+              <label key={k} className="flex items-center gap-2 cursor-pointer text-xs">
+                <input type="checkbox" checked={config[k as keyof Config] as boolean} onChange={e => set(k as keyof Config, e.target.checked)} className="accent-fund-up" />{l}
+              </label>
+            ))}
           </div>
-
           <div>
-            <label className="block text-sm font-medium mb-2">
-              页面透明度: {(config.bgOpacity * 100).toFixed(0)}%
-            </label>
-            <input
-              type="range"
-              min="0.1"
-              max="1.0"
-              step="0.05"
-              value={config.bgOpacity}
-              onChange={(e) => handleChange('bgOpacity', parseFloat(e.target.value))}
-              className="w-full h-2 rounded-full bg-fund-border appearance-none cursor-pointer"
-            />
-            <div className="flex justify-between text-xs text-fund-fg/60 mt-1">
-              <span>10%</span>
-              <span>100%</span>
-            </div>
+            <label className="text-xs font-medium mb-1 block">透明度 {(config.bgOpacity * 100).toFixed(0)}%</label>
+            <input type="range" min="0.1" max="1" step="0.05" value={config.bgOpacity} onChange={e => set('bgOpacity', +e.target.value)} className="w-full h-1.5 rounded-full bg-fund-border appearance-none cursor-pointer" />
           </div>
         </div>
       </div>
