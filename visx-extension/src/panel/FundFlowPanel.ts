@@ -96,12 +96,15 @@ export class FundFlowPanel {
       
       html = html.replace(/src="\.\//g, `src="${baseUri.toString()}/`);
       html = html.replace(/href="\.\//g, `href="${baseUri.toString()}/`);
+      html = html.replace(/ crossorigin/g, '');
       
       const config = this._context.globalState.get('fundFlowConfig') as any || {};
       const useBgMode = this._context.globalState.get('fundFlowUseBgMode') as boolean || false;
+      const cspSource = webview.cspSource;
       html = html.replace(
         '</head>',
-        `<script>
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://push2.eastmoney.com; script-src 'self' 'unsafe-inline' ${cspSource}; style-src 'self' 'unsafe-inline' ${cspSource}; img-src 'self' data: ${cspSource};">
+        <script>
           window.FUND_FLOW_VSCODE = true;
           window.FUND_FLOW_THEME = '${this._getVsCodeTheme()}';
           window.FUND_FLOW_CONFIG = ${JSON.stringify(config)};
