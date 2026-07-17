@@ -1,7 +1,7 @@
 import { X } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 
-interface Config { interval: number; playbackSpeed: number; autoFetch: boolean; stopAfterClose: boolean; showRankList: boolean; bgOpacity: number }
+interface Config { interval: number; playbackSpeed: number; autoFetch: boolean; stopAfterClose: boolean; bgOpacity: number }
 interface Props { config: Config; onConfigChange: (c: Config) => void; isOpen: boolean; onClose: () => void }
 
 const SPEEDS = [1, 3, 10, 30, 60, 120, 240];

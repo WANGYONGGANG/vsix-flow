@@ -12,11 +12,10 @@ interface Config {
   playbackSpeed: number;
   autoFetch: boolean;
   stopAfterClose: boolean;
-  showRankList: boolean;
   bgOpacity: number;
 }
 
-const DEF: Config = { interval: 6000, playbackSpeed: 60, autoFetch: true, stopAfterClose: true, showRankList: true, bgOpacity: 0.3 };
+const DEF: Config = { interval: 6000, playbackSpeed: 60, autoFetch: true, stopAfterClose: true, bgOpacity: 0.3 };
 
 export default function App() {
   const [data, setData] = useState<FundData | null>(null);
@@ -113,7 +112,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-1">
             <LivePlayer isPlaying={playing} progress={progress} currentTime={time}
-              onPlay={() => { setProgress(0); setPlaying(true); }} onPause={() => setPlaying(false)}
+              onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
               onReplay={() => { setProgress(0); setPlaying(true); }} onSeek={v => { setProgress(v); setPlaying(false); }} />
             <button onClick={() => setCfgOpen(true)} className="rounded p-1 hover:bg-fund-card"><Settings size={15} /></button>
           </div>
