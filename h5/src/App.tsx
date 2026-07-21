@@ -6,6 +6,10 @@ import type { FundData } from '@/types';
 import FundFlowChart from '@/components/FundFlowChart';
 import LivePlayer from '@/components/LivePlayer';
 import ConfigPanel from '@/components/ConfigPanel';
+import Barrage from '@/components/Barrage';
+import PageSwitcher, { PageId } from '@/components/PageSwitcher';
+import PostList from '@/components/PostList';
+import { fetchXueqiuPosts, fetchTaogubaPosts } from '@/lib/socialData';
 
 interface Config {
   interval: number;
@@ -13,9 +17,16 @@ interface Config {
   autoFetch: boolean;
   stopAfterClose: boolean;
   bgOpacity: number;
+  barrageEnabled: boolean;
+  xueqiuCookie: string;
+  taogubaCookie: string;
+  proxyWorkerUrl: string;
 }
 
-const DEF: Config = { interval: 6000, playbackSpeed: 60, autoFetch: true, stopAfterClose: true, bgOpacity: 0.3 };
+const DEF: Config = {
+  interval: 6000, playbackSpeed: 60, autoFetch: true, stopAfterClose: true,
+  bgOpacity: 0.3, barrageEnabled: false, xueqiuCookie: '', taogubaCookie: '', proxyWorkerUrl: '',
+};
 
 export default function App() {
   const [data, setData] = useState<FundData | null>(null);
@@ -24,6 +35,7 @@ export default function App() {
   const [cfgOpen, setCfgOpen] = useState(false);
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [page, setPage] = useState<PageId>('fundFlow');
   const [config, setConfig] = useState<Config>(() => {
     try {
       const s = localStorage.getItem('fundFlowConfig');
@@ -34,6 +46,17 @@ export default function App() {
   const pRef = useRef(0);
   useEffect(() => { pRef.current = progress; }, [progress]);
   useEffect(() => { localStorage.setItem('fundFlowConfig', JSON.stringify(config)); }, [config]);
+
+  // VS Code 全局配置同步
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'config') {
+        setConfig(prev => ({ ...prev, ...e.data.config }));
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setError(''); }
@@ -76,7 +99,7 @@ export default function App() {
     if (!currentPoint || !data) return null;
     const all = data.sectors.map(s => ({ name: s.name, value: currentPoint.sectors[s.name] ?? 0 }));
     const topIn = all.filter(d => d.value >= 0).sort((a, b) => b.value - a.value).slice(0, 3);
-    const topOut = all.filter(d => d.value < 0).sort((a, b) => a.value - b.value).slice(0, 3); // most negative first
+    const topOut = all.filter(d => d.value < 0).sort((a, b) => a.value - b.value).slice(0, 3);
     return { topIn, topOut };
   }, [currentPoint, data]);
 
@@ -99,28 +122,75 @@ export default function App() {
   if (error || !data) return <div className="flex h-screen flex-col items-center justify-center text-fund-fg gap-3"><p>{error || '暂无数据'}</p><button onClick={() => load()} className="rounded bg-fund-up px-3 py-1.5 text-white text-sm">重试</button></div>;
 
   const time = currentPoint?.time;
+
   return (
     <ThemeProvider>
       <div className="flex h-screen flex-col bg-fund-bg text-fund-fg" style={{ opacity: config.bgOpacity }}>
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-fund-border">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-bold">主力资金流向</span>
-            {time && <span className="text-fund-fg/50 font-mono">{playing ? '回放 ' : ''}{time}</span>}
-            {summary?.topIn[0] && <span className="text-fund-up">{summary.topIn[0].name} +{summary.topIn[0].value.toFixed(1)}亿</span>}
-            {summary?.topOut[0] && <span className="text-fund-down">{summary.topOut[0].name} -{Math.abs(summary.topOut[0].value).toFixed(1)}亿</span>}
+            <span className="font-bold">
+              {page === 'fundFlow' ? '主力资金流向' : page === 'xueqiu' ? '雪球热帖' : '淘股吧讨论'}
+            </span>
+            {page === 'fundFlow' && time && (
+              <>
+                <span className="text-fund-fg/50 font-mono">{playing ? '回放 ' : ''}{time}</span>
+                {summary?.topIn[0] && <span className="text-fund-up">{summary.topIn[0].name} +{summary.topIn[0].value.toFixed(1)}亿</span>}
+                {summary?.topOut[0] && <span className="text-fund-down">{summary.topOut[0].name} -{Math.abs(summary.topOut[0].value).toFixed(1)}亿</span>}
+              </>
+            )}
           </div>
           <div className="flex items-center gap-1">
-            <LivePlayer isPlaying={playing} progress={progress} currentTime={time}
-              onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
-              onReplay={() => { setProgress(0); setPlaying(true); }} onSeek={v => { setProgress(v); setPlaying(false); }} />
+            <PageSwitcher current={page} onChange={setPage} />
+            {page === 'fundFlow' && (
+              <LivePlayer isPlaying={playing} progress={progress} currentTime={time}
+                onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+                onReplay={() => { setProgress(0); setPlaying(true); }} onSeek={v => { setProgress(v); setPlaying(false); }} />
+            )}
             <button onClick={() => setCfgOpen(true)} className="rounded p-1 hover:bg-fund-card"><Settings size={15} /></button>
           </div>
         </div>
-        {/* Chart */}
-        <div className="flex-1 min-h-0"><FundFlowChart currentPoint={currentPoint} sectors={data.sectors} maxAbsValue={maxVal} /></div>
+
+        {/* Content */}
+        <div className="flex-1 min-h-0 relative">
+          {page === 'fundFlow' ? (
+            <>
+              <FundFlowChart currentPoint={currentPoint} sectors={data.sectors} maxAbsValue={maxVal} />
+              {config.barrageEnabled && (
+                <Barrage isPlaying={playing}
+                  xueqiuCookie={config.xueqiuCookie} taogubaCookie={config.taogubaCookie}
+                  workerUrl={config.proxyWorkerUrl || undefined} />
+              )}
+            </>
+          ) : page === 'xueqiu' ? (
+            <PostList
+              source="xueqiu"
+              cookie={config.xueqiuCookie}
+              fetchFn={(c) => fetchXueqiuPosts(c, config.proxyWorkerUrl || undefined)}
+              tabs={[
+                { key: 'all', label: '全部' },
+                { key: 'hot', label: '热门' },
+                { key: 'latest', label: '最新' },
+              ]}
+            />
+          ) : (
+            <PostList
+              source="taoguba"
+              cookie={config.taogubaCookie}
+              fetchFn={(c) => fetchTaogubaPosts(c, config.proxyWorkerUrl || undefined)}
+              tabs={[
+                { key: 'all', label: '全部' },
+                { key: 'hot', label: '热门' },
+              ]}
+            />
+          )}
+        </div>
+
         {/* Footer */}
-        <div className="px-3 py-1 text-[10px] text-fund-fg/40 border-t border-fund-border">单位：亿 | 东方财富 | 不作为投资依据</div>
+        <div className="px-3 py-1 text-[10px] text-fund-fg/40 border-t border-fund-border">
+          {page === 'fundFlow' ? '单位：亿 | 东方财富 | 不作为投资依据' : page === 'xueqiu' ? '雪球 - 聪明的投资者都在这里 | 不作为投资依据' : '淘股吧 | 不作为投资依据'}
+        </div>
+
         <ConfigPanel config={config} onConfigChange={setConfig} isOpen={cfgOpen} onClose={() => setCfgOpen(false)} />
       </div>
     </ThemeProvider>

@@ -1,0 +1,9 @@
+name = "fund-flow-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# 免费额度：每天 10 万次请求
+# 如果需要更多，可以升级到 Workers Paid Plan
+
+# 可选：自定义域名（需要先绑定）
+# routes = [{ pattern = "proxy.yourdomain.com", custom_domain = true }]

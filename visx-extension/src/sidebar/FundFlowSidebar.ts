@@ -69,7 +69,7 @@ export class FundFlowSidebar implements vscode.WebviewViewProvider {
       const cspSource = webview.cspSource;
       html = html.replace(
         '</head>',
-        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://push2.eastmoney.com; script-src 'self' 'unsafe-inline' ${cspSource}; style-src 'self' 'unsafe-inline' ${cspSource}; img-src 'self' data: ${cspSource};">
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https:; script-src 'self' 'unsafe-inline' ${cspSource}; style-src 'self' 'unsafe-inline' ${cspSource}; img-src 'self' data: https: ${cspSource};">
         <script>
           window.FUND_FLOW_VSCODE = true;
           window.FUND_FLOW_THEME = '${this._getVsCodeTheme()}';
