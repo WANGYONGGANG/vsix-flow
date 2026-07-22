@@ -1,12 +1,15 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "vsix",
-  "compatibility_date": "2026-07-21",
+  "main": "cloudflare-worker/worker.js",
+  "compatibility_date": "2026-07-22",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "h5"
+    "directory": "h5/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
   },
   "compatibility_flags": [
     "nodejs_compat"

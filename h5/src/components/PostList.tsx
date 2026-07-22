@@ -1,15 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
-import { ExternalLink, RefreshCw, MessageCircle, Eye, Heart, AlertCircle } from 'lucide-react';
+import { RefreshCw, MessageCircle, Eye, Heart } from 'lucide-react';
 import type { PostEntry } from '@/lib/socialData';
 
 interface Props {
-  source: 'xueqiu' | 'taoguba';
+  source: string;
   cookie: string;
   fetchFn: (cookie: string) => Promise<PostEntry[]>;
   tabs: { key: string; label: string }[];
 }
 
-export default function PostList({ source, cookie, fetchFn, tabs }: Props) {
+export default function PostList({ fetchFn, tabs }: Props) {
   const [posts, setPosts] = useState<PostEntry[]>([]);
   const [filtered, setFiltered] = useState<PostEntry[]>([]);
   const [activeTab, setActiveTab] = useState(tabs[0]?.key || 'all');
@@ -18,15 +18,14 @@ export default function PostList({ source, cookie, fetchFn, tabs }: Props) {
   const [lastUpdate, setLastUpdate] = useState('');
 
   const load = useCallback(async () => {
-    if (!cookie) return;
     setLoading(true);
     setError('');
     try {
-      const data = await fetchFn(cookie);
+      const data = await fetchFn('');
       setPosts(data);
       setLastUpdate(new Date().toLocaleTimeString());
       if (data.length === 0) {
-        setError('未获取到数据，请检查 Cookie 是否有效，或打开控制台查看详细日志');
+        setError('未获取到数据');
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '加载失败';
@@ -35,16 +34,15 @@ export default function PostList({ source, cookie, fetchFn, tabs }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [cookie, fetchFn]);
+  }, [fetchFn]);
 
   useEffect(() => { load(); }, [load]);
 
   // 自动刷新
   useEffect(() => {
-    if (!cookie) return;
     const id = setInterval(load, 60000);
     return () => clearInterval(id);
-  }, [cookie, load]);
+  }, [load]);
 
   // 筛选
   useEffect(() => {
@@ -58,28 +56,6 @@ export default function PostList({ source, cookie, fetchFn, tabs }: Props) {
       setFiltered(posts);
     }
   }, [activeTab, posts]);
-
-  if (!cookie) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-fund-fg/60 px-6">
-        <AlertCircle size={36} />
-        <p className="text-sm">请先在设置中填入 {source === 'xueqiu' ? '雪球' : '淘股吧'} Cookie</p>
-        <p className="text-xs text-fund-fg/40 text-center">
-          {source === 'xueqiu'
-            ? '获取方式：登录雪球 → F12 → Application → Cookies → 复制 xq_a_token'
-            : '获取方式：登录淘股吧 → F12 → Application → Cookies → 复制全部 Cookie'}
-        </p>
-        <a
-          href={source === 'xueqiu' ? 'https://xueqiu.com/S/CSI000001' : 'https://www.taoguba.com.cn/'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-sm text-fund-up hover:underline mt-2"
-        >
-          <ExternalLink size={14} /> 在浏览器中打开{source === 'xueqiu' ? '雪球' : '淘股吧'}
-        </a>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -144,7 +120,7 @@ export default function PostList({ source, cookie, fetchFn, tabs }: Props) {
                   <span className="text-xs font-medium text-fund-fg/80">{post.user}</span>
                   <span className="text-[10px] text-fund-fg/40">{post.time}</span>
                   <span className="text-[10px] px-1 py-0.5 rounded bg-fund-border/50 text-fund-fg/50 ml-auto">
-                    {post.source === 'xueqiu' ? '雪球' : '淘股吧'}
+                    {post.source === 'eastmoney' ? '东财' : post.source === 'xueqiu' ? '雪球' : post.source === 'taoguba' ? '淘股吧' : post.source}
                   </span>
                 </div>
 

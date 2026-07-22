@@ -7,8 +7,7 @@ interface BarrageItem {
   top: number;
   speed: number;
   color: string;
-  source: 'xueqiu' | 'taoguba';
-  user?: string;
+  source: string;
 }
 
 interface Props {
@@ -26,7 +25,7 @@ export default function Barrage({ isPlaying, xueqiuCookie, taogubaCookie, worker
   const lastSpawnRef = useRef(0);
   const animRef = useRef<number>();
   const itemsRef = useRef<BarrageItem[]>([]);
-  const entriesRef = useRef<{ text: string; source: 'xueqiu' | 'taoguba'; user: string }[]>([]);
+  const entriesRef = useRef<{ text: string; source: string; user: string }[]>([]);
   const entriesIdxRef = useRef(0);
 
   // 加载弹幕数据
@@ -71,7 +70,6 @@ export default function Barrage({ isPlaying, xueqiuCookie, taogubaCookie, worker
       speed: 1.5 + Math.random() * 2,
       color: colors[entry.source] || '#fff',
       source: entry.source,
-      user: entry.user,
     };
     itemsRef.current = [...itemsRef.current, item];
     setItems([...itemsRef.current]);
@@ -151,7 +149,7 @@ function BarrageLine({ item, containerWidth }: { item: BarrageItem; containerWid
         willChange: 'transform',
       }}
     >
-      <span className="text-[10px] mr-1 opacity-60">[{item.source === 'xueqiu' ? '雪球' : '淘股吧'}]</span>
+      <span className="text-[10px] mr-1 opacity-60">[{item.source}]</span>
       {item.text}
     </div>
   );

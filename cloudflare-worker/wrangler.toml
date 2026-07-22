@@ -1,9 +1,17 @@
 name = "fund-flow-proxy"
 main = "worker.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2026-07-22"
 
-# 免费额度：每天 10 万次请求
-# 如果需要更多，可以升级到 Workers Paid Plan
+# 静态资产配置：H5 页面
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
 
-# 可选：自定义域名（需要先绑定）
-# routes = [{ pattern = "proxy.yourdomain.com", custom_domain = true }]
+# Worker 先执行 /proxy 路径的请求，其他走静态资产
+run_worker_first = ["/proxy/*", "/proxy"]
+
+# 自定义域名
+routes = [
+  { pattern = "proxy.epcb.asia", custom_domain = true }
+]

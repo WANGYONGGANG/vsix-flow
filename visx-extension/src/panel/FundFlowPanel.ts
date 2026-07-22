@@ -6,8 +6,9 @@ export class FundFlowPanel {
   private readonly _panel: vscode.WebviewPanel;
   private _disposables: vscode.Disposable[] = [];
   private _context: vscode.ExtensionContext;
+  private _proxyUrl?: string;
 
-  public static createOrShow(context: vscode.ExtensionContext) {
+  public static createOrShow(context: vscode.ExtensionContext, proxyUrl?: string) {
     console.log('FundFlowPanel.createOrShow called');
     
     const column = vscode.window.activeTextEditor
@@ -32,12 +33,13 @@ export class FundFlowPanel {
     );
 
     console.log('Created new WebviewPanel');
-    FundFlowPanel.currentPanel = new FundFlowPanel(panel, context);
+    FundFlowPanel.currentPanel = new FundFlowPanel(panel, context, proxyUrl);
   }
 
-  private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
+  private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext, proxyUrl?: string) {
     this._panel = panel;
     this._context = context;
+    this._proxyUrl = proxyUrl;
     
     console.log('FundFlowPanel constructor called, updating webview');
     this._update();
@@ -101,14 +103,17 @@ export class FundFlowPanel {
       const config = this._context.globalState.get('fundFlowConfig') as any || {};
       const useBgMode = this._context.globalState.get('fundFlowUseBgMode') as boolean || false;
       const cspSource = webview.cspSource;
+      // 允许 localhost 和 https 连接
+      const connectSrc = this._proxyUrl ? `http://localhost:* https:` : `https:`;
       html = html.replace(
         '</head>',
-        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https:; script-src 'self' 'unsafe-inline' ${cspSource}; style-src 'self' 'unsafe-inline' ${cspSource}; img-src 'self' data: https: ${cspSource};">
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src ${connectSrc}; script-src 'self' 'unsafe-inline' ${cspSource}; style-src 'self' 'unsafe-inline' ${cspSource}; img-src 'self' data: https: ${cspSource};">
         <script>
           window.FUND_FLOW_VSCODE = true;
           window.FUND_FLOW_THEME = '${this._getVsCodeTheme()}';
           window.FUND_FLOW_CONFIG = ${JSON.stringify(config)};
           window.FUND_FLOW_USE_BG_MODE = ${useBgMode};
+          window.FUND_FLOW_PROXY_URL = ${JSON.stringify(this._proxyUrl || '')};
         </script></head>`
       );
       

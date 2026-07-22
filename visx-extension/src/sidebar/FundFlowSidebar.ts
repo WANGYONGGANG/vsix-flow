@@ -4,10 +4,12 @@ export class FundFlowSidebar implements vscode.WebviewViewProvider {
   public static readonly viewType = 'fundFlowSidebar';
   private _view?: vscode.WebviewView;
   private _context: vscode.ExtensionContext;
+  private _proxyUrl?: string;
 
-  constructor(context: vscode.ExtensionContext) {
+  constructor(context: vscode.ExtensionContext, proxyUrl?: string) {
     console.log('FundFlowSidebar constructor called');
     this._context = context;
+    this._proxyUrl = proxyUrl;
   }
 
   public resolveWebviewView(
@@ -67,14 +69,17 @@ export class FundFlowSidebar implements vscode.WebviewViewProvider {
       const config = this._context.globalState.get('fundFlowConfig') as any || {};
       const useBgMode = this._context.globalState.get('fundFlowUseBgMode') as boolean || false;
       const cspSource = webview.cspSource;
+      // 允许 localhost 和 https 连接
+      const connectSrc = this._proxyUrl ? `http://localhost:* https:` : `https:`;
       html = html.replace(
         '</head>',
-        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https:; script-src 'self' 'unsafe-inline' ${cspSource}; style-src 'self' 'unsafe-inline' ${cspSource}; img-src 'self' data: https: ${cspSource};">
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src ${connectSrc}; script-src 'self' 'unsafe-inline' ${cspSource}; style-src 'self' 'unsafe-inline' ${cspSource}; img-src 'self' data: https: ${cspSource};">
         <script>
           window.FUND_FLOW_VSCODE = true;
           window.FUND_FLOW_THEME = '${this._getVsCodeTheme()}';
           window.FUND_FLOW_CONFIG = ${JSON.stringify(config)};
           window.FUND_FLOW_USE_BG_MODE = ${useBgMode};
+          window.FUND_FLOW_PROXY_URL = ${JSON.stringify(this._proxyUrl || '')};
         </script></head>`
       );
       

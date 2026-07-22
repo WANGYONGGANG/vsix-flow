@@ -9,7 +9,7 @@ import ConfigPanel from '@/components/ConfigPanel';
 import Barrage from '@/components/Barrage';
 import PageSwitcher, { PageId } from '@/components/PageSwitcher';
 import PostList from '@/components/PostList';
-import { fetchXueqiuPosts, fetchTaogubaPosts } from '@/lib/socialData';
+import { fetchEastmoneyPostsCached } from '@/lib/socialData';
 
 interface Config {
   interval: number;
@@ -18,14 +18,18 @@ interface Config {
   stopAfterClose: boolean;
   bgOpacity: number;
   barrageEnabled: boolean;
-  xueqiuCookie: string;
-  taogubaCookie: string;
-  proxyWorkerUrl: string;
 }
 
 const DEF: Config = {
   interval: 6000, playbackSpeed: 60, autoFetch: true, stopAfterClose: true,
-  bgOpacity: 0.3, barrageEnabled: false, xueqiuCookie: '', taogubaCookie: '', proxyWorkerUrl: '',
+  bgOpacity: 0.3, barrageEnabled: false,
+};
+
+// 东财新闻页面映射
+const EM_PAGE_MAP: Record<string, string> = {
+  em_kuaixun: 'kuaixun',
+  em_gushi: 'gushi',
+  em_caijing: 'caijing',
 };
 
 export default function App() {
@@ -50,9 +54,7 @@ export default function App() {
   // VS Code 全局配置同步
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'config') {
-        setConfig(prev => ({ ...prev, ...e.data.config }));
-      }
+      if (e.data?.type === 'config') setConfig(prev => ({ ...prev, ...e.data.config }));
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -118,10 +120,22 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [playing, realData, config.playbackSpeed]);
 
+  // 东财新闻 fetchFn — 必须在所有条件 return 之前
+  const emFetchFn = useMemo(() => {
+    const col = EM_PAGE_MAP[page] || 'kuaixun';
+    return () => fetchEastmoneyPostsCached(col);
+  }, [page]);
+
   if (loading) return <div className="flex h-screen items-center justify-center text-fund-fg"><div className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-fund-fg border-t-transparent" />加载中...</div>;
   if (error || !data) return <div className="flex h-screen flex-col items-center justify-center text-fund-fg gap-3"><p>{error || '暂无数据'}</p><button onClick={() => load()} className="rounded bg-fund-up px-3 py-1.5 text-white text-sm">重试</button></div>;
 
   const time = currentPoint?.time;
+
+  // 页面标题映射
+  const pageTitle = page === 'fundFlow' ? '主力资金流向'
+    : page === 'em_kuaixun' ? '东财7x24快讯'
+    : page === 'em_gushi' ? '东财股市新闻'
+    : '东财财经新闻';
 
   return (
     <ThemeProvider>
@@ -129,9 +143,7 @@ export default function App() {
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-fund-border">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-bold">
-              {page === 'fundFlow' ? '主力资金流向' : page === 'xueqiu' ? '雪球热帖' : '淘股吧讨论'}
-            </span>
+            <span className="font-bold">{pageTitle}</span>
             {page === 'fundFlow' && time && (
               <>
                 <span className="text-fund-fg/50 font-mono">{playing ? '回放 ' : ''}{time}</span>
@@ -158,27 +170,17 @@ export default function App() {
               <FundFlowChart currentPoint={currentPoint} sectors={data.sectors} maxAbsValue={maxVal} />
               {config.barrageEnabled && (
                 <Barrage isPlaying={playing}
-                  xueqiuCookie={config.xueqiuCookie} taogubaCookie={config.taogubaCookie}
-                  workerUrl={config.proxyWorkerUrl || undefined} />
+                  xueqiuCookie={''} taogubaCookie={''} />
               )}
             </>
-          ) : page === 'xueqiu' ? (
-            <PostList
-              source="xueqiu"
-              cookie={config.xueqiuCookie}
-              fetchFn={(c) => fetchXueqiuPosts(c, config.proxyWorkerUrl || undefined)}
-              tabs={[
-                { key: 'all', label: '全部' },
-                { key: 'hot', label: '热门' },
-                { key: 'latest', label: '最新' },
-              ]}
-            />
           ) : (
             <PostList
-              source="taoguba"
-              cookie={config.taogubaCookie}
-              fetchFn={(c) => fetchTaogubaPosts(c, config.proxyWorkerUrl || undefined)}
-              tabs={[
+              source={page}
+              cookie={''}
+              fetchFn={emFetchFn}
+              tabs={page === 'em_kuaixun' ? [
+                { key: 'all', label: '全部' },
+              ] : [
                 { key: 'all', label: '全部' },
                 { key: 'hot', label: '热门' },
               ]}
@@ -188,7 +190,7 @@ export default function App() {
 
         {/* Footer */}
         <div className="px-3 py-1 text-[10px] text-fund-fg/40 border-t border-fund-border">
-          {page === 'fundFlow' ? '单位：亿 | 东方财富 | 不作为投资依据' : page === 'xueqiu' ? '雪球 - 聪明的投资者都在这里 | 不作为投资依据' : '淘股吧 | 不作为投资依据'}
+          {page === 'fundFlow' ? '单位：亿 | 东方财富 | 不作为投资依据' : '东方财富网 | 不作为投资依据'}
         </div>
 
         <ConfigPanel config={config} onConfigChange={setConfig} isOpen={cfgOpen} onClose={() => setCfgOpen(false)} />

@@ -1,6 +1,6 @@
-import { BarChart3, Newspaper, MessageSquare } from 'lucide-react';
+import { BarChart3, Zap, TrendingUp, Landmark } from 'lucide-react';
 
-export type PageId = 'fundFlow' | 'xueqiu' | 'taoguba';
+export type PageId = 'fundFlow' | 'em_kuaixun' | 'em_gushi' | 'em_caijing';
 
 interface Props {
   current: PageId;
@@ -9,8 +9,9 @@ interface Props {
 
 const PAGES: { id: PageId; icon: typeof BarChart3; label: string; title: string }[] = [
   { id: 'fundFlow', icon: BarChart3, label: '资金', title: '主力资金流向' },
-  { id: 'xueqiu', icon: Newspaper, label: '雪球', title: '雪球热帖' },
-  { id: 'taoguba', icon: MessageSquare, label: '淘股吧', title: '淘股吧讨论' },
+  { id: 'em_kuaixun', icon: Zap, label: '快讯', title: '东财7x24快讯' },
+  { id: 'em_gushi', icon: TrendingUp, label: '股市', title: '东财股市新闻' },
+  { id: 'em_caijing', icon: Landmark, label: '财经', title: '东财财经新闻' },
 ];
 
 export default function PageSwitcher({ current, onChange }: Props) {
