@@ -25,13 +25,6 @@ const DEF: Config = {
   bgOpacity: 0.3, barrageEnabled: false,
 };
 
-// 东财新闻页面映射
-const EM_PAGE_MAP: Record<string, string> = {
-  em_kuaixun: 'kuaixun',
-  em_gushi: 'gushi',
-  em_caijing: 'caijing',
-};
-
 export default function App() {
   const [data, setData] = useState<FundData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +44,6 @@ export default function App() {
   useEffect(() => { pRef.current = progress; }, [progress]);
   useEffect(() => { localStorage.setItem('fundFlowConfig', JSON.stringify(config)); }, [config]);
 
-  // VS Code 全局配置同步
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'config') setConfig(prev => ({ ...prev, ...e.data.config }));
@@ -83,12 +75,13 @@ export default function App() {
   }, [config.interval, config.autoFetch, config.stopAfterClose, load]);
 
   const realData = data?.intraday ?? [];
+  const currentIndex = Math.min(Math.floor((realData.length - 1) * progress), realData.length - 1);
 
   const currentPoint = useMemo(() => {
     if (!realData.length) return null;
-    if (playing || progress > 0) return realData[Math.min(Math.floor((realData.length - 1) * progress), realData.length - 1)];
+    if (playing || progress > 0) return realData[currentIndex];
     return realData[realData.length - 1];
-  }, [realData, playing, progress]);
+  }, [realData, playing, progress, currentIndex]);
 
   const maxVal = useMemo(() => {
     if (!data) return 10;
@@ -120,27 +113,17 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [playing, realData, config.playbackSpeed]);
 
-  // 东财新闻 fetchFn — 必须在所有条件 return 之前
-  const emFetchFn = useMemo(() => {
-    const col = EM_PAGE_MAP[page] || 'kuaixun';
-    return () => fetchEastmoneyPostsCached(col);
-  }, [page]);
+  const emFetchFn = useMemo(() => () => fetchEastmoneyPostsCached(), []);
 
   if (loading) return <div className="flex h-screen items-center justify-center text-fund-fg"><div className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-fund-fg border-t-transparent" />加载中...</div>;
   if (error || !data) return <div className="flex h-screen flex-col items-center justify-center text-fund-fg gap-3"><p>{error || '暂无数据'}</p><button onClick={() => load()} className="rounded bg-fund-up px-3 py-1.5 text-white text-sm">重试</button></div>;
 
   const time = currentPoint?.time;
-
-  // 页面标题映射
-  const pageTitle = page === 'fundFlow' ? '主力资金流向'
-    : page === 'em_kuaixun' ? '东财7x24快讯'
-    : page === 'em_gushi' ? '东财股市新闻'
-    : '东财财经新闻';
+  const pageTitle = page === 'fundFlow' ? '主力资金流向' : '东财7x24快讯';
 
   return (
     <ThemeProvider>
       <div className="flex h-screen flex-col bg-fund-bg text-fund-fg" style={{ opacity: config.bgOpacity }}>
-        {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-fund-border">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-bold">{pageTitle}</span>
@@ -163,29 +146,22 @@ export default function App() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-h-0 relative">
           {page === 'fundFlow' ? (
             <>
               <FundFlowChart currentPoint={currentPoint} sectors={data.sectors} maxAbsValue={maxVal} />
-              {config.barrageEnabled && <Barrage />}
+              {config.barrageEnabled && (
+                <Barrage data={data} currentIndex={playing || progress > 0 ? currentIndex : realData.length - 1} />
+              )}
             </>
           ) : (
             <PostList
-              source={page}
-              cookie={''}
               fetchFn={emFetchFn}
-              tabs={page === 'em_kuaixun' ? [
-                { key: 'all', label: '全部' },
-              ] : [
-                { key: 'all', label: '全部' },
-                { key: 'hot', label: '热门' },
-              ]}
+              tabs={[{ key: 'all', label: '全部' }]}
             />
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-3 py-1 text-[10px] text-fund-fg/40 border-t border-fund-border">
           {page === 'fundFlow' ? '单位：亿 | 东方财富 | 不作为投资依据' : '东方财富网 | 不作为投资依据'}
         </div>

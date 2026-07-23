@@ -5,14 +5,14 @@ export interface PostEntry {
   user: string;
   avatar?: string;
   time: string;
-  source: 'eastmoney' | 'xueqiu' | 'taoguba';
+  source: 'eastmoney' | string;
   viewCount?: number;
   likeCount?: number;
   commentCount?: number;
   url?: string;
 }
 
-// ==================== 东方财富（公开API，无需代理/Cookie）====================
+// ==================== 东方财富7x24快讯（公开API，实时）====================
 
 interface EmNewsItem {
   title: string;
@@ -25,48 +25,29 @@ interface EmNewsItem {
   mediaName?: string;
 }
 
-// 东财新闻分类
-const EM_COLUMNS = {
-  kuaixun: 350,   // 7x24快讯
-  caijing: 331,  // 财经新闻
-  gushi: 330,    // 股市要闻
-  fund: 338,     // 基金
-  hk: 616,       // 港股
-  us: 617,       // 美股
-};
-
 let reqTrace = 'abc' + Math.random().toString(36).slice(2, 8);
 
-export async function fetchEastmoney(column: keyof typeof EM_COLUMNS = 'kuaixun'): Promise<PostEntry[]> {
-  const colId = EM_COLUMNS[column];
-  const url = `https://np-listapi.eastmoney.com/comm/web/getNewsByColumns?client=web&biz=web_news_col&column=${colId}&order=1&needInteractData=0&page_index=1&page_size=30&req_trace=${reqTrace}`;
+export async function fetchEastmoney(): Promise<PostEntry[]> {
+  const url = `https://np-listapi.eastmoney.com/comm/web/getNewsByColumns?client=web&biz=web_news_col&column=350&order=1&needInteractData=0&page_index=1&page_size=30&req_trace=${reqTrace}`;
 
-  console.log(`[socialData] 请求东财新闻: column=${column}(${colId})`);
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(10000),
-  });
-
+  console.log(`[socialData] 请求东财快讯`);
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`东财接口返回 ${res.status}`);
-
   const json = await res.json();
   if (json.code !== '1') throw new Error('东财接口返回失败');
 
   const items: EmNewsItem[] = json?.data?.list || [];
-  console.log(`[socialData] 获取到 ${items.length} 条东财新闻`);
+  console.log(`[socialData] 获取到 ${items.length} 条东财快讯`);
 
-  return items.map((item, i) => {
-    const postUrl = item.uniqueUrl || item.url || '';
-    return {
-      id: item.code || String(i),
-      text: item.summary || item.title || '',
-      title: item.title || undefined,
-      user: item.mediaName || '东方财富',
-      time: formatEmTime(item.showTime),
-      source: 'eastmoney' as const,
-      url: postUrl,
-      viewCount: undefined,
-    };
-  });
+  return items.map((item, i) => ({
+    id: item.code || String(i),
+    text: item.summary || item.title || '',
+    title: item.title || undefined,
+    user: item.mediaName || '东方财富',
+    time: formatEmTime(item.showTime),
+    source: 'eastmoney' as const,
+    url: item.uniqueUrl || item.url || '',
+  }));
 }
 
 function formatEmTime(timeStr: string): string {
@@ -81,189 +62,118 @@ function formatEmTime(timeStr: string): string {
   return `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
-export async function fetchEastmoneyPosts(column?: string): Promise<PostEntry[]> {
-  return fetchEastmoney((column || 'kuaixun') as keyof typeof EM_COLUMNS);
+export async function fetchEastmoneyPostsCached(): Promise<PostEntry[]> {
+  return fetchEastmoney();
 }
 
-// ==================== 雪球/淘股吧（需要代理+Cookie，保留作为可选）====================
+// ==================== 智能弹幕：基于资金流向数据生成模拟弹幕 ====================
 
-// 免费代理降级列表
-const FALLBACK_PROXIES = [
-  (url: string, headers: Record<string, string>) => {
-    let proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
-    for (const [k, v] of Object.entries(headers)) {
-      proxyUrl += `&reqHeaders=${encodeURIComponent(`${k}: ${v}`)}`;
-    }
-    return proxyUrl;
-  },
-  (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-  (url: string) => `https://corsproxy.org/?${encodeURIComponent(url)}`,
+interface SectorFlow {
+  name: string;
+  value: number;
+}
+
+interface BarrageGenerator {
+  generate: () => { text: string; source: string; user: string };
+  update: (sectors: SectorFlow[], indexChange?: number) => void;
+}
+
+// 板块涨跌相关的评论模板
+const POSITIVE_TEMPLATES = [
+  (s: string, v: number) => `${s}主力净流入${v.toFixed(1)}亿，资金在抢筹！`,
+  (s: string, v: number) => `${s}今天有点东西，${v.toFixed(1)}亿资金进场`,
+  (s: string, v: number) => `来了来了，${s}又吸金${v.toFixed(1)}亿`,
+  (s: string) => `${s}资金面不错，继续观察`,
+  (s: string) => `感觉${s}要起飞了？`,
+  (s: string, v: number) => `${s}净流入${v.toFixed(1)}亿，机构在布局`,
+  (s: string) => `大佬们都在买${s}，我要不要跟上`,
+  (s: string, v: number) => `${s}吸金${v.toFixed(1)}亿，这才是主线`,
 ];
 
-async function proxyFetch(
-  targetUrl: string,
-  extraHeaders: Record<string, string> = {},
-  workerUrl?: string,
-): Promise<{ text: string; isWrapped: boolean }> {
-  // 用户配置的 Worker 代理
-  if (workerUrl) {
-    try {
-      const proxyUrl = `${workerUrl}/proxy?url=${encodeURIComponent(targetUrl)}`;
-      console.log(`[socialData] 使用 Worker 代理`);
-      const res = await fetch(proxyUrl, {
-        method: 'GET',
-        headers: {
-          'Cookie': extraHeaders['Cookie'] || '',
-          'User-Agent': extraHeaders['User-Agent'] || '',
-          'Referer': extraHeaders['Referer'] || '',
-          'Accept': extraHeaders['Accept'] || '*/*',
-        },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (res.ok) {
-        const text = await res.text();
-        return { text, isWrapped: false };
+const NEGATIVE_TEMPLATES = [
+  (s: string, v: number) => `${s}主力流出${Math.abs(v).toFixed(1)}亿，小心！`,
+  (s: string, v: number) => `${s}资金在跑，净流出${Math.abs(v).toFixed(1)}亿`,
+  (s: string, v: number) => `${s}又被砸了${Math.abs(v).toFixed(1)}亿，心痛`,
+  (s: string) => `${s}主力撤退了，别接飞刀`,
+  (s: string) => `完了，${s}资金面崩了`,
+  (s: string, v: number) => `${s}净流出${Math.abs(v).toFixed(1)}亿，短期回避`,
+  (s: string) => `${s}这种流出量...我先溜了`,
+];
+
+const INDEX_TEMPLATES_UP = [
+  (c: number) => `大盘涨了${c.toFixed(2)}%，今天有戏！`,
+  (c: number) => `指数红了 +${c.toFixed(2)}%，仓位加起来`,
+  (c: number) => `+${c.toFixed(2)}%，稳住就是胜利`,
+  () => `今天行情不错，继续拿`,
+  () => `希望下午别跳水...`,
+];
+
+const INDEX_TEMPLATES_DOWN = [
+  (c: number) => `大盘跌${Math.abs(c).toFixed(2)}%，今天又白干了`,
+  (c: number) => `绿油油的 -${Math.abs(c).toFixed(2)}%，减仓吧`,
+  (c: number) => `-${Math.abs(c).toFixed(2)}%，什么时候是个头`,
+  () => `又是亏钱的一天`,
+  () => `别急，等抄底机会`,
+];
+
+const GENERAL_TEMPLATES = [
+  () => `各位今天赚了多少？`,
+  () => `这个点应该已经收盘了吧`,
+  () => `今天的龙虎榜谁看了`,
+  () => `有没有人做T成功的`,
+  () => `今天涨停板有几个了`,
+  () => `北向资金今天又买了啥`,
+  () => `感觉下周要变盘了`,
+  () => `现在适合加仓吗`,
+];
+
+const USERNAMES = ['股海老张', '追涨小王', '价值投资李', '短线阿杰', '韭菜小明', '波段大师', '量化老陈', '技术分析刘', '新手小白', '老韭菜', '打板哥', '抄底王', '看盘达人', '财经小白', '牛市来了吗'];
+
+export function createBarrageGenerator(): BarrageGenerator {
+  let sectors: SectorFlow[] = [];
+  let indexChange = 0;
+  let tick = 0;
+
+  return {
+    update(newSectors: SectorFlow[], newIndexChange?: number) {
+      sectors = newSectors;
+      if (newIndexChange !== undefined) indexChange = newIndexChange;
+    },
+
+    generate() {
+      tick++;
+      const user = USERNAMES[Math.floor(Math.random() * USERNAMES.length)];
+
+      if (sectors.length === 0) {
+        return { text: GENERAL_TEMPLATES[tick % GENERAL_TEMPLATES.length](), source: '模拟', user };
       }
-    } catch (e) {
-      console.warn(`[socialData] Worker 代理失败: ${e instanceof Error ? e.message : e}`);
-    }
-  }
 
-  // 免费代理降级
-  for (let i = 0; i < FALLBACK_PROXIES.length; i++) {
-    const proxyUrl = FALLBACK_PROXIES[i](targetUrl, extraHeaders);
-    try {
-      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000), headers: i === 0 ? {} : extraHeaders });
-      if (res.ok) {
-        const text = await res.text();
-        return { text, isWrapped: i === 1 };
+      // 按资金净流入绝对值排序
+      const sorted = [...sectors].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+      const top3 = sorted.slice(0, 3);
+      const topSector = top3[0];
+      if (!topSector) return { text: GENERAL_TEMPLATES[tick % GENERAL_TEMPLATES.length](), source: '模拟', user };
+
+      const rand = Math.random();
+
+      // 50% 板块相关
+      if (rand < 0.5) {
+        const sector = top3[Math.floor(Math.random() * top3.length)];
+        const isPos = sector.value >= 0;
+        const templates = isPos ? POSITIVE_TEMPLATES : NEGATIVE_TEMPLATES;
+        const tpl = templates[Math.floor(Math.random() * templates.length)];
+        return { text: tpl(sector.name, sector.value), source: '模拟', user };
       }
-    } catch { /* skip */ }
-  }
-  throw new Error('所有代理均失败');
-}
 
-function fmtTime(ts: number | string): string {
-  const d = new Date(typeof ts === 'string' ? +ts : ts);
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  if (diff < 60000) return '刚刚';
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
-  return `${d.getMonth() + 1}-${d.getDate()}`;
-}
+      // 25% 大盘相关
+      if (rand < 0.75) {
+        const templates = indexChange >= 0 ? INDEX_TEMPLATES_UP : INDEX_TEMPLATES_DOWN;
+        const tpl = templates[Math.floor(Math.random() * templates.length)];
+        return { text: tpl(indexChange), source: '模拟', user };
+      }
 
-export async function fetchXueqiu(cookie: string, workerUrl?: string): Promise<PostEntry[]> {
-  if (!cookie) throw new Error('请先设置雪球 Cookie');
-  const headers: Record<string, string> = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Referer': 'https://xueqiu.com/',
-    'Cookie': cookie,
-    'Accept': 'application/json, text/plain, */*',
-    'Accept-Language': 'zh-CN,zh;q=0.9',
+      // 25% 闲聊
+      return { text: GENERAL_TEMPLATES[tick % GENERAL_TEMPLATES.length](), source: '模拟', user };
+    },
   };
-  const xqatMatch = cookie.match(/xq_a_token=([^;]+)/);
-  if (xqatMatch) headers['X-Access-Token'] = xqatMatch[1];
-
-  const apiUrls = [
-    'https://xueqiu.com/query/v1/symbol/search/status.json?symbol=SH000001&count=10&comment=0&page=1&source=all',
-    'https://xueqiu.com/statuses/livenews/list.json?since_id=-1&max_id=-1&count=30',
-  ];
-
-  for (const apiUrl of apiUrls) {
-    try {
-      const { text, isWrapped } = await proxyFetch(apiUrl, headers, workerUrl);
-      let rawText = text;
-      if (isWrapped) { try { const w = JSON.parse(text); if (w.contents) rawText = w.contents; } catch { /* */ } }
-      if (rawText.includes('aliyun_waf') || rawText.includes('_waf_')) continue;
-      let data: any; try { data = JSON.parse(rawText); } catch { continue; }
-      let items: any[] = [];
-      if (data?.list) items = data.list;
-      else if (data?.items) items = data.items;
-      else if (data?.statuses) items = data.statuses;
-      if (items.length === 0) continue;
-      return items.slice(0, 30).map((item: any) => {
-        const user = item.user || item.userInfo || {};
-        const rawText = item.title || item.text || item.description || item.content || '';
-        const cleanText = rawText.replace(/<[^>]+>/g, '').replace(/\$[^\$]+\$/g, '').trim();
-        return {
-          id: String(item.id || Math.random()), text: cleanText, title: item.title ? cleanText : undefined,
-          user: user.screen_name || user.name || '匿名', time: fmtTime(item.created_at || Date.now()),
-          source: 'xueqiu' as const, viewCount: item.view_count || item.read_count,
-          likeCount: item.like_count || item.fav_count, commentCount: item.reply_count || item.comment_count,
-          url: item.target || item.url || `https://xueqiu.com/${user.id || ''}/${item.id || ''}`,
-        };
-      }).filter((e: PostEntry) => e.text.length > 3);
-    } catch { /* try next */ }
-  }
-  throw new Error('雪球数据获取失败（可能触发了WAF验证）');
-}
-
-export async function fetchTaoguba(cookie: string, workerUrl?: string): Promise<PostEntry[]> {
-  if (!cookie) throw new Error('请先设置淘股吧 Cookie');
-  try {
-    const { text, isWrapped } = await proxyFetch('https://www.taoguba.com.cn/', {
-      'Cookie': cookie, 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.taoguba.com.cn/',
-    }, workerUrl);
-    let html = text;
-    if (isWrapped) { try { const w = JSON.parse(text); if (w.contents) html = w.contents; } catch { /* */ } }
-    const posts: PostEntry[] = [];
-    const patterns = [
-      /<a[^>]*href="(\/[^"\\s]*)"[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/a>/gi,
-      /<li[^>]*>[\s\S]*?<a[^>]*href="(\/[^"\\s]*)"[^>]*>([^<]{5,60})<\/a>[\s\S]*?<\/li>/gi,
-    ];
-    for (const regex of patterns) {
-      let match; while ((match = regex.exec(html)) !== null) {
-        const t = (match[2] || '').trim();
-        const href = match[1]?.startsWith('/') ? `https://www.taoguba.com.cn${match[1]}` : '';
-        if (t.length > 5 && t.length < 100 && !posts.find(p => p.text === t) && !/首页|论坛|登录|注册/.test(t)) {
-          posts.push({ id: String(Math.random()), text: t, title: t, user: '淘股吧用户', time: '刚刚', source: 'taoguba', url: href });
-        }
-      }
-      if (posts.length >= 15) break;
-    }
-    if (posts.length > 0) return posts.slice(0, 20);
-  } catch { /* */ }
-  throw new Error('淘股吧数据获取失败');
-}
-
-// ==================== 缓存 ====================
-let emCache: { posts: PostEntry[]; time: number; column: string } | null = null;
-let xueqiuCache: { posts: PostEntry[]; time: number } | null = null;
-let taogubaCache: { posts: PostEntry[]; time: number } | null = null;
-
-export async function fetchEastmoneyPostsCached(column?: string): Promise<PostEntry[]> {
-  const col = column || 'kuaixun';
-  if (emCache && emCache.column === col && Date.now() - emCache.time < 60000) return emCache.posts;
-  const posts = await fetchEastmoney(col as keyof typeof EM_COLUMNS);
-  emCache = { posts, time: Date.now(), column: col };
-  return posts;
-}
-
-export async function fetchXueqiuPosts(cookie: string, workerUrl?: string): Promise<PostEntry[]> {
-  if (xueqiuCache && Date.now() - xueqiuCache.time < 60000) return xueqiuCache.posts;
-  const posts = await fetchXueqiu(cookie, workerUrl);
-  xueqiuCache = { posts, time: Date.now() };
-  return posts;
-}
-
-export async function fetchTaogubaPosts(cookie: string, workerUrl?: string): Promise<PostEntry[]> {
-  if (taogubaCache && Date.now() - taogubaCache.time < 60000) return taogubaCache.posts;
-  const posts = await fetchTaoguba(cookie, workerUrl);
-  taogubaCache = { posts, time: Date.now() };
-  return posts;
-}
-
-// 弹幕数据
-export async function fetchBarrageData(
-  _xqCookie: string,
-  _tgCookie: string,
-  _workerUrl?: string
-): Promise<{ text: string; source: string; user: string }[]> {
-  const posts = await fetchEastmoney('kuaixun');
-  return posts.slice(0, 20).map(p => ({
-    text: p.text.slice(0, 40),
-    source: '东财',
-    user: p.user,
-  }));
 }

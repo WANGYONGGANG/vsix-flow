@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { fetchBarrageData } from '@/lib/socialData';
+import { createBarrageGenerator } from '@/lib/socialData';
+import type { FundData } from '@/types';
 
 interface BarrageItem {
   id: number;
@@ -8,65 +9,67 @@ interface BarrageItem {
   speed: number;
   color: string;
   source: string;
+  user: string;
+}
+
+interface Props {
+  data: FundData | null;
+  currentIndex: number;
 }
 
 let nextId = 0;
 
-export default function Barrage() {
+export default function Barrage({ data, currentIndex }: Props) {
   const [items, setItems] = useState<BarrageItem[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastSpawnRef = useRef(0);
   const animRef = useRef<number>();
   const itemsRef = useRef<BarrageItem[]>([]);
-  const entriesRef = useRef<{ text: string; source: string; user: string }[]>([]);
-  const entriesIdxRef = useRef(0);
+  const genRef = useRef(createBarrageGenerator());
 
-  // 加载东财快讯作为弹幕数据
-  const loadEntries = useCallback(async () => {
-    try {
-      entriesRef.current = await fetchBarrageData('', '', undefined);
-      entriesIdxRef.current = 0;
-    } catch {
-      entriesRef.current = [];
-    }
-  }, []);
-
-  useEffect(() => { loadEntries(); }, [loadEntries]);
-
-  // 定时刷新
+  // 更新弹幕生成器的数据
   useEffect(() => {
-    const id = setInterval(loadEntries, 120000);
-    return () => clearInterval(id);
-  }, [loadEntries]);
+    if (!data) return;
+    const point = data.intraday[currentIndex];
+    if (!point) return;
+
+    const sectors = data.sectors.map(s => ({
+      name: s.name,
+      value: point.sectors[s.name] ?? 0,
+    }));
+
+    // 大盘涨跌用净流入近似
+    const totalFlow = sectors.reduce((sum, s) => sum + s.value, 0);
+    genRef.current.update(sectors, totalFlow);
+  }, [data, currentIndex]);
 
   // 生成弹幕
   const spawn = useCallback(() => {
-    const entries = entriesRef.current;
-    if (!entries.length) return;
-    const entry = entries[entriesIdxRef.current % entries.length];
-    entriesIdxRef.current++;
-
     const container = containerRef.current;
     if (!container) return;
     const h = container.clientHeight;
 
+    const entry = genRef.current.generate();
+    const isUp = entry.text.includes('流入') || entry.text.includes('涨') || entry.text.includes('红') || entry.text.includes('加仓') || entry.text.includes('抢筹');
+
     const item: BarrageItem = {
       id: nextId++,
-      text: entry.user ? `${entry.user}: ${entry.text}` : entry.text,
+      text: entry.text,
       top: Math.random() * Math.max(h - 30, 10),
-      speed: 1.5 + Math.random() * 2,
-      color: '#f0b90b',
+      speed: 1.2 + Math.random() * 1.8,
+      color: isUp ? '#ef4444' : '#22c55e',
       source: entry.source,
+      user: entry.user,
     };
     itemsRef.current = [...itemsRef.current, item];
     setItems([...itemsRef.current]);
   }, []);
 
-  // 动画循环 — 自动滚动，不需要回放
+  // 动画循环
   useEffect(() => {
     const step = () => {
       const now = performance.now();
-      if (now - lastSpawnRef.current > 2000 + Math.random() * 2000) {
+      if (now - lastSpawnRef.current > 1500 + Math.random() * 2000) {
         spawn();
         lastSpawnRef.current = now;
       }
@@ -129,7 +132,7 @@ function BarrageLine({ item, containerWidth }: { item: BarrageItem; containerWid
         willChange: 'transform',
       }}
     >
-      <span className="text-[10px] mr-1 opacity-60">[{item.source}]</span>
+      <span className="text-[10px] mr-1 opacity-70">{item.user}</span>
       {item.text}
     </div>
   );

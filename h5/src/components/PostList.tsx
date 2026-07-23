@@ -3,9 +3,7 @@ import { RefreshCw, MessageCircle, Eye, Heart } from 'lucide-react';
 import type { PostEntry } from '@/lib/socialData';
 
 interface Props {
-  source: string;
-  cookie: string;
-  fetchFn: (cookie: string) => Promise<PostEntry[]>;
+  fetchFn: () => Promise<PostEntry[]>;
   tabs: { key: string; label: string }[];
 }
 
@@ -21,7 +19,7 @@ export default function PostList({ fetchFn, tabs }: Props) {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchFn('');
+      const data = await fetchFn();
       setPosts(data);
       setLastUpdate(new Date().toLocaleTimeString());
       if (data.length === 0) {
