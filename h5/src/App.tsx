@@ -168,10 +168,7 @@ export default function App() {
           {page === 'fundFlow' ? (
             <>
               <FundFlowChart currentPoint={currentPoint} sectors={data.sectors} maxAbsValue={maxVal} />
-              {config.barrageEnabled && (
-                <Barrage isPlaying={playing}
-                  xueqiuCookie={''} taogubaCookie={''} />
-              )}
+              {config.barrageEnabled && <Barrage />}
             </>
           ) : (
             <PostList
