@@ -2144,3 +2144,305 @@ export interface FundDataSnapshot {
   dayHigh: number;
   dayLow: number;
 }
+
+// ==================== 工具函数 ====================
+
+function getTradeDate(offsetDays = 0): string {
+  const now = new Date();
+  now.setDate(now.getDate() - offsetDays);
+  const day = now.getDay();
+  // 跳过周末
+  if (day === 0) now.setDate(now.getDate() - 2);
+  if (day === 6) now.setDate(now.getDate() - 1);
+  return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function getYesterdayTradeDate(): string {
+  return getTradeDate(1);
+}
+
+// ==================== Tab1: 板块涨跌停统计 ====================
+
+export interface SectorStat {
+  code: string;
+  name: string;
+  price: number;
+  changeRate: number;
+  changeAmount: number;
+  upCount: number;
+  downCount: number;
+  volume: number;
+  amount: number;
+  type: 'concept' | 'industry';
+}
+
+export async function fetchSectorLimitStats(): Promise<SectorStat[]> {
+  // 概念板块 fs=m:90+t:2, 行业板块 fs=m:90+t:1
+  // f12=代码 f14=名称 f2=最新价 f3=涨跌幅 f4=涨跌额 f10=成交量 f15=成交额 f104=上涨家数 f105=下跌家数
+  const fields = 'f12,f14,f2,f3,f4,f10,f15,f104,f105';
+  const base = 'https://push2.eastmoney.com/api/qt/clist/get';
+  const common = `pn=1&pz=200&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fields=${fields}&_=${Date.now()}`;
+
+  const [conceptRes, industryRes] = await Promise.all([
+    fetch(`${base}?${common}&fs=m:90+t:2`, { signal: AbortSignal.timeout(15000) }),
+    fetch(`${base}?${common}&fs=m:90+t:1`, { signal: AbortSignal.timeout(15000) }),
+  ]);
+
+  if (!conceptRes.ok) throw new Error(`概念板块接口 ${conceptRes.status}`);
+  if (!industryRes.ok) throw new Error(`行业板块接口 ${industryRes.status}`);
+
+  const conceptJson = await conceptRes.json();
+  const industryJson = await industryRes.json();
+
+  const parse = (json: any, type: 'concept' | 'industry'): SectorStat[] => {
+    const list = json?.data?.diff || [];
+    return list.map((item: any) => ({
+      code: item.f12 || '',
+      name: item.f14 || '',
+      price: item.f2 ? item.f2 / 1000 : 0,
+      changeRate: item.f3 ? item.f3 / 100 : 0,
+      changeAmount: item.f4 ? item.f4 / 1000 : 0,
+      upCount: item.f104 || 0,
+      downCount: item.f105 || 0,
+      volume: item.f10 || 0,
+      amount: item.f15 ? item.f15 / 10000 : 0,
+      type,
+    }));
+  };
+
+  const concepts = parse(conceptJson, 'concept');
+  const industries = parse(industryJson, 'industry');
+
+  // 合并并按涨跌幅排序（如果涨停数不足10个，自然按涨跌幅排序）
+  return [...concepts, ...industries].sort((a, b) => b.changeRate - a.changeRate);
+}
+
+// ==================== Tab2: 昨日龙虎榜 ====================
+
+export interface DragonTigerEntry {
+  code: string;
+  name: string;
+  tradeDate: string;
+  closePrice: number;
+  changeRate: number;
+  netBuyAmt: number;      // 净买入额(万)
+  buyTimes: number;       // 买入机构数
+  sellTimes: number;      // 卖出机构数
+  buyAmt: number;         // 买入额(万)
+  sellAmt: number;        // 卖出额(万)
+  reason: string;         // 上榜原因
+  // 席位明细
+  seats: DragonTigerSeat[];
+}
+
+export interface DragonTigerSeat {
+  seatName: string;
+  buyAmt: number;
+  sellAmt: number;
+  netAmt: number;
+  type: '机构' | '游资' | '其他';
+}
+
+export async function fetchDragonTiger(date?: string): Promise<DragonTigerEntry[]> {
+  const tradeDate = date || getYesterdayTradeDate();
+  const formattedDate = `${tradeDate.slice(0, 4)}-${tradeDate.slice(4, 6)}-${tradeDate.slice(6, 8)}`;
+
+  // 1. 获取龙虎榜汇总列表
+  const url = 'http://datacenter-web.eastmoney.com/api/data/v1/get';
+  const params = new URLSearchParams({
+    sortColumns: 'NET_BUY_AMT,TRADE_DATE,SECURITY_CODE',
+    sortTypes: '-1,-1,1',
+    pageSize: '500',
+    pageNumber: '1',
+    reportName: 'RPT_ORGANIZATION_TRADE_DETAILS',
+    columns: 'ALL',
+    source: 'WEB',
+    client: 'WEB',
+    filter: `(TRADE_DATE='${formattedDate}')`,
+  });
+
+  const res = await fetch(`${url}?${params.toString()}`, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`龙虎榜接口 ${res.status}`);
+  const json = await res.json();
+  const list = json?.result?.data || [];
+
+  // 2. 获取每个股票的席位详情
+  const entries: DragonTigerEntry[] = [];
+
+  for (const item of list) {
+    const code = item.SECURITY_CODE || '';
+    const name = item.SECURITY_NAME_ABBR || '';
+
+    // 获取席位明细
+    const seats = await fetchDragonTigerSeats(code, formattedDate);
+
+    entries.push({
+      code,
+      name,
+      tradeDate: formattedDate,
+      closePrice: item.CLOSE_PRICE || 0,
+      changeRate: item.CHANGE_RATE ? item.CHANGE_RATE / 100 : 0,
+      netBuyAmt: item.NET_BUY_AMT ? item.NET_BUY_AMT / 10000 : 0,
+      buyTimes: item.BUY_TIMES || 0,
+      sellTimes: item.SELL_TIMES || 0,
+      buyAmt: item.BUY_AMT ? item.BUY_AMT / 10000 : 0,
+      sellAmt: item.SELL_AMT ? item.SELL_AMT / 10000 : 0,
+      reason: item.EXPLANATION || '',
+      seats,
+    });
+  }
+
+  return entries.sort((a, b) => b.netBuyAmt - a.netBuyAmt);
+}
+
+async function fetchDragonTigerSeats(code: string, date: string): Promise<DragonTigerSeat[]> {
+  try {
+    const url = 'http://datacenter-web.eastmoney.com/api/data/v1/get';
+    const params = new URLSearchParams({
+      sortColumns: 'TRADE_DATE,SECURITY_CODE,NET_AMT',
+      sortTypes: '-1,1,-1',
+      pageSize: '50',
+      pageNumber: '1',
+      reportName: 'RPT_ORGANIZATION_TRADE_DETAILS_NEW',
+      columns: 'ALL',
+      source: 'WEB',
+      client: 'WEB',
+      filter: `(TRADE_DATE='${date}')(SECURITY_CODE="${code}")`,
+    });
+
+    const res = await fetch(`${url}?${params.toString()}`, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return [];
+    const json = await res.json();
+    const list = json?.result?.data || [];
+
+    return list.map((item: any) => ({
+      seatName: item.OPERATEDEPT_NAME || item.OPERATEDEPT_CODE || '未知席位',
+      buyAmt: item.BUY_AMT ? item.BUY_AMT / 10000 : 0,
+      sellAmt: item.SELL_AMT ? item.SELL_AMT / 10000 : 0,
+      netAmt: item.NET_AMT ? item.NET_AMT / 10000 : 0,
+      type: classifySeat(item.OPERATEDEPT_NAME || ''),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function classifySeat(name: string): '机构' | '游资' | '其他' {
+  if (!name) return '其他';
+  if (name.includes('机构专用')) return '机构';
+  if (name.includes('沪股通专用') || name.includes('深股通专用')) return '其他';
+  // 知名游资席位特征
+  const knownYousei = ['中信证券', '华泰证券', '国泰君安', '招商证券', '银河证券', '光大证券', '海通证券', '申万宏源', '广发证券', '中信建投'];
+  if (knownYousei.some(k => name.includes(k))) return '游资';
+  return '其他';
+}
+
+// ==================== Tab3: 昨日涨停+实时 ====================
+
+export interface LimitUpStock {
+  code: string;
+  name: string;
+  yesterdayClose: number;
+  yesterdayChangeRate: number;
+  yesterdayLimitUpTime: string;
+  // 今日实时
+  todayPrice: number;
+  todayChangeRate: number;
+  todayHigh: number;
+  todayLow: number;
+  volume: number;
+  amount: number;
+  sector: string;
+  // 市场情绪
+  marketSentiment: '极度恐慌' | '恐慌' | '谨慎' | '中性' | '乐观' | '极度乐观';
+  limitUpDays: number; // 连板天数
+}
+
+export async function fetchYesterdayLimitUp(): Promise<LimitUpStock[]> {
+  const yesterday = getYesterdayTradeDate();
+
+  // 获取昨日涨停池
+  const ztUrl = `http://push2ex.eastmoney.com/getTopicZTPool`;
+  const ztParams = new URLSearchParams({
+    ut: '7eea3edcbaed0e52d8c1e83c363e2c28',
+    dpt: 'wz.ztzt',
+    Pageindex: '0',
+    pagesize: '500',
+    sort: 'fbt:asc',
+    date: yesterday,
+  });
+
+  const ztRes = await fetch(`${ztUrl}?${ztParams.toString()}`, { signal: AbortSignal.timeout(15000) });
+  if (!ztRes.ok) throw new Error(`涨停池接口 ${ztRes.status}`);
+  const ztJson = await ztRes.json();
+  const ztList = ztJson?.data?.pool || [];
+
+  if (!ztList.length) return [];
+
+  // 获取今日实时行情（批量查询）
+  const codes = ztList.map((s: any) => s.c).filter(Boolean);
+  const secids = codes.map((c: string) => {
+    if (c.startsWith('6')) return `1.${c}`;
+    if (c.startsWith('0') || c.startsWith('3')) return `0.${c}`;
+    if (c.startsWith('8') || c.startsWith('4')) return `0.${c}`;
+    return `0.${c}`;
+  }).join(',');
+
+  const quoteUrl = `https://push2.eastmoney.com/api/qt/ulist.np/get?ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&secids=${secids}&fields=f12,f14,f2,f3,f4,f15,f16,f17,f18,f20,f21,f13&_=${Date.now()}`;
+
+  const quoteRes = await fetch(quoteUrl, { signal: AbortSignal.timeout(15000) });
+  const quoteJson = quoteRes.ok ? await quoteRes.json() : {};
+  const quoteMap = new Map<string, any>();
+  (quoteJson?.data?.diff || []).forEach((q: any) => {
+    quoteMap.set(q.f12, q);
+  });
+
+  // 计算市场情绪（基于今日涨跌停家数）
+  const sentiment = await calcMarketSentiment();
+
+  const stocks: LimitUpStock[] = ztList.map((s: any) => {
+    const code = s.c || '';
+    const quote = quoteMap.get(code);
+    return {
+      code,
+      name: s.n || quote?.f14 || '',
+      yesterdayClose: s.p ? s.p / 1000 : 0,
+      yesterdayChangeRate: s.zdp ? s.zdp / 100 : 0,
+      yesterdayLimitUpTime: s.fbt || '',
+      todayPrice: quote?.f2 ? quote.f2 / 1000 : 0,
+      todayChangeRate: quote?.f3 ? quote.f3 / 100 : 0,
+      todayHigh: quote?.f15 ? quote.f15 / 1000 : 0,
+      todayLow: quote?.f16 ? quote.f16 / 1000 : 0,
+      volume: quote?.f20 || 0,
+      amount: quote?.f21 ? quote.f21 / 10000 : 0,
+      sector: s.hy || quote?.f13 || '',
+      marketSentiment: sentiment,
+      limitUpDays: s.lbc || 1,
+    };
+  });
+
+  return stocks.sort((a, b) => b.limitUpDays - a.limitUpDays);
+}
+
+async function calcMarketSentiment(): Promise<LimitUpStock['marketSentiment']> {
+  try {
+    const today = getTradeDate();
+    const [ztRes, dtRes] = await Promise.all([
+      fetch(`http://push2ex.eastmoney.com/getTopicZTPool?ut=7eea3edcbaed0e52d8c1e83c363e2c28&dpt=wz.ztzt&Pageindex=0&pagesize=100&sort=fbt:asc&date=${today}`, { signal: AbortSignal.timeout(10000) }),
+      fetch(`http://push2ex.eastmoney.com/getTopicDTPool?ut=7eea3edcbaed0e52d8c1e83c363e2c28&dpt=wz.ztzt&Pageindex=0&pagesize=100&sort=fund:asc&date=${today}`, { signal: AbortSignal.timeout(10000) }),
+    ]);
+
+    const ztCount = ztRes.ok ? ((await ztRes.json())?.data?.pool?.length || 0) : 0;
+    const dtCount = dtRes.ok ? ((await dtRes.json())?.data?.pool?.length || 0) : 0;
+
+    const ratio = ztCount / Math.max(dtCount, 1);
+    if (ratio > 10) return '极度乐观';
+    if (ratio > 5) return '乐观';
+    if (ratio > 2) return '中性';
+    if (ratio > 1) return '谨慎';
+    if (ratio > 0.5) return '恐慌';
+    return '极度恐慌';
+  } catch {
+    return '中性';
+  }
+}

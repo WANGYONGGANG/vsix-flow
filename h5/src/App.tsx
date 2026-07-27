@@ -9,6 +9,9 @@ import ConfigPanel from '@/components/ConfigPanel';
 import Barrage from '@/components/Barrage';
 import PageSwitcher, { PageId } from '@/components/PageSwitcher';
 import PostList from '@/components/PostList';
+import SectorLimitList from '@/components/SectorLimitList';
+import DragonTigerList from '@/components/DragonTigerList';
+import YesterdayLimitUp from '@/components/YesterdayLimitUp';
 import { fetchEastmoneyPostsCached } from '@/lib/socialData';
 
 interface Config {
@@ -115,11 +118,53 @@ export default function App() {
 
   const emFetchFn = useMemo(() => () => fetchEastmoneyPostsCached(), []);
 
-  if (loading) return <div className="flex h-screen items-center justify-center text-fund-fg"><div className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-fund-fg border-t-transparent" />加载中...</div>;
-  if (error || !data) return <div className="flex h-screen flex-col items-center justify-center text-fund-fg gap-3"><p>{error || '暂无数据'}</p><button onClick={() => load()} className="rounded bg-fund-up px-3 py-1.5 text-white text-sm">重试</button></div>;
+  const pageTitleMap: Record<PageId, string> = {
+    fundFlow: '主力资金流向',
+    em_news: '东财7x24快讯',
+    sector_limit: '涨跌停板块排行',
+    dragon_tiger: '昨日龙虎榜',
+    yesterday_limit: '昨日涨停今日表现',
+  };
+
+  const pageTitle = pageTitleMap[page];
+  const isFundFlowPage = page === 'fundFlow';
+
+  // 只有资金页面需要等待 fund data
+  const showFundFlowLoading = isFundFlowPage && loading;
+  const showFundFlowError = isFundFlowPage && (error || !data);
+
+  const renderContent = () => {
+    if (showFundFlowLoading) {
+      return <div className="flex h-full items-center justify-center text-fund-fg"><div className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-fund-fg border-t-transparent" />加载中...</div>;
+    }
+    if (showFundFlowError) {
+      return <div className="flex h-full flex-col items-center justify-center text-fund-fg gap-3"><p>{error || '暂无数据'}</p><button onClick={() => load()} className="rounded bg-fund-up px-3 py-1.5 text-white text-sm">重试</button></div>;
+    }
+
+    switch (page) {
+      case 'fundFlow':
+        return (
+          <>
+            <FundFlowChart currentPoint={currentPoint} sectors={data!.sectors} maxAbsValue={maxVal} />
+            {config.barrageEnabled && (
+              <Barrage data={data} currentIndex={playing || progress > 0 ? currentIndex : realData.length - 1} />
+            )}
+          </>
+        );
+      case 'em_news':
+        return <PostList fetchFn={emFetchFn} tabs={[{ key: 'all', label: '全部' }]} />;
+      case 'sector_limit':
+        return <SectorLimitList />;
+      case 'dragon_tiger':
+        return <DragonTigerList />;
+      case 'yesterday_limit':
+        return <YesterdayLimitUp />;
+      default:
+        return null;
+    }
+  };
 
   const time = currentPoint?.time;
-  const pageTitle = page === 'fundFlow' ? '主力资金流向' : '东财7x24快讯';
 
   return (
     <ThemeProvider>
@@ -127,7 +172,7 @@ export default function App() {
         <div className="flex items-center justify-between px-3 py-2 border-b border-fund-border">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-bold">{pageTitle}</span>
-            {page === 'fundFlow' && time && (
+            {isFundFlowPage && time && (
               <>
                 <span className="text-fund-fg/50 font-mono">{playing ? '回放 ' : ''}{time}</span>
                 {summary?.topIn[0] && <span className="text-fund-up">{summary.topIn[0].name} +{summary.topIn[0].value.toFixed(1)}亿</span>}
@@ -137,7 +182,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-1">
             <PageSwitcher current={page} onChange={setPage} />
-            {page === 'fundFlow' && (
+            {isFundFlowPage && (
               <LivePlayer isPlaying={playing} progress={progress} currentTime={time}
                 onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
                 onReplay={() => { setProgress(0); setPlaying(true); }} onSeek={v => { setProgress(v); setPlaying(false); }} />
@@ -147,23 +192,11 @@ export default function App() {
         </div>
 
         <div className="flex-1 min-h-0 relative">
-          {page === 'fundFlow' ? (
-            <>
-              <FundFlowChart currentPoint={currentPoint} sectors={data.sectors} maxAbsValue={maxVal} />
-              {config.barrageEnabled && (
-                <Barrage data={data} currentIndex={playing || progress > 0 ? currentIndex : realData.length - 1} />
-              )}
-            </>
-          ) : (
-            <PostList
-              fetchFn={emFetchFn}
-              tabs={[{ key: 'all', label: '全部' }]}
-            />
-          )}
+          {renderContent()}
         </div>
 
         <div className="px-3 py-1 text-[10px] text-fund-fg/40 border-t border-fund-border">
-          {page === 'fundFlow' ? '单位：亿 | 东方财富 | 不作为投资依据' : '东方财富网 | 不作为投资依据'}
+          {isFundFlowPage ? '单位：亿 | 东方财富 | 不作为投资依据' : '东方财富网 | 不作为投资依据'}
         </div>
 
         <ConfigPanel config={config} onConfigChange={setConfig} isOpen={cfgOpen} onClose={() => setCfgOpen(false)} />
