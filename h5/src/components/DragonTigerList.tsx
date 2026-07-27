@@ -100,7 +100,7 @@ export default function DragonTigerList() {
             {entries.map((entry, index) => {
               const isExpanded = expandedCodes.has(entry.code);
               return (
-                <div key={entry.code} className="bg-fund-bg">
+                <div key={`${entry.code}-${index}`} className="bg-fund-bg">
                   {/* Collapsed Row */}
                   <button
                     onClick={() => toggleExpand(entry.code)}
