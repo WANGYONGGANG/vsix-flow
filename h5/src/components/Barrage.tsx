@@ -135,16 +135,19 @@ function BarrageLine({ item, containerWidth }: { item: BarrageItem; containerWid
   return (
     <div
       id={`barrage-${item.id}`}
-      className="absolute whitespace-nowrap text-sm font-medium"
+      className="absolute whitespace-nowrap text-sm font-medium px-2 py-0.5 rounded-full"
       style={{
         left: x,
         top: item.top,
         color: item.color,
-        textShadow: '0 0 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(2px)',
+        textShadow: '0 0 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.8)',
         willChange: 'transform',
       }}
     >
-      <span className="text-[10px] mr-1 opacity-70">{item.user}</span>
+      <span className="text-[10px] mr-1 opacity-60">{item.user}</span>
       {item.text}
     </div>
   );
