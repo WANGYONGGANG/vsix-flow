@@ -2240,7 +2240,8 @@ export interface DragonTigerSeat {
   buyAmt: number;
   sellAmt: number;
   netAmt: number;
-  type: '机构' | '游资' | '其他';
+  type: '机构' | '游资' | '量化' | '敢死队' | '其他';
+  tag: string; // 具体标签，如"中山东路","上塘路","拉萨天团"等
 }
 
 export async function fetchDragonTiger(date?: string): Promise<DragonTigerEntry[]> {
@@ -2305,83 +2306,218 @@ export async function fetchDragonTiger(date?: string): Promise<DragonTigerEntry[
 // 获取单只股票的席位明细
 async function fetchSeatDetails(code: string, tradeDate: string): Promise<DragonTigerSeat[]> {
   const url = 'https://datacenter-web.eastmoney.com/api/data/v1/get';
-  const params = new URLSearchParams({
-    sortColumns: 'BUY_AMT',
-    sortTypes: '-1',
-    pageSize: '50',
-    pageNumber: '1',
-    reportName: 'RPT_DAILYBILLBOARD_DETAIL',
-    columns: 'ALL',
-    source: 'WEB',
-    client: 'WEB',
-    filter: `(TRADE_DATE='${tradeDate}')(SECURITY_CODE='${code}')`,
-  });
 
-  const res = await fetch(`${url}?${params.toString()}`, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) return [];
+  // 并行获取买入和卖出席位
+  const [buyRes, sellRes] = await Promise.all([
+    fetch(`${url}?${new URLSearchParams({
+      sortColumns: 'BUY',
+      sortTypes: '-1',
+      pageSize: '50',
+      pageNumber: '1',
+      reportName: 'RPT_BILLBOARD_DAILYDETAILSBUY',
+      columns: 'ALL',
+      source: 'WEB',
+      client: 'WEB',
+      filter: `(TRADE_DATE='${tradeDate}')(SECURITY_CODE='${code}')`,
+    }).toString()}`, { signal: AbortSignal.timeout(10000) }),
+    fetch(`${url}?${new URLSearchParams({
+      sortColumns: 'SELL',
+      sortTypes: '-1',
+      pageSize: '50',
+      pageNumber: '1',
+      reportName: 'RPT_BILLBOARD_DAILYDETAILSSELL',
+      columns: 'ALL',
+      source: 'WEB',
+      client: 'WEB',
+      filter: `(TRADE_DATE='${tradeDate}')(SECURITY_CODE='${code}')`,
+    }).toString()}`, { signal: AbortSignal.timeout(10000) }),
+  ]);
 
-  const json = await res.json();
-  const list = json?.result?.data || [];
+  const buyJson: any = buyRes.ok ? await buyRes.json() : {};
+  const sellJson: any = sellRes.ok ? await sellRes.json() : {};
 
-  return list.map((item: any) => {
-    const seatName = item.TRADER_NAME || item.OPERATOR_NAME || item.SEAT_NAME || '';
-    const buyAmt = item.BUY_AMT ? item.BUY_AMT / 10000 : 0;
-    const sellAmt = item.SELL_AMT ? item.SELL_AMT / 10000 : 0;
-    const netAmt = buyAmt - sellAmt;
+  const buyList: any[] = buyJson?.result?.data || [];
+  const sellList: any[] = sellJson?.result?.data || [];
 
-    return {
-      seatName,
-      buyAmt,
-      sellAmt,
-      netAmt,
-      type: classifySeatType(seatName),
-    };
-  });
-}
+  // 合并买入和卖出数据
+  const seatMap = new Map<string, { buy: number; sell: number }>();
 
-// 根据席位名称分类：机构 / 游资 / 其他
-function classifySeatType(name: string): '机构' | '游资' | '其他' {
-  if (name.includes('机构专用')) return '机构';
-
-  // 知名游资席位关键词
-  const hotMoneyKeywords = [
-    '拉萨', '团结路', '东环路', '东方财富证券',
-    '华泰证券', '益田路', '金田路', '深南大道',
-    '中信证券', '溧阳路', '淮海中路',
-    '国泰君安', '江苏路', '福山路',
-    '光大证券', '解放南路', '中山西路',
-    '银河证券', '绍兴', '阜成路',
-    '申万宏源',
-    '兴业证券', '陕西分公司',
-    '财通证券', '上塘路', '体育馆',
-    '浙商证券', '杭大路',
-    '招商证券', '深南东路',
-    '海通证券', '建国西路',
-    '中泰证券',
-    '广发证券', '南广济街',
-    '方正证券',
-    '长城证券',
-    '华鑫证券', '红宝石路',
-    '国盛证券', '桑田路',
-    '东莞证券', '四川分公司',
-    '安信证券', '湖滨南路',
-    '华福证券',
-    '平安证券',
-    '南京证券', '大钟亭',
-    '国金证券', '上海互联网',
-    '长江证券', '武汉武珞路',
-    '东北证券', '长春生态大街',
-    '天风证券', '深圳福中三路',
-    '国元证券', '上海虹桥路',
-    '东兴证券', '晋江和平路',
-    '华安证券', '合肥花园街',
-  ];
-
-  for (const keyword of hotMoneyKeywords) {
-    if (name.includes(keyword)) return '游资';
+  for (const item of buyList) {
+    const name = item.OPERATEDEPT_NAME || '';
+    if (!name) continue;
+    const existing = seatMap.get(name) || { buy: 0, sell: 0 };
+    existing.buy += item.BUY ? item.BUY / 10000 : 0;
+    seatMap.set(name, existing);
   }
 
-  return '其他';
+  for (const item of sellList) {
+    const name = item.OPERATEDEPT_NAME || '';
+    if (!name) continue;
+    const existing = seatMap.get(name) || { buy: 0, sell: 0 };
+    existing.sell += item.SELL ? item.SELL / 10000 : 0;
+    seatMap.set(name, existing);
+  }
+
+  const seats: DragonTigerSeat[] = [];
+  for (const [seatName, amounts] of seatMap) {
+    const { type, tag } = classifySeat(seatName);
+    seats.push({
+      seatName,
+      buyAmt: +amounts.buy.toFixed(2),
+      sellAmt: +amounts.sell.toFixed(2),
+      netAmt: +(amounts.buy - amounts.sell).toFixed(2),
+      type,
+      tag,
+    });
+  }
+
+  // 按净买入额排序
+  return seats.sort((a, b) => b.netAmt - a.netAmt);
+}
+
+// 席位分类：返回 { type, tag }
+function classifySeat(name: string): { type: DragonTigerSeat['type']; tag: string } {
+  // 机构专用
+  if (name.includes('机构专用')) {
+    return { type: '机构', tag: '机构专用' };
+  }
+
+  // ===== 量化席位 =====
+  const quantKeywords: Record<string, string> = {
+    '量化': '量化',
+    '申万宏源': '申万宏源',
+    '中国国际金融': '中金',
+    '中金公司': '中金',
+    '国泰君安证券股份有限公司上海分公司': '量化',
+  };
+  for (const [kw, tag] of Object.entries(quantKeywords)) {
+    if (name.includes(kw)) return { type: '量化', tag };
+  }
+
+  // ===== 敢死队席位 =====
+  const gangKeywords: Record<string, string> = {
+    '中山东路': '中山东路',
+    '上塘路': '上塘路',
+    '涅盘重升': '涅盘重升',
+    '瑞鹤仙': '瑞鹤仙',
+    '赵老哥': '赵老哥',
+    '炒股养家': '炒股养家',
+    '章盟主': '章盟主',
+    '方新侠': '方新侠',
+    '孙哥': '孙哥',
+    '作手新一': '作手新一',
+    '小鳄鱼': '小鳄鱼',
+    'Asking': 'Asking',
+    'asking': 'Asking',
+    '欢乐海岸': '欢乐海岸',
+    '深南哥': '深南哥',
+    '深南大道': '深南大道',
+    '金田路': '金田路',
+    '著名刺客': '著名刺客',
+    '流沙河': '流沙河',
+    '桑田路': '桑田路',
+    '佛山系': '佛山系',
+    '无影脚': '佛山无影脚',
+    '解放南路': '解放南路',
+    '粉葛': '粉葛',
+    '林疯狂': '林疯狂',
+    '小睿睿': '小睿睿',
+    '北京炒家': '北京炒家',
+    'N周二': 'N周二',
+    '首板挖掘': '首板挖掘',
+    '竞价抢筹': '竞价抢筹',
+    '一瞬流光': '一瞬流光',
+    '陈小群': '陈小群',
+    '余哥': '余哥',
+    '交易猿': '交易猿',
+    '涅盘': '涅盘重升',
+    '退学炒股': '退学炒股',
+    '爱在冰川': '爱在冰川',
+    '作手六哥': '作手六哥',
+    '冰山一角': '冰山一角',
+    '马信琪': '马信琪',
+    '徐留胜': '徐留胜',
+    '何雪萍': '何雪萍',
+  };
+  for (const [kw, tag] of Object.entries(gangKeywords)) {
+    if (name.includes(kw)) return { type: '敢死队', tag };
+  }
+
+  // ===== 拉萨天团（散户集中营）=====
+  if (name.includes('拉萨') || name.includes('团结路') || name.includes('东环路')) {
+    return { type: '游资', tag: '拉萨天团' };
+  }
+
+  // ===== 知名游资营业部 =====
+  const famousSeats: Record<string, string> = {
+    '东方财富证券股份有限公司拉萨': '拉萨天团',
+    '华泰证券股份有限公司上海武定路': '武定路',
+    '华泰证券股份有限公司深圳益田路': '益田路',
+    '中信证券股份有限公司上海溧阳路': '溧阳路',
+    '中信证券股份有限公司上海分公司': '中信上海',
+    '中信证券股份有限公司杭州延安路': '中信杭州',
+    '中信证券股份有限公司北京总部': '中信北京',
+    '中信证券股份有限公司深圳总部': '中信深圳',
+    '国泰君安证券股份有限公司南京太平南路': '太平南路',
+    '国泰君安证券股份有限公司上海江苏路': '江苏路',
+    '国泰君安证券股份有限公司深圳福华三路': '福华三路',
+    '中国银河证券股份有限公司绍兴': '绍兴赵老哥',
+    '中国银河证券股份有限公司北京阜成路': '阜成路',
+    '光大证券股份有限公司佛山绿景路': '佛山绿景路',
+    '光大证券股份有限公司宁波解放南路': '解放南路',
+    '兴业证券股份有限公司陕西分公司': '陕西分',
+    '财通证券股份有限公司杭州上塘路': '上塘路',
+    '财通证券股份有限公司杭州体育场路': '体育场路',
+    '浙商证券股份有限公司杭州杭大路': '杭大路',
+    '招商证券股份有限公司深圳深南东路': '深南东路',
+    '海通证券股份有限公司南京广州路': '广州路',
+    '海通证券股份有限公司上海建国西路': '建国西路',
+    '广发证券股份有限公司上海南广济街': '南广济街',
+    '华鑫证券有限责任公司上海红宝石路': '红宝石路',
+    '华鑫证券有限责任公司上海宛平南路': '宛平南路',
+    '华鑫证券有限责任公司深圳分公司': '华鑫深圳',
+    '国盛证券有限责任公司宁波桑田路': '桑田路',
+    '东莞证券股份有限公司四川分公司': '四川分',
+    '安信证券股份有限公司厦门湖滨南路': '湖滨南路',
+    '平安证券股份有限公司深圳深南东路': '平安深南东',
+    '南京证券股份有限公司南京大钟亭': '大钟亭',
+    '国金证券股份有限公司上海互联网证券分公司': '国金互联网',
+    '长江证券股份有限公司武汉武珞路': '武珞路',
+    '东北证券股份有限公司长春生态大街': '生态大街',
+    '天风证券股份有限公司深圳福中三路': '福中三路',
+    '国元证券股份有限公司上海虹桥路': '虹桥路',
+    '东兴证券股份有限公司泉州晋江和平路': '晋江和平路',
+    '华安证券股份有限公司合肥花园街': '花园街',
+    '申港证券股份有限公司深圳深南东路': '申港深南东',
+    '东亚前海证券有限责任公司上海分公司': '东亚前海',
+    '开源证券股份有限公司西安长安路': '开源长安路',
+    '中泰证券股份有限公司深圳分公司': '中泰深圳',
+    '方正证券股份有限公司上海延安西路': '方正延安西',
+    '长城证券股份有限公司深圳深南大道': '长城深南大道',
+    '民生证券股份有限公司上海分公司': '民生上海',
+    '华福证券有限责任公司上海宛平南路': '华福宛平南',
+    '联储证券股份有限公司深圳分公司': '联储深圳',
+  };
+  for (const [prefix, tag] of Object.entries(famousSeats)) {
+    if (name.includes(prefix)) return { type: '游资', tag };
+  }
+
+  // 兜底：包含知名券商名称但未匹配到具体席位的
+  const brokerKeywords = [
+    '中信证券', '华泰证券', '国泰君安', '招商证券', '海通证券',
+    '广发证券', '银河证券', '申万宏源', '国信证券', '东方证券',
+    '光大证券', '平安证券', '兴业证券', '中泰证券', '安信证券',
+    '方正证券', '长江证券', '国金证券', '天风证券', '东兴证券',
+    '华安证券', '华西证券', '东北证券', '国元证券', '浙商证券',
+    '财通证券', '东吴证券', '南京证券', '中银证券', '中金公司',
+    '国盛证券', '华鑫证券', '华福证券', '民生证券', '开源证券',
+    '联储证券', '东莞证券', '申港证券', '东亚前海',
+  ];
+  for (const broker of brokerKeywords) {
+    if (name.includes(broker)) return { type: '游资', tag: broker.replace('证券', '').replace('股份有限公司', '').replace('有限责任公司', '') };
+  }
+
+  return { type: '其他', tag: '其他' };
 }
 
 // ==================== Tab3: 昨日涨停+实时 ====================

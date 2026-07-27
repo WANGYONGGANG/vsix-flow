@@ -64,10 +64,10 @@ export default function SectorLimitList() {
     setFiltered(list);
   }, [activeTab, sortBy, sectors]);
 
-  const formatNum = (n: number): string => {
-    if (n >= 10000) return (n / 10000).toFixed(1) + 'w';
-    if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
-    return String(n);
+  const formatVolume = (n: number): string => {
+    if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿手';
+    if (n >= 1e4) return (n / 1e4).toFixed(1) + '万手';
+    return n.toFixed(0) + '手';
   };
 
   const formatRate = (n: number): string => (n > 0 ? '+' : '') + n.toFixed(2) + '%';
@@ -136,7 +136,7 @@ export default function SectorLimitList() {
         <span className="text-right">上涨</span>
         <span className="text-right">下跌</span>
         <span className="text-right">最新价</span>
-        <span className="text-right">成交量</span>
+        <span className="text-right">成交量(手)</span>
       </div>
 
       {/* Data rows */}
@@ -199,7 +199,7 @@ export default function SectorLimitList() {
 
                 {/* Volume */}
                 <span className="text-xs text-right text-fund-fg/50">
-                  {formatNum(sector.volume)}
+                  {formatVolume(sector.volume)}
                 </span>
               </div>
             ))}

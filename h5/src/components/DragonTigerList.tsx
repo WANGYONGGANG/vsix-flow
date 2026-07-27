@@ -216,12 +216,14 @@ export default function DragonTigerList() {
 }
 
 function SeatRow({ seat }: { seat: DragonTigerSeat }) {
-  const typeConfig = {
+  const typeConfig: Record<string, { bg: string; text: string; icon: typeof Building2 }> = {
     '机构': { bg: 'bg-purple-500/20', text: 'text-purple-400', icon: Building2 },
     '游资': { bg: 'bg-orange-500/20', text: 'text-orange-400', icon: User },
+    '量化': { bg: 'bg-blue-500/20', text: 'text-blue-400', icon: Landmark },
+    '敢死队': { bg: 'bg-red-500/20', text: 'text-red-400', icon: User },
     '其他': { bg: 'bg-gray-500/20', text: 'text-gray-400', icon: Landmark },
   };
-  const cfg = typeConfig[seat.type];
+  const cfg = typeConfig[seat.type] || typeConfig['其他'];
   const Icon = cfg.icon;
 
   return (
@@ -230,10 +232,17 @@ function SeatRow({ seat }: { seat: DragonTigerSeat }) {
         {seat.seatName}
       </td>
       <td className="py-1.5 px-1">
-        <span className={`inline-flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded ${cfg.bg} ${cfg.text}`}>
-          <Icon size={9} />
-          {seat.type}
-        </span>
+        <div className="flex items-center gap-1">
+          <span className={`inline-flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded ${cfg.bg} ${cfg.text}`}>
+            <Icon size={9} />
+            {seat.type}
+          </span>
+          {seat.tag && seat.tag !== seat.type && seat.tag !== '其他' && (
+            <span className="text-[10px] px-1 py-0.5 rounded bg-fund-card text-fund-fg/50 border border-fund-border/50">
+              {seat.tag}
+            </span>
+          )}
+        </div>
       </td>
       <td className="py-1.5 px-1 text-right text-fund-up">{seat.buyAmt > 0 ? `${seat.buyAmt.toFixed(0)}万` : '-'}</td>
       <td className="py-1.5 px-1 text-right text-fund-down">{seat.sellAmt > 0 ? `${seat.sellAmt.toFixed(0)}万` : '-'}</td>
