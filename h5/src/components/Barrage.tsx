@@ -8,7 +8,6 @@ interface BarrageItem {
   top: number;
   speed: number;
   color: string;
-  source: string;
   user: string;
 }
 
@@ -33,14 +32,29 @@ export default function Barrage({ data, currentIndex }: Props) {
     const point = data.intraday[currentIndex];
     if (!point) return;
 
+    // 计算日内最高/最低总资金流
+    let dayHigh = -Infinity;
+    let dayLow = Infinity;
+    for (const p of data.intraday) {
+      const total = data.sectors.reduce((sum, s) => sum + (p.sectors[s.name] ?? 0), 0);
+      dayHigh = Math.max(dayHigh, total);
+      dayLow = Math.min(dayLow, total);
+    }
+
     const sectors = data.sectors.map(s => ({
       name: s.name,
       value: point.sectors[s.name] ?? 0,
     }));
 
-    // 大盘涨跌用净流入近似
     const totalFlow = sectors.reduce((sum, s) => sum + s.value, 0);
-    genRef.current.update(sectors, totalFlow);
+
+    genRef.current.update({
+      sectors,
+      totalFlow,
+      currentTime: point.time,
+      dayHigh: dayHigh === -Infinity ? 0 : dayHigh,
+      dayLow: dayLow === Infinity ? 0 : dayLow,
+    });
   }, [data, currentIndex]);
 
   // 生成弹幕
@@ -50,15 +64,13 @@ export default function Barrage({ data, currentIndex }: Props) {
     const h = container.clientHeight;
 
     const entry = genRef.current.generate();
-    const isUp = entry.text.includes('流入') || entry.text.includes('涨') || entry.text.includes('红') || entry.text.includes('加仓') || entry.text.includes('抢筹');
 
     const item: BarrageItem = {
       id: nextId++,
       text: entry.text,
       top: Math.random() * Math.max(h - 30, 10),
       speed: 1.2 + Math.random() * 1.8,
-      color: isUp ? '#ef4444' : '#22c55e',
-      source: entry.source,
+      color: entry.color,
       user: entry.user,
     };
     itemsRef.current = [...itemsRef.current, item];
@@ -69,7 +81,7 @@ export default function Barrage({ data, currentIndex }: Props) {
   useEffect(() => {
     const step = () => {
       const now = performance.now();
-      if (now - lastSpawnRef.current > 1500 + Math.random() * 2000) {
+      if (now - lastSpawnRef.current > 1200 + Math.random() * 1800) {
         spawn();
         lastSpawnRef.current = now;
       }
