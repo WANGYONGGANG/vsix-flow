@@ -1,0 +1,9 @@
+{
+  "/api/strong-sector/route": "app/api/strong-sector/route.js",
+  "/api/dragon-tiger/route": "app/api/dragon-tiger/route.js",
+  "/api/limit-up-today/route": "app/api/limit-up-today/route.js",
+  "/api/sector-limit/route": "app/api/sector-limit/route.js",
+  "/api/fund-flow/sectors/route": "app/api/fund-flow/sectors/route.js",
+  "/api/fund-flow/intraday/route": "app/api/fund-flow/intraday/route.js",
+  "/api/em-news/route": "app/api/em-news/route.js"
+}
