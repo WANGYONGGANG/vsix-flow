@@ -1,99 +1,73 @@
-# ===== 依赖目录 =====
+# ===== Node.js / 前端 =====
 node_modules/
 **/node_modules/
-
-# ===== 构建输出 =====
-# TypeScript 编译输出
-dist/
+.next/
+**/.next/
 out/
+dist/
 build/
-**/dist/
-**/out/
-**/build/
 
-# Vite 构建产物（h5 项目）
-h5/dist/
+# ===== Python / 后端 =====
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyc/
+venv/
+.env
+.venv/
+env/
 
-# VS Code 扩展编译输出
-visx-extension/out/
-
-# ===== 日志文件 =====
+# ===== 日志 =====
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 logs/
-*.log
 
-# ===== 环境变量与密钥 =====
+# ===== 环境变量与密钥（保留 .env.example） =====
 .env
 .env.local
 .env.*.local
-*.env
+!.env.example
 
-# ===== 编辑器与 IDE =====
-# VS Code 个人配置（保留 .vscode 共享配置如 launch.json、tasks.json）
+# ===== IDE =====
 .vscode/*
 !.vscode/launch.json
 !.vscode/tasks.json
 !.vscode/settings.json
-
-# JetBrains IDE（WebStorm、IntelliJ 等）
 .idea/
 *.iml
 *.ipr
 *.iws
 
-# Sublime Text
-*.sublime-workspace
-*.sublime-project
-
-# ===== 操作系统生成的文件 =====
-# Windows
+# ===== OS =====
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
-
-# macOS
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Linux
 *~
 
-# ===== 缓存与临时文件 =====
+# ===== 缓存 =====
 .cache/
 .temp/
 tmp/
 *.tmp
-*.swp
-*.swo
-*~
-
-# ===== TypeScript 增量编译缓存 =====
 *.tsbuildinfo
 
-# ===== 测试覆盖率 =====
+# ===== 测试 =====
 coverage/
 *.lcov
 .nyc_output/
-
-# ===== 包管理器锁文件（按需保留，默认忽略 pnpm/yarn 锁文件以避免冲突） =====
-# 如使用 pnpm 或 yarn，请注释掉对应行以保留锁文件
-# pnpm-lock.yaml
-# yarn.lock
-
-# ===== 其他 =====
-.DS_Store
-.history/
-*.tgz
-*.tar.gz
-
-# wrangler files
-.wrangler
-.dev.vars*
-!.dev.vars.example
-!.env.example

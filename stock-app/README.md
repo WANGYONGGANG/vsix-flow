@@ -1,0 +1,211 @@
+# stock-app v3.0
+
+A 股资金流向与行情看板，前后端分离架构。
+
+- **数据源（股票类）**：[akshare](https://akshare.akfamily.xyz/)（Python 财经数据接口库，稳定且维护积极）
+- **新闻数据源**：东方财富 7×24 新闻（直接调用东方财富官方接口，不经过 akshare，保持时效性）
+- **后端**：FastAPI + Python 3.10+（所有股票数据统一由 akshare 获取并做类型规整 / 缓存）
+- **前端**：Next.js 15 + React 18 + TypeScript + Tailwind + visx / lightweight-charts
+- **部署目标**：[Railway](https://railway.app/)（后端和前端两个 service，一键部署）
+
+---
+
+## 🎯 功能清单（11 个 Tab）
+
+| # | Tab | 说明 | 数据源 |
+|---|-----|------|--------|
+| 1 | 概况 | 7 大指数、涨跌停/涨跌平统计、北向资金、涨停结构（首板/2连/3+连/炸板） | akshare |
+| 2 | 资金 | 概念板块主力净流入排行 + 分时资金流向趋势图 | akshare |
+| 3 | 新闻 | 东方财富 7×24 实时快讯 | 东方财富官方 API（保留原始方式） |
+| 4 | 板块 | 概念板块涨跌排行榜 | akshare |
+| 5 | 龙头 | 近期强势涨停龙头股（连板、强势股池） | akshare |
+| 6 | 强板 | 强势板块列表 + 点击查看板块成分股 | akshare |
+| 7 | 龙虎 | 龙虎榜每日明细：买卖席位 + 机构/游资/量化/敢死队席位分类标签 | akshare |
+| 8 | 涨停 | 今日涨停池 + 昨日涨停今日表现 | akshare |
+| 9 | 异动 | 指数异动（±1%）+ 个股大幅异动（±8%）语音播报开关 | akshare |
+| 10 | 热股 | 东方财富热度榜股票 | akshare |
+| 11 | 自选 | 本地自选股（localStorage）+ 实时行情 | akshare |
+
+点击任意股票区域可跳转至**个股详情页**（历史 K 线、指标、成本价与盈亏展示）。
+
+---
+
+## 🏗 目录结构
+
+```
+stock-app/
+├── backend/                # FastAPI + akshare 后端（Python）
+│   ├── app/
+│   │   ├── main.py        # FastAPI 入口，CORS、健康检查、路由挂载
+│   │   ├── config.py      # pydantic-settings 配置（端口、CORS、缓存 TTL 等）
+│   │   ├── schemas.py     # Pydantic v2 数据模型（与前端 types.ts 对齐）
+│   │   ├── cache.py       # TTLCache 内存缓存（默认 60s）
+│   │   ├── routers/
+│   │   │   └── stock.py   # 16 个 /api/* 端点
+│   │   └── services/
+│   │       ├── akshare_service.py  # 核心：所有股票类数据通过 akshare 获取 + 清洗适配
+│   │       └── news_service.py     # 新闻：东方财富 7x24 API（保留原始方式）
+│   ├── requirements.txt
+│   ├── Procfile           # Railway 启动脚本
+│   ├── railway.json       # Railway 部署配置
+│   └── .env.example
+│
+└── frontend/               # Next.js 15 前端（Node.js >= 18）
+    ├── src/
+    │   ├── app/
+    │   │   ├── layout.tsx
+    │   │   ├── page.tsx           # 11 Tab 主框架
+    │   │   └── globals.css
+    │   ├── components/            # 13 个业务组件（MarketOverview / FundFlowTab / KlineChart ...）
+    │   └── lib/
+    │       ├── api.ts             # 请求层：通过 NEXT_PUBLIC_API_BASE 指向后端
+    │       ├── store.ts           # Zustand 全局状态（Tab、自选股、个股详情栈）
+    │       └── types.ts           # 前端 TS 类型（与后端 schemas.py 一一对应）
+    ├── next.config.js
+    ├── tailwind.config.js
+    ├── tsconfig.json
+    ├── railway.json
+    └── package.json
+```
+
+---
+
+## 🚀 本地快速启动
+
+### ① 启动后端（Python 3.10+）
+
+```bash
+cd stock-app/backend
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+# source .venv/bin/activate
+
+pip install -r requirements.txt
+cp .env.example .env      # 按需修改端口/CORS
+uvicorn app.main:app --reload --port 8000
+```
+
+后端启动后访问：
+
+- API 文档（Swagger）：http://localhost:8000/docs
+- 健康检查：http://localhost:8000/health
+
+### ② 启动前端（Node.js >= 18）
+
+```bash
+cd stock-app/frontend
+cp .env.example .env.local    # NEXT_PUBLIC_API_BASE=http://localhost:8000
+npm install
+npm run dev
+```
+
+打开 http://localhost:3000 即可使用 ✨
+
+---
+
+## 🌐 Railway 部署（推荐）
+
+### 后端 Service（Python）
+
+1. 在 Railway 创建空 Project → **New Service** → 选择 Repo（stock-app 仓库）
+2. 打开 **Settings → Root Directory** 填 `backend`（让 Railway 只把 backend 当作服务根）
+3. Railway 会自动识别 `requirements.txt` + `Procfile` / `railway.json`，命令为：
+   ```
+   uvicorn app.main:app --host 0.0.0.0 --port $PORT
+   ```
+4. 环境变量（Variables）按需添加：
+   - `CORS_ORIGINS` = `*` 或你前端的域名
+   - `CACHE_TTL_SECONDS` = `60`（默认）
+5. 部署完成后记下后端公开域名，例如 `https://stock-app-backend-production.up.railway.app`
+
+### 前端 Service（Next.js）
+
+1. 同一个 Project 再 **New Service** → 选择同一 Repo
+2. **Settings → Root Directory** 填 `frontend`
+3. Railway 会自动识别 `package.json`：
+   - Build 命令：`npm run build`
+   - Start 命令：`PORT=$PORT npm start`（`railway.json` 也已配置）
+4. 环境变量（Variables）**必须添加**：
+   ```
+   NEXT_PUBLIC_API_BASE=https://stock-app-backend-production.up.railway.app
+   ```
+   （替换为上一步后端的实际域名）
+5. Deploy → 完成！访问 Railway 分配的前端域名即可。
+
+> 💡 **省钱小技巧**：两个 service 放在同一个 Railway Project 内，内网互通免费（NEXT_PUBLIC_API_BASE 用 Railway 内网域名即可，不走公网流量）。
+
+---
+
+## 🔌 API 端点一览（16 个）
+
+所有端点统一前缀 `/api`，默认响应 JSON。新闻保留东方财富原生方式，其余走 akshare。
+
+| Method | 路径 | 说明 |
+|--------|------|------|
+| GET | `/market-overview` | 市场概况（指数、涨跌平、北向资金、涨停结构） |
+| GET | `/fund-flow/sectors` | 概念板块主力净流入 TOP 50 |
+| GET | `/fund-flow/intraday` | 板块分时资金流向（240 分钟） |
+| GET | `/kline?code=600519&period=day` | 个股 K 线，period ∈ {5min,15min,30min,60min,day,week,month} |
+| GET | `/quote?code=600519` 或 `?codes=600519,000001` | 个股实时行情，支持单只或批量逗号分隔，返回 `{data: StockQuote[]}` |
+| GET | `/dragon-tiger?date=20260728` | 龙虎榜（含买卖席位、分类标签） |
+| GET | `/limit-up-today?date=20260728` | 今日涨停池 |
+| GET | `/yesterday-limit` | 昨日涨停股今日表现 |
+| GET | `/limit-leader` | 龙头/强势股池 |
+| GET | `/sector-limit` | 概念板块涨跌排行 |
+| GET | `/strong-sector` | 强势板块列表 |
+| GET | `/strong-sector/{code}` | 指定板块成分股 |
+| GET | `/alert` | 大盘/个股异动检测结果（可直接播报） |
+| GET | `/hot-stocks` | 东方财富热股榜 |
+| GET | `/em-news?page=1&page_size=50` | 东方财富 7×24 新闻，返回 `{news: NewsItem[]}`（**非 akshare，直接东方财富官方 API**） |
+
+其他辅助端点：
+
+| Method | 路径 | 说明 |
+|--------|------|------|
+| GET | `/` | 服务信息 + docs 链接 |
+| GET | `/health` | 健康检查 + 缓存统计 |
+| POST | `/admin/cache/clear` | 手动清空内存缓存 |
+
+数据模型（请求/响应结构）见：
+
+- 后端：[schemas.py](file:///d:/vsix/stock-app/backend/app/schemas.py)
+- 前端：[types.ts](file:///d:/vsix/stock-app/frontend/src/lib/types.ts)
+
+---
+
+## 🧠 设计要点
+
+1. **akshare 统一封装**：所有股票类接口全部走 `akshare_service.py`，内部把 akshare 返回的 DataFrame 清洗为与前端一致的 schema，字段命名与历史版本保持兼容（例如 `changeRate`、`netInflow`）。
+2. **新闻单独保留东方财富方式**：akshare 新闻接口频率低，7×24 快讯对时效性要求高，因此直接请求东方财富 `np-listapi.eastmoney.com`，逻辑放在 `news_service.py`。
+3. **T T L 内存缓存**：`cachetools.TTLCache`（默认 60s），避免对同一接口短时间内重复拉取。akshare 大部分接口依赖 HTTP，一次调用 ~几百毫秒。
+4. **与前端字段一一对应**：后端 Pydantic 模型与前端 TypeScript 接口命名完全一致，避免前端再做二次映射，降低心智负担。
+5. **Railway 双服务**：backend/frontend 各独立 Railway service，通过 `Root Directory` 指向子目录即可，无需拆仓库。
+6. **自选股本地持久化**：前端自选股写入 `localStorage`，行情仍通过 `/api/quote` 实时查询。
+
+---
+
+## 🛠 开发调试建议
+
+- 后端调试：访问 `http://localhost:8000/docs`（Swagger UI）直接试接口
+- 前端调试：先跑后端，再跑前端，看浏览器 Network 里的 `NEXT_PUBLIC_API_BASE` 是否正确
+- 首次启动慢：akshare 会下载一些元数据（交易日历等），正常现象
+- 清空 akshare 缓存：删除 `~/.akshare` 目录或调用 `POST /admin/cache/clear`
+
+---
+
+## ❓ FAQ
+
+**Q：为什么不用之前的 Vercel / Cloudflare Worker / 东方财富直连？**
+A：akshare 是 Python 生态最稳定最全的 A 股数据源之一，统一封装后不必再处理东方财富各种字段名、反爬、分页、参数黑盒。Railway 对 Python + Node.js 混合栈的支持比 Vercel 更自然（Vercel Serverless Functions 运行 akshare 有冷启动 + 超时 + 依赖体积问题）。
+
+**Q：新闻为什么不走 akshare？**
+A：akshare 的新闻接口为低频抓取，对 7×24 快讯这类高时效内容，直接调用东方财富官方接口更快更稳。`news_service.py` 独立文件，保留了原始实现。
+
+**Q：Railway 免费额度够吗？**
+A：对于个人用户的低频访问场景，Railway 免费计划基本够用。若后端长期运行，推荐使用 $5/月 的基础计划，避免休眠冷启动。
+
+---
+
+*stock-app v3.0 — 架构重构完成。用 akshare 统一数据源，前后端分离 + Railway 部署，结构清爽，易扩展。🎉*

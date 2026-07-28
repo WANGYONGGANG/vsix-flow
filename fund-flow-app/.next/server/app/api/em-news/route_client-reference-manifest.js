@@ -1,1 +1,0 @@
-globalThis.__RSC_MANIFEST=(globalThis.__RSC_MANIFEST||{});globalThis.__RSC_MANIFEST["/api/em-news/route"]={"moduleLoading":{"prefix":"/_next/"},"ssrModuleMapping":{},"edgeSSRModuleMapping":{},"clientModules":{},"entryCSSFiles":{"D:\\vsix\\fund-flow-app\\src\\":[],"D:\\vsix\\fund-flow-app\\src\\app\\api\\em-news\\route":[]},"rscModuleMapping":{},"edgeRscModuleMapping":{}}
