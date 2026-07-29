@@ -107,34 +107,66 @@ npm run dev
 
 ## 🌐 Railway 部署（推荐）
 
-### 后端 Service（Python）
+> ⚠️ **重要前置说明**：stock-app 是 **monorepo 双服务架构**（Python 后端 + Node.js 前端），必须在同一个 Railway Project 里建 **两个独立 Service**，且**每个 Service 都必须显式设置 Root Directory** + **显式指定 Build/Start 命令**，否则 Railpack 会猜不出项目类型，报 `start.sh not found` 或 `Railpack could not determine how to build the app.`。
 
-1. 在 Railway 创建空 Project → **New Service** → 选择 Repo（stock-app 仓库）
-2. 打开 **Settings → Root Directory** 填 `backend`（让 Railway 只把 backend 当作服务根）
-3. Railway 会自动识别 `requirements.txt` + `Procfile` / `railway.json`，命令为：
+### 后端 Service（Python / FastAPI + akshare）
+
+1. **New Project → New Service** → 选择你上传的 stock-app 仓库（GitHub / GitLab / 本地都可以）。
+2. **Settings → Service 重命名**（可选）：例如 `stock-app-backend`，方便和前端区分。
+3. **Settings → Root Directory（必填！默认是仓库根，会导致猜不出项目）** 填：
+   ```
+   stock-app/backend
+   ```
+   > 如果你把 repo 根直接指向 stock-app 目录（没有外层 vsix 包一层），那填 `backend` 即可。
+4. **Settings → Build 命令（显式覆盖，避免 Railpack 猜测）**：
+   ```
+   python --version  # Python 服务不需要 build，写一句占位就行，Nixpacks 会自动 pip install -r requirements.txt
+   ```
+5. **Settings → Start 命令（显式覆盖，避免 Railpack 猜测）**：
    ```
    uvicorn app.main:app --host 0.0.0.0 --port $PORT
    ```
-4. 环境变量（Variables）按需添加：
-   - `CORS_ORIGINS` = `*` 或你前端的域名
-   - `CACHE_TTL_SECONDS` = `60`（默认）
-5. 部署完成后记下后端公开域名，例如 `https://stock-app-backend-production.up.railway.app`
+6. **Variables（环境变量）** 按需添加：
+   | Key | 值 | 是否必填 |
+   |-----|----|----------|
+   | `CORS_ORIGINS` | `*` 或你前端的域名，多个用逗号分隔 | 否，默认 `*` |
+   | `CACHE_TTL_SECONDS` | `60`（TTLCache 过期时间，单位秒） | 否，默认 60 |
+7. Deploy → 等待构建完成，记下后端公开域名，例如 `https://stock-app-backend-production.up.railway.app`，打开 `/health` 验证返回 `{"status":"ok"}`。
 
-### 前端 Service（Next.js）
+### 前端 Service（Next.js 15 / Node.js）
 
-1. 同一个 Project 再 **New Service** → 选择同一 Repo
-2. **Settings → Root Directory** 填 `frontend`
-3. Railway 会自动识别 `package.json`：
-   - Build 命令：`npm run build`
-   - Start 命令：`PORT=$PORT npm start`（`railway.json` 也已配置）
-4. 环境变量（Variables）**必须添加**：
+1. **同一个 Project → New Service** → 选择**同一个仓库**（后端前端放一个仓库，一个 Project 两个 Service）。
+2. **Settings → Service 重命名**：例如 `stock-app-frontend`。
+3. **Settings → Root Directory（必填！）**：
    ```
-   NEXT_PUBLIC_API_BASE=https://stock-app-backend-production.up.railway.app
+   stock-app/frontend
    ```
-   （替换为上一步后端的实际域名）
-5. Deploy → 完成！访问 Railway 分配的前端域名即可。
+   > 如果 repo 根就是 stock-app，填 `frontend`。
+4. **Settings → Build 命令（显式覆盖，避免 Railpack 猜测）**：
+   ```
+   npm run build
+   ```
+5. **Settings → Start 命令（显式覆盖，避免 Railpack 猜测）**：
+   ```
+   npm run start
+   ```
+   > `package.json` 中 start 脚本已支持 `$PORT`：`next start -p ${PORT:-3000}`，与 Railway 自动注入的 `$PORT` 完美对齐。
+6. **Variables（环境变量，必填！）**：
+   | Key | 值 | 是否必填 |
+   |-----|----|----------|
+   | `NEXT_PUBLIC_API_BASE` | `https://stock-app-backend-production.up.railway.app`（替换为后端 Service 的**实际公网域名，末尾不带斜杠**） | ✅ 必须，否则前端请求发到自己域名下会 404 |
+   | `NODE_ENV` | `production` | 否，Railway 默认会设 |
+7. Deploy → 完成！访问 Railway 分配的前端域名即可。
 
-> 💡 **省钱小技巧**：两个 service 放在同一个 Railway Project 内，内网互通免费（NEXT_PUBLIC_API_BASE 用 Railway 内网域名即可，不走公网流量）。
+### 🧩 常见报错与修复（`start.sh not found` / Build 失败排查）
+
+| 报错 | 根因 | 修复 |
+|------|------|------|
+| `⚠ Script start.sh not found` / `✖ Railpack could not determine how to build the app.` | Railpack 没找到 Root Directory 内对应 `requirements.txt` / `package.json`，或没显式指定 Build/Start 命令 | 到 **Settings → Root Directory** 确认路径是 `stock-app/backend` 或 `stock-app/frontend`（不是仓库根）；再到 **Settings → Build/Start 命令** 分别按上文两节手动填一遍覆盖即可 |
+| 前端加载后所有 Tab 都是空 / Network 404 | `NEXT_PUBLIC_API_BASE` 未配置或写错 | 检查 Variables 是否填了后端公网域名，末尾不要带 `/`；改完重新 Deploy（Next.js 的环境变量是 build time 注入的，只改变量不重新 build 不会生效） |
+| 后端 `/health` OK，但 `/api/market-overview` 500 | akshare 首次拉取较慢触发 Railway 30s 超时，或 akshare 字段变动 | 重试一次（触发 akshare 缓存）；如果持续报错，看后端 Logs 定位是哪个接口的字段名变了，改 `akshare_service.py` 对应映射即可 |
+
+> 💡 **省钱小技巧**：两个 service 放在同一个 Railway Project 内，内网互通免费（如果用 Railway 内网域名代替公网 `NEXT_PUBLIC_API_BASE`，可以省公网流量配额，但注意 Next.js 是客户端渲染，fetch 发生在浏览器里，所以 `NEXT_PUBLIC_API_BASE` 必须是公网域名——如果后端接口改走 Server Components 服务端请求，再换内网域名）。
 
 ---
 
