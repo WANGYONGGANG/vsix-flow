@@ -160,9 +160,9 @@ export default function FundFlowTab() {
             >
               全部板块
             </button>
-            {sectors.map((s) => (
+            {sectors.map((s, i) => (
               <button
-                key={s.id}
+                key={`sec-${s.id || s.code || s.name}-${i}`}
                 onClick={() => setSelectedSectorId(s.id)}
                 className={`w-full text-left px-2 py-1.5 text-[11px] rounded transition-colors ${
                   selectedSectorId === s.id
@@ -209,13 +209,13 @@ export default function FundFlowTab() {
                     <svg width={width} height={height}>
                       <GridRows left={margin.left} scale={yScale} width={innerWidth} stroke="#ffffff10" />
                       <GridColumns top={margin.top} scale={xScale} height={innerHeight} stroke="#ffffff10" />
-                      {barData.map((d) => {
+                      {barData.map((d, i) => {
                         const y = yScale(d.name)
                         const barHeight = yScale.bandwidth()
                         const barX = d.value >= 0 ? xZero : xScale(d.value)
                         const barWidth = d.value >= 0 ? xScale(d.value) - xZero : xZero - xScale(d.value)
                         return (
-                          <g key={d.id}>
+                          <g key={`bar-${d.id || d.name}-${i}`}>
                             <rect
                               x={margin.left + barX}
                               y={margin.top + (y ?? 0)}

@@ -57,7 +57,18 @@ async def admin_clear_cache():
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     logger.exception(f"Unhandled error: {exc}")
-    return JSONResponse(
+    origin = request.headers.get("origin") or "*"
+    allowed_origins = settings.cors_origins_list
+    acao = origin if ("*" in allowed_origins or origin in allowed_origins) else ""
+    resp = JSONResponse(
         status_code=500,
         content={"error": "internal_server_error", "detail": str(exc)},
     )
+    if acao:
+        resp.headers["Access-Control-Allow-Origin"] = acao
+        resp.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
+        resp.headers["Access-Control-Allow-Headers"] = "*"
+        if settings.CORS_ORIGINS != "*":
+            resp.headers["Vary"] = "Origin"
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
+    return resp

@@ -71,7 +71,7 @@ export default function HotStocks() {
             </div>
             {stocks.map((s, i) => (
               <div
-                key={s.code}
+                key={`hs-${s.code || s.name}-${i}`}
                 className="px-3 py-2 flex items-center text-xs hover:bg-fund-card/40 cursor-pointer transition-colors"
                 onClick={() => handleStockClick(s.code)}
               >

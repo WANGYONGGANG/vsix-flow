@@ -92,7 +92,7 @@ export default function StrongSector() {
                         <div className="divide-y divide-fund-border/20 mt-1">
                           {constituents[s.code].map((st: any, si: number) => (
                             <div
-                              key={st.code}
+                              key={`ssc-${st.code || st.name}-${si}`}
                               className="flex items-center justify-between py-1.5 text-[11px] hover:bg-fund-card/30 cursor-pointer"
                               onClick={(e) => { e.stopPropagation(); handleStockClick(st.code) }}
                             >

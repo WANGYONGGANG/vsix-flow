@@ -73,9 +73,11 @@ export default function NewsTab() {
           <div className="divide-y divide-fund-border/50">
             {news.map((item, i) => {
               const isNew = i < newCount
+              const stableKey = `news-${i}-${item.id || item.time?.replace(/[^0-9]/g, '') || i}`
+              const content = (item.content || item.title || '').trim()
               return (
                 <div
-                  key={String(item.id)}
+                  key={stableKey}
                   className={`px-3 py-2.5 text-xs transition-colors ${
                     isNew ? 'bg-fund-up/5' : ''
                   }`}
@@ -86,7 +88,10 @@ export default function NewsTab() {
                       <span className="text-[10px] px-1 py-0.5 rounded bg-fund-card text-fund-fg/50 shrink-0">{item.source}</span>
                     )}
                   </div>
-                  <div className="text-fund-fg/80 leading-relaxed">{item.content}</div>
+                  {item.title && item.content && item.title !== item.content ? (
+                    <div className="mb-0.5 font-medium text-fund-fg leading-snug">{item.title}</div>
+                  ) : null}
+                  <div className="text-fund-fg/80 leading-relaxed">{content}</div>
                 </div>
               )
             })}

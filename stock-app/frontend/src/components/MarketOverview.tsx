@@ -38,8 +38,8 @@ export default function MarketOverview() {
     <div className="p-3 space-y-3 overflow-y-auto h-full">
       {/* Indices - 核心指数卡片 */}
       <div className="grid grid-cols-3 gap-2">
-        {indices.slice(0, 3).map((idx) => (
-          <div key={idx.code} className="bg-fund-card rounded-lg p-3">
+        {indices.slice(0, 3).map((idx, i) => (
+          <div key={`idx-card-${idx.code || idx.name}-${i}`} className="bg-fund-card rounded-lg p-3">
             <div className="text-[10px] text-fund-fg/50 mb-1">{idx.name}</div>
             <div className={`text-lg font-bold font-mono ${idx.changeRate >= 0 ? 'text-fund-up' : 'text-fund-down'}`}>
               {idx.price.toFixed(2)}
@@ -64,13 +64,13 @@ export default function MarketOverview() {
             </span>
           </div>
           <div className="space-y-2">
-            {indices.map((idx) => {
+            {indices.map((idx, i) => {
               const isUp = idx.changeRate > 0
               const absRate = Math.abs(idx.changeRate)
               // 使用平方根缩放增强小数值可见性，同时保证最小宽度
               const barWidth = Math.max((absRate / maxAbs) * 100, 3)
               return (
-                <div key={idx.code} className="flex items-center gap-3">
+                <div key={`idx-bar-${idx.code || idx.name}-${i}`} className="flex items-center gap-3">
                   <span className="text-[11px] text-fund-fg/60 w-12 shrink-0 truncate">{idx.name}</span>
                   <span className={`text-[11px] font-mono w-20 shrink-0 text-right ${isUp ? 'text-fund-up' : 'text-fund-down'}`}>
                     {idx.price.toFixed(2)}

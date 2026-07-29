@@ -122,7 +122,7 @@ export default function SectorLimitTab() {
         ) : (
           <div className="divide-y divide-fund-border">
             {filtered.map((s, index) => (
-              <div key={s.code + s.type} className="grid grid-cols-[32px_1fr_70px_50px_50px_60px] gap-1 px-3 py-2 hover:bg-fund-card/50 items-center">
+              <div key={`sl-${s.code || s.name}-${s.type || 'x'}-${index}`} className="grid grid-cols-[32px_1fr_70px_50px_50px_60px] gap-1 px-3 py-2 hover:bg-fund-card/50 items-center">
                 <span className={`text-xs font-medium ${index < 3 ? 'text-fund-up' : 'text-fund-fg/40'}`}>{index + 1}</span>
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="text-xs text-fund-fg/80 truncate">{s.name}</span>
