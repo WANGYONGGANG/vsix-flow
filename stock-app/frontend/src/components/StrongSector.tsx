@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { api, fmt } from '@/lib/api'
 import { useApp } from '@/lib/store'
@@ -17,7 +17,12 @@ export default function StrongSector() {
     setLoading(true)
     try { setData(await api('/strong-sector')) } catch {} finally { setLoading(false) }
   }, [])
-  useEffect(() => { load(); const id = setInterval(load, 60000); return () => clearInterval(id) }, [load])
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (mountedRef.current) return
+    mountedRef.current = true
+    load(); const id = setInterval(load, 60000); return () => clearInterval(id)
+  }, [load])
 
   const toggleExpand = async (code: string) => {
     const next = new Set(expanded)

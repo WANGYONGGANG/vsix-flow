@@ -49,14 +49,20 @@ export default function Watchlist() {
   }, [watchlist, initialized])
 
   const loadQuotes = useCallback(async () => {
-    if (!watchlist.length) { setQuotes([]); return }
+    const codes = useApp.getState().watchlist
+    if (!codes.length) { setQuotes([]); return }
     setLoading(true)
     try {
-      const d = await api(`/quote?codes=${watchlist.join(',')}`)
+      const d = await api(`/quote?codes=${codes.join(',')}`)
       setQuotes(d.data || [])
     } catch {} finally { setLoading(false) }
-  }, [watchlist])
-  useEffect(() => { loadQuotes(); const id = setInterval(loadQuotes, 10000); return () => clearInterval(id) }, [loadQuotes])
+  }, [])
+  useEffect(() => {
+    if (!initialized) return
+    loadQuotes()
+    const id = setInterval(loadQuotes, 30000)
+    return () => clearInterval(id)
+  }, [initialized, loadQuotes])
 
   const handleAdd = () => {
     const code = input.trim()

@@ -65,7 +65,13 @@ export default function FundFlowTab() {
     } finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { loadSectors(); loadIntraday() }, [loadSectors, loadIntraday])
+  const loadedRef = useRef(false)
+  useEffect(() => {
+    if (loadedRef.current) return
+    loadedRef.current = true
+    loadSectors()
+    loadIntraday()
+  }, [loadSectors, loadIntraday])
 
   // Playback timer: 1x = 1 second per data point
   useEffect(() => {

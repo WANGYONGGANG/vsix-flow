@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { api, fmt } from '@/lib/api'
 import { useApp } from '@/lib/store'
@@ -19,7 +19,12 @@ export default function DragonTiger() {
       setLastUpdate(new Date().toLocaleTimeString())
     } catch {} finally { setLoading(false) }
   }, [])
-  useEffect(() => { load(); const id = setInterval(load, 120000); return () => clearInterval(id) }, [load])
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (mountedRef.current) return
+    mountedRef.current = true
+    load(); const id = setInterval(load, 120000); return () => clearInterval(id)
+  }, [load])
 
   const typeStyle: Record<string, { bg: string; text: string }> = {
     '机构': { bg: 'bg-purple-500/20', text: 'text-purple-400' },

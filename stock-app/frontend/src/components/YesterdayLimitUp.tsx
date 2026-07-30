@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Flame } from 'lucide-react'
 import { api, fmt } from '@/lib/api'
 import { useApp } from '@/lib/store'
@@ -14,7 +14,12 @@ export default function YesterdayLimitUp() {
     setLoading(true)
     try { setStocks(await api('/limit-up-today')) } catch {} finally { setLoading(false) }
   }, [])
-  useEffect(() => { load(); const id = setInterval(load, 30000); return () => clearInterval(id) }, [load])
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (mountedRef.current) return
+    mountedRef.current = true
+    load(); const id = setInterval(load, 60000); return () => clearInterval(id)
+  }, [load])
 
   const list = filterBy === 'all'
     ? stocks

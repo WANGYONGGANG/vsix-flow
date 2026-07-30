@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
+import time
+import random
+from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 import pandas as pd
 import numpy as np
@@ -13,6 +17,112 @@ from ..schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+DATA_DIR = Path(__file__).parent.parent / 'data'
+DATA_DIR.mkdir(exist_ok=True)
+
+_spot_df_lock = threading.Lock()
+_spot_df_cache = None
+_spot_df_timestamp = 0.0
+_SPOT_CACHE_TTL = 120
+
+_index_df_lock = threading.Lock()
+_index_df_cache = None
+_index_df_timestamp = 0.0
+_INDEX_CACHE_TTL = 120
+
+
+def _load_df(name):
+    path = DATA_DIR / f'{name}.pkl'
+    if path.exists():
+        try:
+            df = pd.read_pickle(path)
+            if len(df) > 0:
+                logger.info(f"从磁盘加载 {name}，共 {len(df)} 条")
+                return df
+        except Exception as e:
+            logger.warning(f"磁盘缓存 {name} 读取失败: {e}")
+    return None
+
+
+def _save_df(name, df):
+    try:
+        path = DATA_DIR / f'{name}.pkl'
+        df.to_pickle(path)
+        logger.info(f"已将 {name} 保存到磁盘 ({len(df)} 条)")
+    except Exception as e:
+        logger.warning(f"磁盘缓存 {name} 写入失败: {e}")
+
+
+def _get_spot_df_sync():
+    global _spot_df_cache, _spot_df_timestamp
+    now = time.time()
+    if _spot_df_cache is not None and now - _spot_df_timestamp < _SPOT_CACHE_TTL:
+        return _spot_df_cache
+    with _spot_df_lock:
+        if _spot_df_cache is not None and now - _spot_df_timestamp < _SPOT_CACHE_TTL:
+            return _spot_df_cache
+        cached = _load_df('spot')
+        if cached is not None:
+            _spot_df_cache = cached
+            _spot_df_timestamp = now
+            return _spot_df_cache
+        import akshare as ak
+        _spot_df_cache = ak.stock_zh_a_spot()
+        _spot_df_timestamp = time.time()
+        _save_df('spot', _spot_df_cache)
+        logger.info(f"全市场行情数据已刷新，共 {len(_spot_df_cache)} 条")
+        return _spot_df_cache
+
+
+def _get_index_df_sync():
+    global _index_df_cache, _index_df_timestamp
+    now = time.time()
+    if _index_df_cache is not None and now - _index_df_timestamp < _INDEX_CACHE_TTL:
+        return _index_df_cache
+    with _index_df_lock:
+        if _index_df_cache is not None and now - _index_df_timestamp < _INDEX_CACHE_TTL:
+            return _index_df_cache
+        cached = _load_df('index')
+        if cached is not None:
+            _index_df_cache = cached
+            _index_df_timestamp = now
+            return _index_df_cache
+        import akshare as ak
+        _index_df_cache = ak.stock_zh_index_spot_sina()
+        _index_df_timestamp = time.time()
+        _save_df('index', _index_df_cache)
+        logger.info(f"指数行情数据已刷新，共 {len(_index_df_cache)} 条")
+        return _index_df_cache
+
+
+def _fetch_board_sectors():
+    import akshare as ak
+    for attempt in range(3):
+        try:
+            time.sleep(random.uniform(0.5, 2) * (attempt + 1))
+            return ak.stock_board_concept_name_em()
+        except Exception:
+            if attempt < 2:
+                continue
+    try:
+        df = ak.stock_board_change_em()
+        if df is not None and len(df) > 0:
+            df.rename(columns={'板块名称': '板块名称', '涨跌幅': '涨跌幅'}, inplace=True)
+            mapping = ak.stock_board_concept_name_ths()
+            code_map = dict(zip(mapping['name'], mapping['code'])) if mapping is not None and len(mapping) > 0 else {}
+            df['板块代码'] = df['板块名称'].map(code_map).fillna('')
+            df['最新价'] = 0.0
+            df['总成交额'] = 0.0
+            df['上涨家数'] = 0
+            df['下跌家数'] = 0
+            df['换手率'] = 0.0
+            df['主力净流入-净额'] = df.get('主力净流入', 0.0)
+            return df
+    except Exception:
+        pass
+    return None
+
 
 EXCLUDED_SECTORS = {
     '融资融券', '富时罗素', 'MSCI中国', '沪股通', '深股通', '百元股',
@@ -98,7 +208,7 @@ async def get_market_overview() -> MarketOverviewData:
         }
         indices: List[StockQuote] = []
         try:
-            df = ak.stock_zh_index_spot_em()
+            df = _get_index_df_sync()
             if df is not None and len(df) > 0:
                 for _, row in df.iterrows():
                     code = _safe_str(row.get('代码'))
@@ -149,7 +259,7 @@ async def get_market_overview() -> MarketOverviewData:
         up_count = down_count = flat_count = 0
         limit_up_count = limit_down_count = 0
         try:
-            df_all = ak.stock_zh_a_spot_em()
+            df_all = _get_spot_df_sync()
             if df_all is not None and len(df_all) > 0:
                 for _, row in df_all.iterrows():
                     pct = _safe_float(row.get('涨跌幅'))
@@ -229,7 +339,7 @@ async def get_fund_flow_sectors() -> List[FundFlowSector]:
         import akshare as ak
         sectors: List[FundFlowSector] = []
         try:
-            df = ak.stock_board_concept_name_em()
+            df = _fetch_board_sectors()
             if df is not None and len(df) > 0:
                 for _, row in df.iterrows():
                     name = _safe_str(row.get('板块名称'))
@@ -309,7 +419,7 @@ async def get_sector_limit() -> List[SectorInfo]:
         import akshare as ak
         sectors: List[SectorInfo] = []
         try:
-            df = ak.stock_board_concept_name_em()
+            df = _fetch_board_sectors()
             if df is not None and len(df) > 0:
                 for _, row in df.iterrows():
                     name = _safe_str(row.get('板块名称'))
@@ -430,7 +540,7 @@ async def get_quote(code: str) -> Optional[StockQuote]:
     def _fetch():
         import akshare as ak
         try:
-            df = ak.stock_zh_a_spot_em()
+            df = _get_spot_df_sync()
             if df is not None and len(df) > 0:
                 row = df[df['代码'].astype(str) == str(code)]
                 if len(row) > 0:
@@ -469,7 +579,7 @@ async def get_quotes(codes: List[str]) -> List[StockQuote]:
             return result
         code_set = {str(c).strip() for c in codes if c and str(c).strip()}
         try:
-            df = ak.stock_zh_a_spot_em()
+            df = _get_spot_df_sync()
             if df is not None and len(df) > 0:
                 matched = df[df['代码'].astype(str).isin(code_set)]
                 for _, r in matched.iterrows():
@@ -508,13 +618,11 @@ async def get_dragon_tiger(date: Optional[str] = None) -> List[DragonTigerEntry]
         entries: List[DragonTigerEntry] = []
         try:
             df_detail = ak.stock_lhb_detail_em(start_date=d, end_date=d)
-            df_stock = ak.stock_lhb_em(start_date=d, end_date=d)
-
             stock_info: Dict[str, Any] = {}
-            if df_stock is not None and len(df_stock) > 0:
-                for _, r in df_stock.iterrows():
+            if df_detail is not None and len(df_detail) > 0:
+                for _, r in df_detail.iterrows():
                     code = _safe_str(r.get('代码'))
-                    if code:
+                    if code and code not in stock_info:
                         stock_info[code] = {
                             'name': _safe_str(r.get('名称')),
                             'close': _safe_float(r.get('收盘价')),
@@ -678,7 +786,7 @@ async def get_strong_sector() -> List[SectorInfo]:
         import akshare as ak
         sectors: List[SectorInfo] = []
         try:
-            df = ak.stock_board_concept_name_em()
+            df = _fetch_board_sectors()
             if df is not None and len(df) > 0:
                 for _, row in df.iterrows():
                     name = _safe_str(row.get('板块名称'))
@@ -748,7 +856,7 @@ async def get_alert_data() -> AlertData:
         data = AlertData()
 
         try:
-            df_idx = ak.stock_zh_index_spot_em()
+            df_idx = _get_index_df_sync()
             if df_idx is not None and len(df_idx) > 0:
                 major_idx = {'000001': '上证指数', '399001': '深证成指', '399006': '创业板指',
                              '000300': '沪深300', '000016': '上证50', '000688': '科创50', '399005': '中小100'}
@@ -781,7 +889,7 @@ async def get_alert_data() -> AlertData:
             logger.warning(f"异动-指数获取失败: {e}")
 
         try:
-            df_all = ak.stock_zh_a_spot_em()
+            df_all = _get_spot_df_sync()
             if df_all is not None and len(df_all) > 0:
                 now = datetime.now().strftime('%H:%M')
                 for _, r in df_all.iterrows():

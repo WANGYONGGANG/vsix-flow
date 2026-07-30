@@ -199,16 +199,18 @@ export default function KlineChart({ code, preClose }: Props) {
     chartRef.current = chart
 
     // K 线数据
-    const candleData: CandlestickData[] = klines.map((k) => {
-      const time = normalizeTime(k.time, period)
-      return {
-        time,
-        open: k.open,
-        high: k.high,
-        low: k.low,
-        close: k.close,
-      }
-    })
+    const candleData: CandlestickData[] = klines
+      .filter((k) => k.time && k.time.trim())
+      .map((k) => {
+        const time = normalizeTime(k.time, period)
+        return {
+          time,
+          open: k.open,
+          high: k.high,
+          low: k.low,
+          close: k.close,
+        }
+      })
 
     // 主图 K 线系列
     const candleSeries = chart.addCandlestickSeries({
@@ -237,6 +239,7 @@ export default function KlineChart({ code, preClose }: Props) {
       })
       maRefs[key].current = lineSeries
       const lineData: LineData[] = klines
+        .filter((k) => k.time && k.time.trim())
         .map((k, i) => ({ time: normalizeTime(k.time, period), value: (k as any)[key] as number }))
         .filter((d): d is LineData => d.value !== undefined && !isNaN(d.value))
       lineSeries.setData(lineData)
@@ -489,11 +492,10 @@ export default function KlineChart({ code, preClose }: Props) {
 
 // 归一化时间格式为 lightweight-charts 的 Time 类型
 function normalizeTime(timeStr: string, period: string): Time {
+  if (!timeStr || !timeStr.trim()) return '' as Time
   if (['5min', '15min', '30min', '60min'].includes(period)) {
-    // 分钟级别，返回 YYYY-MM-DD HH:MM 格式
     return timeStr as Time
   }
-  // 日/周/月级别，返回 YYYY-MM-DD 格式
   const datePart = timeStr.split(' ')[0]
   return datePart as Time
 }

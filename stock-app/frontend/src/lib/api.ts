@@ -11,6 +11,8 @@ export const API_BASE: string = (() => {
   return base
 })()
 
+const FETCH_TIMEOUT = 180_000
+
 /**
  * 基础请求函数，保留原有签名与行为
  * @param path 以 / 开头的路径，会拼接到 ${API_BASE}/api 前缀下
@@ -19,12 +21,19 @@ export const API_BASE: string = (() => {
 export async function api<T = any>(path: string, opts?: RequestInit): Promise<T> {
   const prefix = API_BASE ? `${API_BASE}/api` : '/api'
   const url = `${prefix}${path}`
-  const res = await fetch(url, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', ...opts?.headers },
-  })
-  if (!res.ok) throw new Error(`API ${res.status}`)
-  return res.json()
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
+  try {
+    const res = await fetch(url, {
+      ...opts,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...opts?.headers },
+    })
+    if (!res.ok) throw new Error(`API ${res.status}`)
+    return res.json()
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**

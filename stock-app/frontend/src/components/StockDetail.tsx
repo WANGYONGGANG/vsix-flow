@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { ArrowLeft, RefreshCw, Star, Check, X, DollarSign } from 'lucide-react'
 import { apiGet, fmt } from '@/lib/api'
 import { useApp } from '@/lib/store'
@@ -22,13 +22,33 @@ export default function StockDetail() {
       const quoteData = q.data?.[0] || null
       setQuote(quoteData)
       if (quoteData) {
-        const cp = costPrice[selectedCode]
+        const cp = useApp.getState().costPrice[selectedCode]
         if (cp) setCostInput(cp.toFixed(2))
       }
     } catch {} finally { setLoading(false) }
-  }, [selectedCode, costPrice])
+  }, [selectedCode])
 
-  useEffect(() => { load(); const id = setInterval(load, 10000); return () => clearInterval(id) }, [load])
+  const intervalRef = useRef<ReturnType<typeof setInterval>>()
+  useEffect(() => {
+    let cancelled = false
+    async function fire() {
+      if (!selectedCode) return
+      setLoading(true)
+      try {
+        const q = await apiGet<{ data: StockQuote[] }>('/quote', { codes: selectedCode })
+        if (cancelled) return
+        const quoteData = q.data?.[0] || null
+        setQuote(quoteData)
+        if (quoteData) {
+          const cp = useApp.getState().costPrice[selectedCode]
+          if (cp) setCostInput(cp.toFixed(2))
+        }
+      } catch {} finally { if (!cancelled) setLoading(false) }
+    }
+    fire()
+    intervalRef.current = setInterval(fire, 30000)
+    return () => { cancelled = true; clearInterval(intervalRef.current!) }
+  }, [selectedCode])
 
   const handleBack = () => {
     const prev = popHistory()

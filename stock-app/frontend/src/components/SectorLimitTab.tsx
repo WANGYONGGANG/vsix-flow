@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { RefreshCw, TrendingUp, TrendingDown, Layers, Factory } from 'lucide-react'
 import { api, fmt } from '@/lib/api'
 import { useApp } from '@/lib/store'
@@ -50,7 +50,12 @@ export default function SectorLimitTab() {
       setLastUpdate(new Date().toLocaleTimeString())
     } catch {} finally { setLoading(false) }
   }, [])
-  useEffect(() => { load(); const id = setInterval(load, 60000); return () => clearInterval(id) }, [load])
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (mountedRef.current) return
+    mountedRef.current = true
+    load(); const id = setInterval(load, 60000); return () => clearInterval(id)
+  }, [load])
 
   const filtered = useMemo(() => {
     let list = activeTab === 'all' ? sectors : sectors.filter((s) => s.type === activeTab)

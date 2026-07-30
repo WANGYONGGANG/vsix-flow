@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { api, fmt } from '@/lib/api'
 import { useApp } from '@/lib/store'
@@ -9,13 +9,18 @@ import type { MarketOverviewData } from '@/lib/types'
 export default function MarketOverview() {
   const [data, setData] = useState<MarketOverviewData | null>(null)
   const [loading, setLoading] = useState(false)
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      setData(await api('/market-overview'))
-    } catch {} finally { setLoading(false) }
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (mountedRef.current) return
+    mountedRef.current = true
+    async function load() {
+      setLoading(true)
+      try { setData(await api('/market-overview')) } catch {} finally { setLoading(false) }
+    }
+    load()
+    const id = setInterval(load, 60000)
+    return () => clearInterval(id)
   }, [])
-  useEffect(() => { load(); const id = setInterval(load, 30000); return () => clearInterval(id) }, [load])
 
   if (!data) {
     return <div className="flex items-center justify-center h-full text-fund-fg/40 text-sm">加载中...</div>

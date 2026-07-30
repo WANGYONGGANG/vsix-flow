@@ -29,8 +29,14 @@ export default function NewsTab() {
       }
     } catch {} finally { setLoading(false) }
   }, [])
-
-  useEffect(() => { load(); const id = setInterval(load, 30000); return () => clearInterval(id) }, [load])
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (mountedRef.current) return
+    mountedRef.current = true
+    load()
+    const id = setInterval(load, 60000)
+    return () => clearInterval(id)
+  }, [load])
 
   // Auto-scroll to bottom on new data
   useEffect(() => {

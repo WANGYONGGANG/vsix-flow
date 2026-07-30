@@ -5,7 +5,7 @@ from typing import List
 class Settings(BaseSettings):
     PORT: int = 8000
     CORS_ORIGINS: str = "*"
-    CACHE_TTL_SECONDS: int = 60
+    CACHE_TTL_SECONDS: int = 300
     NEWS_API_BASE: str = "https://np-listapi.eastmoney.com"
 
     class Config:
