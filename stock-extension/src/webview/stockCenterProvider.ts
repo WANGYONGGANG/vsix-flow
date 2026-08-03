@@ -48,7 +48,8 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         await this.delWatch(msg.code);
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
       } else if (msg.type === 'fetchKline' && msg.code) {
-        const r = await proxyGet(`/api/kline?code=${msg.code}&period=day&fq=1`);
+        const period = msg.period || 'day';
+        const r = await proxyGet(`/api/kline?code=${msg.code}&period=${period}&fq=1`);
         webviewView.webview.postMessage({ type: 'klineData', code: msg.code, data: r?.data?.klines || [] });
       }
     });
