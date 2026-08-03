@@ -30,6 +30,9 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
     webviewView.webview.html = getStockCenterHtml(webviewView.webview.cspSource);
 
+    const opacity = vscode.workspace.getConfiguration('stock-ext').get<number>('opacity') || 1;
+    webviewView.webview.postMessage({ type: 'setOpacity', opacity });
+
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       console.log(`[StockExt] webview msg: ${JSON.stringify(msg)}`);
       if (msg.type === 'switchTab') {
@@ -49,8 +52,26 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
       } else if (msg.type === 'fetchKline' && msg.code) {
         const period = msg.period || 'day';
-        const r = await proxyGet(`/api/kline?code=${msg.code}&period=${period}&fq=1`);
-        webviewView.webview.postMessage({ type: 'klineData', code: msg.code, data: r?.data?.klines || [] });
+        if (period === 'intraday') {
+          const r = await proxyGet(`/api/intraday?code=${msg.code}`);
+          webviewView.webview.postMessage({ type: 'intradayData', code: msg.code, data: r?.data || {} });
+        } else {
+          const r = await proxyGet(`/api/kline?code=${msg.code}&period=${period}&fq=1`);
+          webviewView.webview.postMessage({ type: 'klineData', code: msg.code, data: r?.data?.klines || [] });
+        }
+      } else if (msg.type === 'fetchStockNews' && msg.code) {
+        const r = await proxyGet(`/api/stock-news?code=${msg.code}&pageSize=20`);
+        webviewView.webview.postMessage({ type: 'stockNewsData', code: msg.code, data: r?.data?.list || [] });
+      } else if (msg.type === 'fetchStockNotice' && msg.code) {
+        const r = await proxyGet(`/api/stock-notice?code=${msg.code}`);
+        webviewView.webview.postMessage({ type: 'stockNoticeData', code: msg.code, data: r?.data?.list || [] });
+      } else if (msg.type === 'fetchStockEssential' && msg.code) {
+        const r = await proxyGet(`/api/stock-essential?code=${msg.code}`);
+        webviewView.webview.postMessage({ type: 'stockEssentialData', code: msg.code, data: r?.data?.info || null });
+      } else if (msg.type === 'fetchQuote' && msg.code) {
+        const r = await proxyGet(`/api/quote?codes=${msg.code}`);
+        const diff = r?.data?.diff || [];
+        if (diff.length) webviewView.webview.postMessage({ type: 'quoteData', code: msg.code, data: diff[0] });
       }
     });
   }
@@ -68,6 +89,9 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
       }
       case 'em_news': {
         return await proxyGet('/api/em-news?page=1&pageSize=50') || { data: { list: [] } };
+      }
+      case 'realtime_news': {
+        return await proxyGet('/api/em-news?page=1&pageSize=60') || { data: { list: [] } };
       }
       case 'sector_limit': {
         return await proxyGet('/api/sector-limit');

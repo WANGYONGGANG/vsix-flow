@@ -31,8 +31,8 @@ function getNewsHtml(cspSource: string): string {
 <title>StockExt News</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0a0c10;--fg:#b8bfc6;--card:#12151a;--border:#1f2124;--accent:#ff4d4f}
-html,body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,sans-serif;height:100vh;overflow:hidden}
+:root{--bg:#0a0c10;--fg:#b8bfc6;--card:#12151a;--border:#1f2124;--accent:#ff4d4f;--panel-opacity:1}
+html,body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,sans-serif;height:100vh;overflow:hidden;opacity:var(--panel-opacity,1)}
 body{display:flex;flex-direction:column}
 .header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
 .header h1{font-size:13px;font-weight:600;flex:1}
@@ -55,7 +55,7 @@ function refresh(){vscode.postMessage({type:'refresh'})}
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 function fmtTime(t){return String(t).slice(5,16)}
 function render(items){var el=document.getElementById('newsList');if(!items||!items.length){el.innerHTML='<div class="loading">暂无新闻</div>';return}el.innerHTML=items.slice(0,100).map(function(n){return '<div class="news-item" onclick="vscode.postMessage({type:\\'openUrl\\',url:\\''+esc(n.url||'')+'\\'})"><div class="time">'+fmtTime(n.time)+'</div><div class="title">'+esc(n.title)+'</div></div>'}).join('')}
-window.addEventListener('message',function(e){var msg=e.data;if(msg.type==='news')render(msg.items)});
+window.addEventListener('message',function(e){var msg=e.data;if(msg.type==='news')render(msg.items);else if(msg.type==='setOpacity')document.documentElement.style.setProperty('--panel-opacity',msg.opacity)});
 vscode.postMessage({type:'ready'});
 </script>
 </body></html>`;
@@ -69,6 +69,8 @@ export class NewsPanelViewProvider implements vscode.WebviewViewProvider {
     this._view = webviewView;
     webviewView.webview.options = { enableScripts: true };
     webviewView.webview.html = getNewsHtml(webviewView.webview.cspSource);
+    const opacity = vscode.workspace.getConfiguration('stock-ext').get<number>('opacity') || 1;
+    webviewView.webview.postMessage({ type: 'setOpacity', opacity });
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       if (msg.type === 'ready' || msg.type === 'refresh') {

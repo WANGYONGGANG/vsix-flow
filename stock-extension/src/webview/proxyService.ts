@@ -22,14 +22,17 @@ function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
   });
 }
 
-function httpsGetText(fullUrl: string, referer: string): Promise<string> {
+function httpsGetText(fullUrl: string, referer: string, encoding?: string): Promise<string> {
   return new Promise((resolve) => {
     const headers: Record<string, string> = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
     if (referer) headers['Referer'] = referer;
     const req = https.get(fullUrl, { headers }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (c) => chunks.push(c));
-      res.on('end', () => resolve(gbDec.decode(Buffer.concat(chunks))));
+      res.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        resolve(encoding === 'utf8' ? buf.toString('utf8') : gbDec.decode(buf));
+      });
     });
     req.on('error', () => resolve(''));
     req.setTimeout(15000, () => { req.destroy(); });
@@ -56,6 +59,19 @@ function toTencentCode(code: string): string {
 
 function toCleanCode(sinaCode: string): string {
   return sinaCode.replace(/^(sh|sz|bj)/, '');
+}
+
+function stripJsonp(text: string): any {
+  // Strip Sina script prefix if present
+  let t = text.replace(/^\/\*<script>[\s\S]*?<\/script>\*\/\s*/, '');
+  // Try =([...]) pattern (Sina)
+  const m1 = t.match(/=\(([\s\S]+)\)$/);
+  if (m1) { try { return JSON.parse(m1[1]); } catch {} }
+  // Try name(...) pattern (eastmoney)
+  const m2 = t.match(/^\w+\(([\s\S]+)\)$/);
+  if (m2) { try { return JSON.parse(m2[1]); } catch {} }
+  // Try plain JSON
+  try { return JSON.parse(t); } catch { return null; }
 }
 
 function sinaToDiff(lines: string[]): any[] {
@@ -153,14 +169,40 @@ export class ProxyService {
       }
 
       if (targetUrl.startsWith('/api/kline')) {
-        const code = toTencentCode((parsed.query.code as string) || 'sh000001');
+        const code = (parsed.query.code as string) || 'sh000001';
         const period = (parsed.query.period as string) || 'day';
+        // Minute klines (5m/15m/30m/60m) - use Sina API
+        if (['5m', '15m', '30m', '60m'].includes(period)) {
+          const sinaCode = toSinaCode(code);
+          const scale = period.replace('m', '');
+          const r = await httpsGetText(`https://quotes.sina.cn/cn/api/jsonp_v2.php/=/CN_MarketDataService.getKLineData?symbol=${sinaCode}&scale=${scale}&ma=no&datalen=320`, 'https://finance.sina.com.cn/', 'utf8');
+          const json = stripJsonp(r as any);
+          const list = Array.isArray(json) ? json : [];
+          const rows: string[] = list.map((d: any) => `${d.day || ''},${d.open || 0},${d.close || 0},${d.high || 0},${d.low || 0},${d.volume || 0}`);
+          this.json(res, 200, { data: { klines: rows } });
+          return;
+        }
+        // Day/Week/Month klines - use Tencent API
+        const tcCode = toTencentCode(code);
         const fq = 'qfq';
-        const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},${period},,,320,${fq}`);
-        const data = r?.data?.[code];
+        const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${tcCode},${period},,,320,${fq}`);
+        const data = r?.data?.[tcCode];
         const key = data?.[`qfq${period}`] ? `qfq${period}` : (data?.[period] ? period : '');
-        const rows: string[] = (data?.[key] || []).map((row: any[]) => `${row[0]},${row[1]},${row[3]},${row[4]},${row[2]},${row[5] || 0}`);
+        const rows: string[] = (data?.[key] || []).map((row: any[]) => `${row[0]},${row[1]},${row[2]},${row[3]},${row[4]},${row[5] || 0}`);
         this.json(res, 200, { data: { klines: rows } });
+        return;
+      }
+
+      if (targetUrl.startsWith('/api/intraday')) {
+        const code = toTencentCode((parsed.query.code as string) || 'sh000001');
+        const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${code}`);
+        const mdata = r?.data?.[code]?.data?.data || [];
+        const rows: string[] = mdata.map((d: any) => {
+          const parts = d.split(' ');
+          return parts.length >= 2 ? `${parts[0]},${parts[1]}` : d;
+        });
+        const qt = r?.data?.[code]?.qt?.[code] || {};
+        this.json(res, 200, { data: { minutes: rows, preClose: qt[4] || 0 } });
         return;
       }
 
@@ -178,6 +220,7 @@ export class ProxyService {
         const diff = list.map((d: any) => ({
           f12: d.f12, f14: d.f14, f2: d.f2 || 0, f3: d.f3 || 0,
           f20: d.f20 || 0, f62: d.f62 || 0, f104: d.f104 || 0, f105: d.f105 || 0,
+          f174: d.f174 || 0,
         }));
         this.json(res, 200, { data: { diff } });
         return;
@@ -228,6 +271,72 @@ export class ProxyService {
 
       if (targetUrl.startsWith('/api/fund-flow/sectors')) {
         this.json(res, 200, { data: { diff: [] } });
+        return;
+      }
+
+      if (targetUrl.startsWith('/api/stock-news')) {
+        const code = toCleanCode(toSinaCode((parsed.query.code as string) || ''));
+        const keyword = code;
+        const param = JSON.stringify({"uid":"","keyword":keyword,"type":["cmsArticleWebOld"],"client":"web","clientType":"web","clientVersion":"curr","param":{"cmsArticleWebOld":{"searchScope":"default","sort":"default","pageIndex":1,"pageSize":10,"preTag":"","postTag":""}}});
+        const r = await httpsGetText(`https://search-api-web.eastmoney.com/search/jsonp?cb=x&param=${encodeURIComponent(param)}`, 'https://www.eastmoney.com/', 'utf8');
+        const json = stripJsonp(r as any);
+        const list = (json?.result?.cmsArticleWebOld || []).map((a: any) => ({
+          title: a.title || '',
+          url: a.articleUrl || `https://finance.eastmoney.com/a/${a.code || ''}.html`,
+          time: a.date || '',
+          source: '资讯',
+          content: (a.content || '').replace(/<[^>]+>/g, '').slice(0, 100),
+        }));
+        this.json(res, 200, { data: { list } });
+        return;
+      }
+
+      if (targetUrl.startsWith('/api/stock-notice')) {
+        const code = toCleanCode(toSinaCode((parsed.query.code as string) || ''));
+        const r = await httpsGetText(`https://np-anotice-stock.eastmoney.com/api/security/ann?cb=x&sr=-1&page_size=10&page_index=1&ann_type=A&client_source=web&f_node=0&s_node=0&stock_list=${code}`, 'https://data.eastmoney.com/', 'utf8');
+        const json = stripJsonp(r as any);
+        const list = (json?.data?.list || []).map((a: any) => ({ title: a.title || '', url: `https://data.eastmoney.com/notices/detail/${code}/${a.art_code || ''}.html`, time: a.notice_date || '', source: '公告' }));
+        this.json(res, 200, { data: { list } });
+        return;
+      }
+
+      if (targetUrl.startsWith('/api/stock-essential')) {
+        const code = toCleanCode(toSinaCode((parsed.query.code as string) || ''));
+        const prefix = /^(60|68|90|11|13|50|56|51|58)/.test(code) ? 'SH' : 'SZ';
+        const r = await httpGetJson(`https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/PageAjax?code=${prefix}${code}`, 'https://emweb.securities.eastmoney.com/');
+        const json = typeof r === 'string' ? (() => { try { return JSON.parse(r); } catch { return null; } })() : r;
+        const jb = json?.jbzl?.[0] || {};
+        const info = {
+          items: [
+            { label: '股票代码', value: jb.SECURITY_CODE || code },
+            { label: '公司全称', value: jb.ORG_NAME || '' },
+            { label: '英文名称', value: jb.ORG_NAME_EN || '' },
+            { label: '曾用名', value: jb.FORMERNAME || '' },
+            { label: '公司类型', value: jb.SECURITY_TYPE || '' },
+            { label: '上市交易所', value: jb.TRADE_MARKET || '' },
+            { label: '所属行业', value: jb.INDUSTRYCSRC1 || '' },
+            { label: '董事长', value: jb.CHAIRMAN || '' },
+            { label: '总经理', value: jb.PRESIDENT || '' },
+            { label: '董事会秘书', value: jb.SECRETARY || '' },
+            { label: '法人代表', value: jb.LEGAL_PERSON || '' },
+            { label: '独立董事', value: jb.INDEDIRECTORS || '' },
+            { label: '联系电话', value: jb.ORG_TEL || '' },
+            { label: '电子邮箱', value: jb.ORG_EMAIL || '' },
+            { label: '传真', value: jb.ORG_FAX || '' },
+            { label: '公司网址', value: jb.ORG_WEB || '' },
+            { label: '办公地址', value: jb.ADDRESS || '' },
+            { label: '注册地址', value: jb.REG_ADDRESS || '' },
+            { label: '办公邮编', value: jb.ADDRESS_POSTCODE || '' },
+            { label: '注册资本(万)', value: jb.REG_CAPITAL || '' },
+            { label: '统一信用代码', value: jb.REG_NUM || '' },
+            { label: '员工人数', value: jb.EMP_NUM || '' },
+            { label: '法律顾问', value: jb.LAW_FIRM || '' },
+            { label: '审计机构', value: jb.ACCOUNTFIRM_NAME || '' },
+            { label: '公司简介', value: (jb.ORG_PROFILE || '').slice(0, 200) },
+            { label: '经营范围', value: (jb.BUSINESS_SCOPE || '').slice(0, 200) },
+          ]
+        };
+        this.json(res, 200, { data: { info } });
         return;
       }
 

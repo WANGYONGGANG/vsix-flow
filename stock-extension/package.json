@@ -342,6 +342,9 @@
     "menus": {
       "commandPalette": [
         {
+          "command": "stock-ext.openSettings"
+        },
+        {
           "command": "stock-ext.locateWatchlist"
         },
         {
@@ -467,6 +470,13 @@
             "1w"
           ],
           "description": "AI 分析历史区间"
+        },
+        "stock-ext.opacity": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0.1,
+          "maximum": 1,
+          "description": "面板透明度 (0.1-1)"
         }
       }
     }

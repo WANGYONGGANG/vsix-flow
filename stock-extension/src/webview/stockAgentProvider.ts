@@ -16,8 +16,8 @@ function getStockAgentHtml(cspSource: string): string {
 <title>StockAgent</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0a0c10;--fg:#b8bfc6;--card:#12151a;--border:#1f2124;--accent:#ff4d4f;--msg-bg:#1a1d24}
-html,body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,sans-serif;height:100vh;overflow:hidden}
+:root{--bg:#0a0c10;--fg:#b8bfc6;--card:#12151a;--border:#1f2124;--accent:#ff4d4f;--msg-bg:#1a1d24;--panel-opacity:1}
+html,body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,sans-serif;height:100vh;overflow:hidden;opacity:var(--panel-opacity,1)}
 body{display:flex;flex-direction:column}
 .header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
 .header h1{font-size:13px;font-weight:600;flex:1}
@@ -65,7 +65,7 @@ function esc(s){var d=document.createElement('div');d.textContent=s||'';return d
 function addMsg(role,content){var div=document.createElement('div');div.className='msg '+role;var avatar=document.createElement('div');avatar.className='avatar';avatar.textContent=role==='assistant'?'L':'U';var bubble=document.createElement('div');bubble.className='bubble';bubble.innerHTML=content;if(role==='assistant'){div.appendChild(avatar);div.appendChild(bubble)}else{div.appendChild(bubble);div.appendChild(avatar)}msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight}
 function send(){var inp=document.getElementById('input');if(!inp.value.trim()||loading)return;var text=inp.value;inp.value='';addMsg('user',esc(text));loading=true;document.getElementById('sendBtn').disabled=true;vscode.postMessage({type:'chat',text})}
 function sendQuick(action){addMsg('user','/'+action);loading=true;document.getElementById('sendBtn').disabled=true;vscode.postMessage({type:'quickAction',action})}
-window.addEventListener('message',function(e){var msg=e.data;loading=false;document.getElementById('sendBtn').disabled=false;if(msg.type==='response'){addMsg('assistant',msg.text||'暂无回复')}else if(msg.type==='error'){addMsg('assistant','错误: '+(msg.text||'请求失败'))}});
+window.addEventListener('message',function(e){var msg=e.data;loading=false;document.getElementById('sendBtn').disabled=false;if(msg.type==='response'){addMsg('assistant',msg.text||'暂无回复')}else if(msg.type==='error'){addMsg('assistant','错误: '+(msg.text||'请求失败'))}else if(msg.type==='setOpacity'){document.documentElement.style.setProperty('--panel-opacity',msg.opacity)}});
 </script>
 </body></html>`;
 }
@@ -78,6 +78,8 @@ export class StockAgentViewProvider implements vscode.WebviewViewProvider {
     this._view = webviewView;
     webviewView.webview.options = { enableScripts: true };
     webviewView.webview.html = getStockAgentHtml(webviewView.webview.cspSource);
+    const opacity = vscode.workspace.getConfiguration('stock-ext').get<number>('opacity') || 1;
+    webviewView.webview.postMessage({ type: 'setOpacity', opacity });
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       if (msg.type === 'chat' || msg.type === 'quickAction') {
         const text = msg.type === 'quickAction' ? `/${msg.action}` : msg.text;
