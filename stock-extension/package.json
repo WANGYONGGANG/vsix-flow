@@ -1,0 +1,497 @@
+{
+  "name": "stock-extension",
+  "displayName": "StockExtension",
+  "description": "A股行情追踪扩展 - 实时股票/基金/币安/外汇行情、资金流向、快讯、AI 分析",
+  "version": "5.0.0",
+  "author": "StockExt",
+  "publisher": "stockext",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stockext/stock-extension"
+  },
+  "license": "BSD-3-Clause",
+  "icon": "resources/logo.png",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "enableProposedAPI": false,
+  "capabilities": {
+    "uriHandler": true
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:stockExtView.home",
+    "onView:stockExtView.agent",
+    "onCommand:stock-ext.openStockAgent",
+    "onCommand:stock-ext.toggleStatusBarIconVisibility",
+    "onCommand:stock-ext.locateWatchlist"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "stock-ext.stock",
+        "name": "stock",
+        "fullName": "StockAgent",
+        "description": "解读行情与资讯、整理自选上下文（不提供投资建议）",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "summary",
+            "description": "摘要今日快讯要点"
+          },
+          {
+            "name": "portfolio",
+            "description": "自选与持仓成本概览"
+          },
+          {
+            "name": "explain",
+            "description": "解读当前标的公开信息"
+          }
+        ]
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "stock_get_watchlist",
+        "displayName": "自选概览",
+        "toolReferenceName": "watchlist",
+        "canBeReferencedInPrompt": true,
+        "modelDescription": "获取股票与基金自选列表及分组概览",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "stock_get_quote",
+        "displayName": "行情",
+        "toolReferenceName": "quote",
+        "canBeReferencedInPrompt": true,
+        "modelDescription": "获取自选中的股票或基金实时行情",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "标的代码"
+            },
+            "type": {
+              "type": "string",
+              "description": "stock 或 fund"
+            }
+          },
+          "required": [
+            "code"
+          ]
+        }
+      },
+      {
+        "name": "stock_get_holdings_cost",
+        "displayName": "持仓成本",
+        "toolReferenceName": "holdings",
+        "canBeReferencedInPrompt": true,
+        "modelDescription": "获取用户自报的持仓成本与盈亏快照",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "stock_get_flash_news",
+        "displayName": "快讯",
+        "toolReferenceName": "flashnews",
+        "canBeReferencedInPrompt": true,
+        "modelDescription": "获取实时快讯摘录",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "number",
+              "description": "条数上限"
+            }
+          }
+        }
+      },
+      {
+        "name": "stock_get_stock_history",
+        "displayName": "历史日线",
+        "toolReferenceName": "history",
+        "canBeReferencedInPrompt": true,
+        "modelDescription": "获取股票前复权日线 CSV 片段",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "股票代码"
+            }
+          },
+          "required": [
+            "code"
+          ]
+        }
+      },
+      {
+        "name": "stock_get_sector_heat",
+        "displayName": "板块热度",
+        "toolReferenceName": "sector",
+        "canBeReferencedInPrompt": true,
+        "modelDescription": "获取板块行情近期热门与行业概念净流入概览",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "stock_get_sector_board_quote",
+        "displayName": "板块指数行情",
+        "toolReferenceName": "sectorboard",
+        "canBeReferencedInPrompt": true,
+        "modelDescription": "获取东方财富板块指数（BK 码）实时行情与成分股数量",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "板块 BK 码"
+            }
+          },
+          "required": [
+            "code"
+          ]
+        }
+      },
+      {
+        "name": "stock_get_community_mentions",
+        "displayName": "社区讨论",
+        "toolReferenceName": "community",
+        "canBeReferencedInPrompt": true,
+        "modelDescription": "获取社区相关讨论摘录",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "keyword": {
+              "type": "string",
+              "description": "关键词或股票名称"
+            }
+          },
+          "required": [
+            "keyword"
+          ]
+        }
+      },
+      {
+        "name": "stock_open_chart",
+        "displayName": "打开图表",
+        "toolReferenceName": "chart",
+        "canBeReferencedInPrompt": false,
+        "modelDescription": "打开股票或基金走势 Webview",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "description": "fund 打开基金走势"
+            }
+          },
+          "required": [
+            "code"
+          ]
+        }
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "stockExtMenu",
+          "title": "StockExt",
+          "icon": "resources/icon.svg"
+        }
+      ],
+      "panel": [
+        {
+          "id": "stockExtNewsPanel",
+          "title": "StockExt News",
+          "icon": "resources/icon.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "stockExtAgent",
+          "title": "StockAgent",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "stockExtAgent": [
+        {
+          "id": "stockExtView.agent",
+          "type": "webview",
+          "name": "StockAgent"
+        }
+      ],
+      "stockExtNewsPanel": [
+        {
+          "id": "stockExtView.news",
+          "type": "webview",
+          "name": "StockExt News"
+        }
+      ],
+      "stockExtMenu": [
+        {
+          "id": "stockExtView.home",
+          "type": "webview",
+          "name": "Home"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "stock-ext.openSettings",
+        "title": "StockExt: 设置",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "stock-ext.openStockCenter",
+        "title": "StockExt: 行情中心",
+        "icon": "$(home)"
+      },
+      {
+        "command": "stock-ext.openStockAgent",
+        "title": "StockExt: 打开 StockAgent",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "stock-ext.openSectorBoards",
+        "title": "板块行情",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "stock-ext.openHoldingsCenter",
+        "title": "资产管理"
+      },
+      {
+        "command": "stock-ext.startProxy",
+        "title": "StockExt: 启动数据代理"
+      },
+      {
+        "command": "stock-ext.stopProxy",
+        "title": "StockExt: 停止数据代理"
+      },
+      {
+        "command": "stock-ext.proxyStatus",
+        "title": "StockExt: 代理状态"
+      },
+      {
+        "command": "stock-ext.toggleStatusBarVisibility",
+        "title": "StockExt: 切换状态栏可见性"
+      },
+      {
+        "command": "stock-ext.locateWatchlist",
+        "title": "自选快速定位",
+        "icon": "$(search)"
+      },
+      {
+        "command": "stock-ext.editorDisguise.toggle",
+        "title": "StockExt: 切换编辑器 Blame 伪装"
+      },
+      {
+        "command": "stock-ext.toggleStatusBarIconVisibility",
+        "title": "StockExt: 切换状态栏图标可见性"
+      },
+      {
+        "command": "stock-ext.openStockDetail",
+        "title": "股票详情"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "stock-ext.locateWatchlist",
+        "key": "ctrl+alt+w",
+        "mac": "cmd+alt+w"
+      },
+      {
+        "command": "stock-ext.openStockCenter",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l"
+      },
+      {
+        "command": "stock-ext.openSectorBoards",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      },
+      {
+        "command": "stock-ext.openHoldingsCenter",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a"
+      },
+      {
+        "command": "stock-ext.toggleStatusBarVisibility",
+        "key": "ctrl+alt+t",
+        "mac": "cmd+alt+t"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "stock-ext.locateWatchlist"
+        },
+        {
+          "command": "stock-ext.openStockCenter"
+        },
+        {
+          "command": "stock-ext.openSectorBoards"
+        },
+        {
+          "command": "stock-ext.openHoldingsCenter"
+        },
+        {
+          "command": "stock-ext.startProxy"
+        },
+        {
+          "command": "stock-ext.stopProxy"
+        },
+        {
+          "command": "stock-ext.proxyStatus"
+        }
+      ]
+    },
+    "configuration": {
+      "properties": {
+        "stock-ext.stockPortfolio": {
+          "type": "object",
+          "default": {},
+          "description": "股票投资组合（含分组）"
+        },
+        "stock-ext.fundPortfolio": {
+          "type": "object",
+          "default": {},
+          "description": "基金投资组合（含分组）"
+        },
+        "stock-ext.holdingsLedger": {
+          "type": "object",
+          "default": {},
+          "description": "持仓账本"
+        },
+        "stock-ext.statusBarStock": {
+          "type": "array",
+          "default": [
+            "sh000001"
+          ],
+          "description": "状态栏展示的股票"
+        },
+        "stock-ext.interval": {
+          "type": "number",
+          "default": 5000,
+          "description": "轮询间隔(毫秒)"
+        },
+        "stock-ext.pollOnlyDuringAStockHours": {
+          "type": "boolean",
+          "default": false,
+          "description": "A股闭市期间停止轮询"
+        },
+        "stock-ext.riseColor": {
+          "type": "string",
+          "default": "#ff4d4f",
+          "description": "涨的颜色"
+        },
+        "stock-ext.fallColor": {
+          "type": "string",
+          "default": "#23c343",
+          "description": "跌的颜色"
+        },
+        "stock-ext.hideStatusBar": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否隐藏状态栏"
+        },
+        "stock-ext.proxyPort": {
+          "type": "number",
+          "default": 18101,
+          "description": "代理服务端口"
+        },
+        "stock-ext.stockRemindSwitch": {
+          "type": "number",
+          "default": 1,
+          "description": "提醒开关"
+        },
+        "stock-ext.stocksRemind": {
+          "type": "object",
+          "default": {},
+          "description": "股票涨跌提醒"
+        },
+        "stock-ext.webhook": {
+          "type": "object",
+          "default": {
+            "wecom": {
+              "url": "",
+              "enabled": false
+            },
+            "dingtalk": {
+              "url": "",
+              "enabled": false
+            },
+            "feishu": {
+              "url": "",
+              "enabled": false
+            }
+          },
+          "description": "预警 Webhook"
+        },
+        "stock-ext.editorDisguise.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "编辑器 Blame 伪装"
+        },
+        "stock-ext.stockAgent.maxVisibleTurns": {
+          "type": "number",
+          "default": 30,
+          "description": "最大对话轮数"
+        },
+        "stock-ext.aiStockHistoryRange": {
+          "type": "string",
+          "default": "3m",
+          "enum": [
+            "1y",
+            "6m",
+            "3m",
+            "1m",
+            "1w"
+          ],
+          "description": "AI 分析历史区间"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --fix --ext ts --ignore-path .gitignore",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.100.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^3.9.2",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.7.0"
+  },
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ]
+}

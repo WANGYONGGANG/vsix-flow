@@ -1,0 +1,6 @@
+out
+.cache
+node_modules
+.vscode-test/
+*.vsix
+*.zip
