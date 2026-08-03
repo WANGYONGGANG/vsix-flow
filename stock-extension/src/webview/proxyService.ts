@@ -207,51 +207,47 @@ export class ProxyService {
 
       // 市场概况数据：涨跌分布 + 三市成交额 + 昨日涨停表现
       if (targetUrl.startsWith('/api/market-overview-detail')) {
-        // 腾讯指数数据
+        // 腾讯指数数据 - 获取成交额
         const idxText = await httpsGetText('https://qt.gtimg.cn/q=sh000001,sz399001,sz399006', 'https://finance.qq.com/');
         let shAmt = 0, szAmt = 0, cybAmt = 0;
-        let shUp = 0, shDown = 0, shFlat = 0;
-        let szUp = 0, szDown = 0, szFlat = 0;
         idxText.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
           const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
           if (!m) return;
           const p = m[2].split('~');
           const amt = (parseFloat(p[37]) || 0) * 10000;
-          if (m[1] === 'sh000001') { shAmt = amt; shUp = parseInt(p[44]) || 0; shDown = parseInt(p[45]) || 0; shFlat = parseInt(p[46]) || 0; }
-          else if (m[1] === 'sz399001') { szAmt = amt; szUp = parseInt(p[44]) || 0; szDown = parseInt(p[45]) || 0; szFlat = parseInt(p[46]) || 0; }
+          if (m[1] === 'sh000001') { shAmt = amt; }
+          else if (m[1] === 'sz399001') { szAmt = amt; }
           else if (m[1] === 'sz399006') { cybAmt = amt; }
         });
-        const totalUp = shUp + szUp;
-        const totalDown = shDown + szDown;
-        const totalFlat = shFlat + szFlat;
         const totalTrade = shAmt + szAmt + cybAmt;
         // 昨日涨停表现
-        const ut = '7eea3edcaed734bea9cbfc24409ed989';
-        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10).replace(/-/g, '');
-        const r2 = await httpGetJson(`https://push2ex.eastmoney.com/getTopicZTPool?ut=${ut}&dpt=wz.ztzt&Pageindex=0&pagesize=200&sort=fbt%3Aasc&date=${yesterday}`, 'https://quote.eastmoney.com/ztb/detail.html');
-        const ztPool = r2?.data?.pool || [];
-        let ztCount = ztPool.length;
-        let ztUpCount = 0, ztAvgChange = 0;
-        if (ztPool.length > 0) {
-          const ztCodes = ztPool.slice(0, 30).map((x: any) => toTencentCode(x.c || '')).join(',');
-          if (ztCodes) {
-            const ztText = await httpsGetText(`https://qt.gtimg.cn/q=${ztCodes}`, 'https://finance.qq.com/');
-            let sumChange = 0, validCount = 0;
-            ztText.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
-              const mz = line.match(/v_[a-z]{2}\d+="(.*)"/);
-              if (!mz) return;
-              const pz = mz[1].split('~');
-              const change = parseFloat(pz[32]) || 0;
-              sumChange += change; validCount++;
-              if (change > 0) ztUpCount++;
-            });
-            if (validCount > 0) ztAvgChange = sumChange / validCount;
+        let ztCount = 0, ztUpCount = 0, ztAvgChange = 0;
+        try {
+          const ut = '7eea3edcaed734bea9cbfc24409ed989';
+          const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10).replace(/-/g, '');
+          const r2 = await httpGetJson(`https://push2ex.eastmoney.com/getTopicZTPool?ut=${ut}&dpt=wz.ztzt&Pageindex=0&pagesize=200&sort=fbt%3Aasc&date=${yesterday}`, 'https://quote.eastmoney.com/ztb/detail.html');
+          const ztPool = r2?.data?.pool || [];
+          ztCount = ztPool.length;
+          if (ztPool.length > 0) {
+            const ztCodes = ztPool.slice(0, 30).map((x: any) => toTencentCode(x.c || '')).join(',');
+            if (ztCodes) {
+              const ztText = await httpsGetText(`https://qt.gtimg.cn/q=${ztCodes}`, 'https://finance.qq.com/');
+              let sumChange = 0, validCount = 0;
+              ztText.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
+                const mz = line.match(/v_[a-z]{2}\d+="(.*)"/);
+                if (!mz) return;
+                const pz = mz[1].split('~');
+                const change = parseFloat(pz[32]) || 0;
+                sumChange += change; validCount++;
+                if (change > 0) ztUpCount++;
+              });
+              if (validCount > 0) ztAvgChange = sumChange / validCount;
+            }
           }
-        }
+        } catch {}
         this.json(res, 200, {
           data: {
-            distribution: { zt: 0, g5: 0, g1: 0, g0: 0, flat: 0, d0: 0, d1: 0, d5: 0, dt: 0 },
-            counts: { up: totalUp, down: totalDown, flat: totalFlat },
+            counts: { up: 0, down: 0, flat: 0 },
             trade: { sh: shAmt, sz: szAmt, cyb: cybAmt, total: totalTrade },
             yesterdayZt: { count: ztCount, upCount: ztUpCount, avgChange: ztAvgChange },
           }

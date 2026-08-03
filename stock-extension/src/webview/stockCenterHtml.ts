@@ -183,48 +183,35 @@ function openStockDetail(code,name){
 
 function renderMarket(d){
   var list=d.diff||d.indices||d;if(!list||!list.length){$('#content').innerHTML='<div class="loading">暂无数据</div>';return}
-  var dist=d.distribution||{};var counts=d.counts||{};var trade=d.trade||{};var yzt=d.yesterdayZt||{};
+  var counts=d.counts||{};var trade=d.trade||{};var yzt=d.yesterdayZt||{};
   var html='';
   html+='<div class="grid-3">';
   for(var i=0;i<Math.min(3,list.length);i++){var item=list[i];var price=item.price||item.f2||0;var rate=item.changeRate!=null?item.changeRate:(item.f3||0);var name=item.name||item.f14||'';var up=rate>=0;html+='<div class="card"><div class="text-muted mb-1">'+esc(name)+'</div><div class="'+(up?'text-up':'text-down')+'" style="font-size:18px;font-weight:700">'+(price||0).toFixed(2)+'</div><div class="'+(up?'text-up':'text-down')+'">'+(rate>=0?'+':'')+(rate||0).toFixed(2)+'%</div></div>'}
   html+='</div>';
-  html+='<div class="card"><div style="display:flex;gap:12px;margin-bottom:8px">';
-  html+='<span class="tag tag-up">涨 '+(counts.up||0)+'</span>';
-  html+='<span class="text-muted" style="font-size:11px">平 '+(counts.flat||0)+'</span>';
-  html+='<span class="tag tag-down">跌 '+(counts.down||0)+'</span>';
-  html+='</div>';
-  var bars=[
-    {label:'涨停',val:dist.zt||0,color:'var(--up)'},
-    {label:'>5%',val:dist.g5||0,color:'var(--up)'},
-    {label:'>1%',val:dist.g1||0,color:'var(--up)'},
-    {label:'>0%',val:dist.g0||0,color:'var(--up)'},
-    {label:'平盘',val:dist.flat||0,color:'#666'},
-    {label:'0~1%',val:dist.d0||0,color:'var(--down)'},
-    {label:'1~5%',val:dist.d1||0,color:'var(--down)'},
-    {label:'>5%',val:dist.d5||0,color:'var(--down)'},
-    {label:'跌停',val:dist.dt||0,color:'var(--down)'}
-  ];
-  var maxVal=1;bars.forEach(function(b){if(b.val>maxVal)maxVal=b.val});
-  html+='<div style="display:flex;align-items:flex-end;gap:3px;height:80px;margin:8px 0">';
-  for(var i=0;i<bars.length;i++){var b=bars[i];var h=Math.max(2,Math.round(b.val/maxVal*70));html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div style="font-size:9px;color:'+b.color+';margin-bottom:2px">'+b.val+'</div><div style="width:100%;height:'+h+'px;background:'+b.color+';border-radius:2px 2px 0 0"></div><div style="font-size:8px;opacity:.5;margin-top:2px">'+b.label+'</div></div>'}
-  html+='</div>';
-  var total=(counts.up||0)+(counts.down||0)+(counts.flat||0);
-  if(total>0){
-    var upW=Math.round((counts.up||0)/total*100);
-    var flatW=Math.round((counts.flat||0)/total*100);
-    var downW=100-upW-flatW;
-    html+='<div style="margin:8px 0"><div style="display:flex;height:16px;border-radius:3px;overflow:hidden">';
-    html+='<div style="width:'+upW+'%;background:var(--up)"></div>';
-    html+='<div style="width:'+flatW+'%;background:#666"></div>';
-    html+='<div style="width:'+downW+'%;background:var(--down)"></div>';
+  if(counts.up>0||counts.down>0){
+    html+='<div class="card"><div style="display:flex;gap:12px;margin-bottom:8px">';
+    html+='<span class="tag tag-up">涨 '+counts.up+'</span>';
+    html+='<span class="text-muted" style="font-size:11px">平 '+(counts.flat||0)+'</span>';
+    html+='<span class="tag tag-down">跌 '+counts.down+'</span>';
     html+='</div>';
-    html+='<div style="display:flex;justify-content:space-between;font-size:10px;margin-top:3px">';
-    html+='<span class="text-up">涨 '+(counts.up||0)+'家</span>';
-    html+='<span class="text-muted">平 '+(counts.flat||0)+'家</span>';
-    html+='<span class="text-down">跌 '+(counts.down||0)+'家</span>';
-    html+='</div></div>';
+    var total=(counts.up||0)+(counts.down||0)+(counts.flat||0);
+    if(total>0){
+      var upW=Math.round((counts.up||0)/total*100);
+      var flatW=Math.round((counts.flat||0)/total*100);
+      var downW=100-upW-flatW;
+      html+='<div style="margin:8px 0"><div style="display:flex;height:16px;border-radius:3px;overflow:hidden">';
+      html+='<div style="width:'+upW+'%;background:var(--up)"></div>';
+      html+='<div style="width:'+flatW+'%;background:#666"></div>';
+      html+='<div style="width:'+downW+'%;background:var(--down)"></div>';
+      html+='</div>';
+      html+='<div style="display:flex;justify-content:space-between;font-size:10px;margin-top:3px">';
+      html+='<span class="text-up">涨 '+counts.up+'家</span>';
+      html+='<span class="text-muted">平 '+(counts.flat||0)+'家</span>';
+      html+='<span class="text-down">跌 '+counts.down+'家</span>';
+      html+='</div></div>';
+    }
+    html+='</div>';
   }
-  html+='</div>';
   if(yzt.count>0){
     html+='<div class="card"><div class="section-title">昨日涨停表现</div>';
     html+='<div class="flex items-center gap-2">';
