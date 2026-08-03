@@ -39,6 +39,21 @@ export function activate(context: vscode.ExtensionContext) {
 
   registerCommands(context, statusBarManager, proxyService, editorDisguiseProvider);
 
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('stock-ext.opacity')) {
+        const opacity = vscode.workspace.getConfiguration('stock-ext').get<number>('opacity') || 1;
+        stockCenterProvider.updateOpacity(opacity);
+        newsPanelProvider.updateOpacity(opacity);
+        stockAgentProvider.updateOpacity(opacity);
+      }
+      if (e.affectsConfiguration('stock-ext.voiceBroadcast')) {
+        const on = vscode.workspace.getConfiguration('stock-ext').get<boolean>('voiceBroadcast') || false;
+        stockCenterProvider.updateVoice(on);
+      }
+    })
+  );
+
   try {
     registerAiParticipant(context);
   } catch {}

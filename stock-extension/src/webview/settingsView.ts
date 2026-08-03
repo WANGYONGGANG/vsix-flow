@@ -36,6 +36,7 @@ const SETTINGS=[
   {key:'hideStatusBar',label:'隐藏状态栏',type:'checkbox',default:false},
   {key:'hideStatusBarIcon',label:'隐藏状态栏图标',type:'checkbox',default:false},
   {key:'opacity',label:'面板透明度',type:'range',default:1,min:0.1,max:1,step:0.1},
+  {key:'voiceBroadcast',label:'自动语音播报',type:'checkbox',default:false},
 ];
 function load(){var el=document.getElementById('settings');el.innerHTML='';
   var html='<h2>常规</h2><div class="group">';

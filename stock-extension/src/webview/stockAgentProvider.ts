@@ -105,4 +105,8 @@ export class StockAgentViewProvider implements vscode.WebviewViewProvider {
       }
     });
   }
+
+  updateOpacity(opacity: number) {
+    this._view?.webview.postMessage({ type: 'setOpacity', opacity });
+  }
 }

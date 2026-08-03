@@ -61,6 +61,21 @@ function toCleanCode(sinaCode: string): string {
   return sinaCode.replace(/^(sh|sz|bj)/, '');
 }
 
+function fmtAmt(v: any): string {
+  const n = Number(v || 0);
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + '万亿';
+  if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿';
+  if (n >= 1e4) return (n / 1e4).toFixed(2) + '万';
+  return n.toFixed(2);
+}
+
+function fmtHoldNum(v: any): string {
+  const n = Number(v || 0);
+  if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿股';
+  if (n >= 1e4) return (n / 1e4).toFixed(2) + '万股';
+  return n.toFixed(0) + '股';
+}
+
 function stripJsonp(text: string): any {
   // Strip Sina script prefix if present
   let t = text.replace(/^\/\*<script>[\s\S]*?<\/script>\*\/\s*/, '');
@@ -87,13 +102,15 @@ function sinaToDiff(lines: string[]): any[] {
     const price = parseFloat(p[3]);
     const high = parseFloat(p[4]);
     const low = parseFloat(p[5]);
-    const volume = parseFloat(p[8]) || 0;
+    const volume = (parseFloat(p[8]) || 0) * 100;
     const amount = parseFloat(p[9]) || 0;
     const change = price - yestclose;
     const rate = yestclose ? (change / yestclose) * 100 : 0;
+    const turnover = parseFloat(p[32]) || 0;
     diff.push({
-      f2: price, f3: rate, f4: change, f12: toCleanCode(code), f14: name,
-      f15: high, f16: low, f17: open, f18: yestclose, f47: volume, f48: amount,
+      f2: price, f3: rate, f4: change, f5: volume, f6: amount, f8: turnover,
+      f12: toCleanCode(code), f14: name,
+      f15: high, f16: low, f17: open, f18: yestclose,
     });
   }
   return diff;
@@ -147,15 +164,114 @@ export class ProxyService {
     const parsed = url.parse(targetUrl, true);
 
     try {
-      if (targetUrl.startsWith('/api/quote') || targetUrl.startsWith('/api/market-overview')) {
+      if (targetUrl.startsWith('/api/quote') || (targetUrl.startsWith('/api/market-overview') && !targetUrl.startsWith('/api/market-overview-detail'))) {
         const codes = targetUrl.startsWith('/api/market-overview')
           ? 'sh000001,sz399001,sz399006,sh000016,sh000688,sh000300,sz399005'
           : ((parsed.query.codes as string) || '');
-        const list = codes.split(',').filter(Boolean).map(toSinaCode).join(',');
+        const list = codes.split(',').filter(Boolean).map(toTencentCode).join(',');
         if (!list) { this.json(res, 200, { data: { diff: [] } }); return; }
-        const text = await httpsGetText(`https://hq.sinajs.cn/list=${list}`, 'http://finance.sina.com.cn/');
-        const lines = text.split('\n').filter((l) => l.trim());
-        this.json(res, 200, { data: { diff: sinaToDiff(lines) } });
+        const text = await httpsGetText(`https://qt.gtimg.cn/q=${list}`, 'https://finance.qq.com/');
+        const diff = text.split('\n').filter((l) => l.trim()).map((line) => {
+          const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
+          if (!m) return null;
+          const p = m[2].split('~');
+          return {
+            f2: parseFloat(p[3]) || 0,
+            f3: parseFloat(p[32]) || 0,
+            f4: parseFloat(p[31]) || 0,
+            f5: (parseFloat(p[6]) || 0) * 100,
+            f6: (parseFloat(p[37]) || 0) * 10000,
+            f8: parseFloat(p[38]) || 0,
+            f12: toCleanCode(m[1]),
+            f14: p[1] || '',
+            f15: parseFloat(p[33]) || 0,
+            f16: parseFloat(p[34]) || 0,
+            f17: parseFloat(p[5]) || 0,
+            f18: parseFloat(p[4]) || 0,
+            // Buy/Sell 1-5
+            buy1: parseFloat(p[9]) || 0, buy1vol: parseInt(p[10]) || 0,
+            buy2: parseFloat(p[11]) || 0, buy2vol: parseInt(p[12]) || 0,
+            buy3: parseFloat(p[13]) || 0, buy3vol: parseInt(p[14]) || 0,
+            buy4: parseFloat(p[15]) || 0, buy4vol: parseInt(p[16]) || 0,
+            buy5: parseFloat(p[17]) || 0, buy5vol: parseInt(p[18]) || 0,
+            sell1: parseFloat(p[19]) || 0, sell1vol: parseInt(p[20]) || 0,
+            sell2: parseFloat(p[21]) || 0, sell2vol: parseInt(p[22]) || 0,
+            sell3: parseFloat(p[23]) || 0, sell3vol: parseInt(p[24]) || 0,
+            sell4: parseFloat(p[25]) || 0, sell4vol: parseInt(p[26]) || 0,
+            sell5: parseFloat(p[27]) || 0, sell5vol: parseInt(p[28]) || 0,
+          };
+        }).filter(Boolean);
+        this.json(res, 200, { data: { diff } });
+        return;
+      }
+
+      // 市场概况数据：涨跌分布 + 三市成交额 + 昨日涨停表现
+      if (targetUrl.startsWith('/api/market-overview-detail')) {
+        // 腾讯指数数据
+        const idxText = await httpsGetText('https://qt.gtimg.cn/q=sh000001,sz399001,sz399006', 'https://finance.qq.com/');
+        let shAmt = 0, szAmt = 0, cybAmt = 0;
+        let shUp = 0, shDown = 0, shFlat = 0;
+        let szUp = 0, szDown = 0, szFlat = 0;
+        idxText.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
+          const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
+          if (!m) return;
+          const p = m[2].split('~');
+          const amt = (parseFloat(p[37]) || 0) * 10000;
+          if (m[1] === 'sh000001') { shAmt = amt; shUp = parseInt(p[44]) || 0; shDown = parseInt(p[45]) || 0; shFlat = parseInt(p[46]) || 0; }
+          else if (m[1] === 'sz399001') { szAmt = amt; szUp = parseInt(p[44]) || 0; szDown = parseInt(p[45]) || 0; szFlat = parseInt(p[46]) || 0; }
+          else if (m[1] === 'sz399006') { cybAmt = amt; }
+        });
+        const totalUp = shUp + szUp;
+        const totalDown = shDown + szDown;
+        const totalFlat = shFlat + szFlat;
+        const totalTrade = shAmt + szAmt + cybAmt;
+        // 昨日涨停表现
+        const ut = '7eea3edcaed734bea9cbfc24409ed989';
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10).replace(/-/g, '');
+        const r2 = await httpGetJson(`https://push2ex.eastmoney.com/getTopicZTPool?ut=${ut}&dpt=wz.ztzt&Pageindex=0&pagesize=200&sort=fbt%3Aasc&date=${yesterday}`, 'https://quote.eastmoney.com/ztb/detail.html');
+        const ztPool = r2?.data?.pool || [];
+        let ztCount = ztPool.length;
+        let ztUpCount = 0, ztAvgChange = 0;
+        if (ztPool.length > 0) {
+          const ztCodes = ztPool.slice(0, 30).map((x: any) => toTencentCode(x.c || '')).join(',');
+          if (ztCodes) {
+            const ztText = await httpsGetText(`https://qt.gtimg.cn/q=${ztCodes}`, 'https://finance.qq.com/');
+            let sumChange = 0, validCount = 0;
+            ztText.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
+              const mz = line.match(/v_[a-z]{2}\d+="(.*)"/);
+              if (!mz) return;
+              const pz = mz[1].split('~');
+              const change = parseFloat(pz[32]) || 0;
+              sumChange += change; validCount++;
+              if (change > 0) ztUpCount++;
+            });
+            if (validCount > 0) ztAvgChange = sumChange / validCount;
+          }
+        }
+        this.json(res, 200, {
+          data: {
+            distribution: { zt: 0, g5: 0, g1: 0, g0: 0, flat: 0, d0: 0, d1: 0, d5: 0, dt: 0 },
+            counts: { up: totalUp, down: totalDown, flat: totalFlat },
+            trade: { sh: shAmt, sz: szAmt, cyb: cybAmt, total: totalTrade },
+            yesterdayZt: { count: ztCount, upCount: ztUpCount, avgChange: ztAvgChange },
+          }
+        });
+        return;
+      }
+
+      if (targetUrl.startsWith('/api/em-news-search')) {
+        const param = JSON.stringify({"uid":"","keyword":"A股 股市","type":["cmsArticleWebOld"],"client":"web","clientType":"web","clientVersion":"curr","param":{"cmsArticleWebOld":{"searchScope":"default","sort":"default","pageIndex":1,"pageSize":30,"preTag":"","postTag":""}}});
+        const r = await httpsGetText(`https://search-api-web.eastmoney.com/search/jsonp?cb=x&param=${encodeURIComponent(param)}`, 'https://www.eastmoney.com/', 'utf8');
+        const json = stripJsonp(r as any);
+        const list = (json?.result?.cmsArticleWebOld || []).map((a: any) => ({
+          title: a.title || '',
+          content: (a.content || '').replace(/<[^>]+>/g, '').slice(0, 120),
+          url: a.articleUrl || '',
+          time: a.date || '',
+          source: a.mediaName || '东方财富',
+          showtime: a.date || '',
+        }));
+        this.json(res, 200, { data: { list } });
         return;
       }
 
@@ -208,9 +324,20 @@ export class ProxyService {
 
       if (targetUrl.startsWith('/api/hot-stocks')) {
         const hot = 'sh600519,sz000858,sh601318,sh600036,sz300750,sh688981,sz000001,sh601899,sz002594,sh600900';
-        const text = await httpsGetText(`https://hq.sinajs.cn/list=${hot}`, 'http://finance.sina.com.cn/');
-        const lines = text.split('\n').filter((l) => l.trim());
-        this.json(res, 200, { data: { diff: sinaToDiff(lines) } });
+        const text = await httpsGetText(`https://qt.gtimg.cn/q=${hot}`, 'https://finance.qq.com/');
+        const diff = text.split('\n').filter((l) => l.trim()).map((line) => {
+          const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
+          if (!m) return null;
+          const p = m[2].split('~');
+          return {
+            f2: parseFloat(p[3]) || 0, f3: parseFloat(p[32]) || 0, f4: parseFloat(p[31]) || 0,
+            f5: (parseFloat(p[6]) || 0) * 100, f6: (parseFloat(p[37]) || 0) * 10000, f8: parseFloat(p[38]) || 0,
+            f12: toCleanCode(m[1]), f14: p[1] || '',
+            f15: parseFloat(p[33]) || 0, f16: parseFloat(p[34]) || 0,
+            f17: parseFloat(p[5]) || 0, f18: parseFloat(p[4]) || 0,
+          };
+        }).filter(Boolean);
+        this.json(res, 200, { data: { diff } });
         return;
       }
 
@@ -231,6 +358,17 @@ export class ProxyService {
         const r = await httpGetJson(`https://data.eastmoney.com/dataapi/bkzj/getbkzj?key=f174&code=m%3A90%2Bt%3A${t}`, 'https://data.eastmoney.com/');
         const list = r?.data?.diff || [];
         this.json(res, 200, { data: { diff: list } });
+        return;
+      }
+
+      // 板块资金流 (Sina) - fenlei=0行业, fenlei=1概念
+      if (targetUrl.startsWith('/api/sina-bkzj')) {
+        const fenlei = (parsed.query.fenlei as string) || '1';
+        const txt = await httpsGetText(`https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_bkzj_bk?page=1&num=50&sort=netamount&asc=0&fenlei=${fenlei}`, 'https://finance.sina.com.cn/', 'utf8');
+        try {
+          const list = JSON.parse(txt);
+          this.json(res, 200, { data: { list } });
+        } catch { this.json(res, 200, { data: { list: [] } }); }
         return;
       }
 
@@ -337,6 +475,142 @@ export class ProxyService {
           ]
         };
         this.json(res, 200, { data: { info } });
+        return;
+      }
+
+      if (targetUrl.startsWith('/api/stock-finance')) {
+        const code = toCleanCode(toSinaCode((parsed.query.code as string) || ''));
+        const r = await httpGetJson(`https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_F10_FINANCE_MAINFINADATA&columns=ALL&filter=(SECURITY_CODE=%22${code}%22)&pageSize=4&sortColumns=REPORT_DATE&sortTypes=-1&source=HSF10&client=PC`, 'https://data.eastmoney.com/');
+        const list = r?.result?.data || [];
+        const latest = list[0] || {};
+        const prev = list[1] || {};
+        const fmtNum = (v: any, d = 2) => v != null ? Number(v).toFixed(d) : '-';
+        const fmtAmt = (v: any) => {
+          const n = Number(v || 0);
+          if (n >= 1e12) return (n / 1e12).toFixed(2) + '万亿';
+          if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿';
+          if (n >= 1e4) return (n / 1e4).toFixed(2) + '万';
+          return n.toFixed(2);
+        };
+        const yoy = (cur: any, prv: any) => {
+          if (cur == null || prv == null || Number(prv) === 0) return '-';
+          const r = ((Number(cur) - Number(prv)) / Math.abs(Number(prv)) * 100);
+          return (r >= 0 ? '+' : '') + r.toFixed(2) + '%';
+        };
+        const items = [
+          { label: '报告期', value: latest.REPORT_DATE_NAME || '-' },
+          { label: '每股收益', value: fmtNum(latest.EPSJB), color: Number(latest.EPSJB) >= 0 ? '#ff4d4f' : '#23c343' },
+          { label: '每股净资产', value: fmtNum(latest.BPS) },
+          { label: '每股经营现金流', value: fmtNum(latest.MGJYXJJE) },
+          { label: '营业总收入', value: fmtAmt(latest.TOTALOPERATEREVE) },
+          { label: '营收同比增长', value: yoy(latest.TOTALOPERATEREVE, prev.TOTALOPERATEREVE), color: Number(latest.TOTALOPERATEREVE) >= Number(prev.TOTALOPERATEREVE) ? '#ff4d4f' : '#23c343' },
+          { label: '归母净利润', value: fmtAmt(latest.PARENTNETPROFIT) },
+          { label: '净利润同比增长', value: yoy(latest.PARENTNETPROFIT, prev.PARENTNETPROFIT), color: Number(latest.PARENTNETPROFIT) >= Number(prev.PARENTNETPROFIT) ? '#ff4d4f' : '#23c343' },
+          { label: '净资产收益率', value: fmtNum(latest.ROEJQ) + '%' },
+          { label: '毛利率', value: fmtNum(latest.XSMLL) + '%' },
+          { label: '净利率', value: fmtNum(latest.XSJLL) + '%' },
+          { label: '资产负债率', value: fmtNum(latest.ZCFZL) + '%' },
+          { label: '流动比率', value: fmtNum(latest.LD) },
+          { label: '速动比率', value: fmtNum(latest.SD) },
+          { label: '总资产周转率', value: fmtNum(latest.ZZCZZTS) + '次' },
+          { label: '应收账款周转天数', value: fmtNum(latest.YSZKZZTS) + '天' },
+        ];
+        this.json(res, 200, { data: { items } });
+        return;
+      }
+
+      if (targetUrl.startsWith('/api/stock-profile')) {
+        const code = toCleanCode(toSinaCode((parsed.query.code as string) || ''));
+        const sub = (parsed.query.sub as string) || 'essential';
+        if (sub === 'company' || sub === 'essential') {
+          const prefix = /^(60|68|90|11|13|50|56|51|58)/.test(code) ? 'SH' : 'SZ';
+          const r = await httpGetJson(`https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/PageAjax?code=${prefix}${code}`, 'https://emweb.securities.eastmoney.com/');
+          const json = typeof r === 'string' ? (() => { try { return JSON.parse(r); } catch { return null; } })() : r;
+          const jb = json?.jbzl?.[0] || {};
+          const items = sub === 'essential' ? [
+            { label: '股票代码', value: jb.SECURITY_CODE || code },
+            { label: '公司全称', value: jb.ORG_NAME || '' },
+            { label: '英文名称', value: jb.ORG_NAME_EN || '' },
+            { label: '曾用名', value: jb.FORMERNAME || '' },
+            { label: '公司类型', value: jb.SECURITY_TYPE || '' },
+            { label: '上市交易所', value: jb.TRADE_MARKET || '' },
+            { label: '所属行业', value: jb.INDUSTRYCSRC1 || '' },
+            { label: '董事长', value: jb.CHAIRMAN || '' },
+            { label: '总经理', value: jb.PRESIDENT || '' },
+            { label: '董事会秘书', value: jb.SECRETARY || '' },
+            { label: '法人代表', value: jb.LEGAL_PERSON || '' },
+            { label: '联系电话', value: jb.ORG_TEL || '' },
+            { label: '电子邮箱', value: jb.ORG_EMAIL || '' },
+            { label: '公司网址', value: jb.ORG_WEB || '' },
+            { label: '办公地址', value: jb.ADDRESS || '' },
+            { label: '注册资本(万)', value: jb.REG_CAPITAL || '' },
+            { label: '员工人数', value: jb.EMP_NUM || '' },
+            { label: '公司简介', value: (jb.ORG_PROFILE || '').slice(0, 300) },
+            { label: '经营范围', value: (jb.BUSINESS_SCOPE || '').slice(0, 300) },
+          ] : [
+            { label: '公司全称', value: jb.ORG_NAME || '' },
+            { label: '英文名称', value: jb.ORG_NAME_EN || '' },
+            { label: '公司类型', value: jb.SECURITY_TYPE || '' },
+            { label: '上市交易所', value: jb.TRADE_MARKET || '' },
+            { label: '所属行业', value: jb.INDUSTRYCSRC1 || '' },
+            { label: '成立日期', value: jb.FOUND_DATE || '' },
+            { label: '上市日期', value: jb.LISTING_DATE || '' },
+            { label: '注册资本(万)', value: jb.REG_CAPITAL || '' },
+            { label: '法人代表', value: jb.LEGAL_PERSON || '' },
+            { label: '董事长', value: jb.CHAIRMAN || '' },
+            { label: '总经理', value: jb.PRESIDENT || '' },
+            { label: '董事会秘书', value: jb.SECRETARY || '' },
+            { label: '独立董事', value: jb.INDEDIRECTORS || '' },
+            { label: '主办券商', value: jb.HOST_BROKER || '' },
+            { label: '联系电话', value: jb.ORG_TEL || '' },
+            { label: '电子邮箱', value: jb.ORG_EMAIL || '' },
+            { label: '传真', value: jb.ORG_FAX || '' },
+            { label: '公司网址', value: jb.ORG_WEB || '' },
+            { label: '办公地址', value: jb.ADDRESS || '' },
+            { label: '注册地址', value: jb.REG_ADDRESS || '' },
+            { label: '办公邮编', value: jb.ADDRESS_POSTCODE || '' },
+            { label: '统一信用代码', value: jb.REG_NUM || '' },
+            { label: '员工人数', value: jb.EMP_NUM || '' },
+            { label: '法律顾问', value: jb.LAW_FIRM || '' },
+            { label: '审计机构', value: jb.ACCOUNTFIRM_NAME || '' },
+            { label: '实际控股人', value: jb.ACTUAL_HOLDER || '' },
+            { label: '公司简介', value: (jb.ORG_PROFILE || '').slice(0, 500) },
+            { label: '经营范围', value: (jb.BUSINESS_SCOPE || '').slice(0, 500) },
+          ];
+          this.json(res, 200, { data: { items } });
+          return;
+        }
+        if (sub === 'holder') {
+          const r = await httpGetJson(`https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_F10_EH_FREEHOLDERS&columns=SECURITY_CODE,HOLDER_NAME,HOLD_NUM,FREE_HOLDNUM_RATIO,HOLD_RATIO,HOLD_NUM_CHANGE,CHANGE_RATIO,HOLD_DATE&filter=(SECURITY_CODE=%22${code}%22)&pageSize=10&sortColumns=HOLD_DATE,HOLD_NUM&sortTypes=-1,-1&source=HSF10&client=PC`, 'https://data.eastmoney.com/');
+          const list = r?.result?.data || [];
+          if (!list.length) {
+            this.json(res, 200, { data: { items: [{ label: '提示', value: '暂无股东数据' }] } });
+            return;
+          }
+          const items = list.map((h: any) => ({
+            label: h.HOLDER_NAME || '',
+            value: `持股${fmtHoldNum(h.HOLD_NUM)} 占比${h.HOLD_RATIO != null ? Number(h.HOLD_RATIO).toFixed(2) : '-'}%`,
+          }));
+          this.json(res, 200, { data: { items } });
+          return;
+        }
+        if (sub === 'industry') {
+          const r = await httpGetJson(`https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_F10_FINANCE_MAINFINADATA&columns=SECURITY_CODE,SECURITY_NAME_ABBR,TOTALOPERATEREVE,PARENTNETPROFIT,ROEJQ,XSMLL,XSJLL&filter=(SECURITY_CODE=%22${code}%22)&pageSize=1&sortColumns=REPORT_DATE&sortTypes=-1&source=HSF10&client=PC`, 'https://data.eastmoney.com/');
+          const row = r?.result?.data?.[0] || {};
+          const items = [
+            { label: '公司名称', value: row.SECURITY_NAME_ABBR || '' },
+            { label: '营业总收入', value: fmtAmt(row.TOTALOPERATEREVE) },
+            { label: '归母净利润', value: fmtAmt(row.PARENTNETPROFIT) },
+            { label: '净资产收益率', value: row.ROEJQ != null ? Number(row.ROEJQ).toFixed(2) + '%' : '-' },
+            { label: '毛利率', value: row.XSMLL != null ? Number(row.XSMLL).toFixed(2) + '%' : '-' },
+            { label: '净利率', value: row.XSJLL != null ? Number(row.XSJLL).toFixed(2) + '%' : '-' },
+            { label: '', value: '' },
+            { label: '注：行业对比数据', value: '请参考东方财富F10页面' },
+          ];
+          this.json(res, 200, { data: { items } });
+          return;
+        }
+        this.json(res, 200, { data: { items: [] } });
         return;
       }
 

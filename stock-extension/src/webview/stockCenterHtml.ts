@@ -32,7 +32,8 @@ body{display:flex;flex-direction:column}
 .mb-1{margin-bottom:4px}
 table{width:100%;border-collapse:collapse;font-size:11px}
 th,td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--border)}
-th{text-align:left;opacity:.6;font-weight:400}td:first-child,th:first-child{text-align:left}
+th{opacity:.6;font-weight:400}
+td:first-child,th:first-child{text-align:left}
 .tag{display:inline-block;padding:0 6px;border-radius:3px;font-size:10px;margin-right:4px}
 .tag-up{background:rgba(255,77,79,.15);color:var(--up)}
 .tag-down{background:rgba(35,195,67,.15);color:var(--down)}
@@ -80,12 +81,28 @@ th{text-align:left;opacity:.6;font-weight:400}td:first-child,th:first-child{text
 .kl-pbtn:hover:not(.active){border-color:var(--fg)}
 .kl-add{padding:3px 8px;border:1px dashed var(--border);border-radius:4px;background:transparent;color:var(--fg);font-size:11px;cursor:pointer}
 .kl-add:hover{border-color:var(--fg)}
-.kl-chart{background:var(--card);border-radius:6px;padding:6px 0;cursor:crosshair;user-select:none;touch-action:none}
+.kl-chart-wrap{display:flex;gap:0;background:var(--card);border-radius:6px;overflow:hidden}
+.kl-chart{flex:1;padding:6px 0;cursor:crosshair;user-select:none;touch-action:none;min-width:0}
+.kl-side{width:140px;border-left:1px solid var(--border);padding:4px 6px;font-size:10px;overflow:hidden;flex-shrink:0}
+.kl-side-title{font-size:10px;opacity:.6;margin-bottom:4px;font-weight:600}
+.ob-row{display:flex;justify-content:space-between;padding:1px 0;line-height:1.6}
+.ob-row .ob-label{opacity:.5;width:28px;flex-shrink:0}
+.ob-row .ob-price{flex:1;text-align:right}
+.ob-row .ob-vol{text-align:right;width:42px;flex-shrink:0}
+.ob-up{color:var(--up)}.ob-down{color:var(--down)}
+.tick-row{display:flex;justify-content:space-between;padding:1px 0;line-height:1.6;opacity:.8}
+.tick-row .tick-time{width:40px;flex-shrink:0;opacity:.5}
+.tick-row .tick-price{flex:1;text-align:right}
+.tick-row .tick-vol{text-align:right;width:42px;flex-shrink:0}
 .kl-canvas{width:100%;display:block}
 .kl-sub{border-top:1px solid var(--border);position:relative}
 .kl-sub-hdr{display:flex;align-items:center;justify-content:space-between;padding:2px 8px 0;font-size:10px;opacity:.6}
 .kl-sub-hdr button{background:none;border:none;color:var(--fg);opacity:.5;cursor:pointer;font-size:10px;padding:0 4px}
 .kl-sub-hdr button:hover{opacity:1}
+.voice-toggle{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--fg);font-size:10px;cursor:pointer;flex-shrink:0;transition:all .2s}
+.voice-toggle.on{border-color:var(--accent);color:var(--accent);background:rgba(232,179,57,.1)}
+.voice-toggle:hover{opacity:.8}
+.voice-icon{font-size:12px}
 .kl-sub canvas{width:100%;display:block}
 .detail-actions{margin-top:14px;display:flex;gap:8px}
 .detail-actions button{flex:1;padding:8px;border:none;border-radius:6px;font-size:12px;cursor:pointer}
@@ -124,15 +141,21 @@ var TABS=[
 ];
 var CHG_TYPES={4:'秒板',8:'封板',16:'打开涨停',32:'大笔买入',64:'大笔卖出',128:'大笔买入',8193:'火箭发射',8194:'快速反弹',8201:'加速上涨',8202:'高台跳水',8203:'加速下跌',8204:'大笔卖出',8207:'大幅上升',8208:'大幅下降',8209:'封涨停',8210:'封跌停',8211:'打开涨停',8212:'打开跌停',8213:'创历史新高',8214:'创历史新低',8215:'竞价上涨',8216:'竞价下跌'};
 var currentTab='market_overview';
+var voiceOn=false;var _lastNewsIds=[];var _lastAlertIds=[];
+function speakText(text){if(!text)return;if(!('speechSynthesis' in window))return;window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(text);u.lang='zh-CN';u.rate=1.1;u.pitch=1;window.speechSynthesis.speak(u)}
+function toggleVoice(){voiceOn=!voiceOn;var btn=document.getElementById('voiceBtn');if(btn){btn.className='voice-toggle'+(voiceOn?' on':'');btn.querySelector('.voice-icon').textContent=voiceOn?'🔊':'🔇';btn.querySelector('.voice-label').textContent=voiceOn?'播报中':'播报'}if(voiceOn&&currentTab==='realtime_news')speakLatestNews();if(voiceOn&&currentTab==='alert')speakLatestAlert()}
+function speakLatestNews(){if(!voiceOn||currentTab!=='realtime_news')return;var items=document.querySelectorAll('#content .realtime-item .rt-title');if(items.length>0)speakText(items[0].textContent)}
+function speakLatestAlert(){if(!voiceOn||currentTab!=='alert')return;var rows=document.querySelectorAll('#content table tr');if(rows.length>1){var cells=rows[1].querySelectorAll('td');if(cells.length>=4)speakText((cells[1]?cells[1].textContent:'')+(cells[2]?cells[2].textContent:'')+(cells[3]?cells[3].textContent:''))}}
+function renderTabs(){var bar=$('#tabBar');if(!bar)return;bar.innerHTML='';for(var i=0;i<TABS.length;i++){var t=TABS[i];var btn=document.createElement('button');btn.className='tab-btn'+(t.id===currentTab?' active':'');btn.setAttribute('data-tab',t.id);btn.textContent=t.label;bar.appendChild(btn)}var vb=document.createElement('button');vb.id='voiceBtn';vb.className='voice-toggle'+(voiceOn?' on':'');vb.onclick=toggleVoice;vb.innerHTML='<span class="voice-icon">'+(voiceOn?'🔊':'🔇')+'</span><span class="voice-label">'+(voiceOn?'播报中':'播报')+'</span>';var voiceTabs=['em_news','realtime_news','alert'];if(voiceTabs.indexOf(currentTab)>=0)bar.appendChild(vb)}
 function $(s){return document.querySelector(s)}
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 function fmtPrice(v){v=Number(v)||0;return v>10000?(v/10000).toFixed(2)+'万':v.toLocaleString('zh-CN',{maximumFractionDigits:0})}
-function fmtYi(v){v=Number(v)||0;return (v/100000000).toFixed(2)+'亿'}
+function fmtYi(v){v=Number(v)||0;var abs=Math.abs(v);var s=(abs>=100000000?(abs/100000000).toFixed(2)+'亿':abs>=10000?(abs/10000).toFixed(2)+'万':abs.toFixed(2));return v<0?'-'+s:s}
 function upClass(v){return v>=0?'text-up':'text-down'}
 function upSign(v){return v>=0?'+':''}
 function fmtTime(t){var s=String(t);if(s.length>=6)return s.slice(0,2)+':'+s.slice(2,4);return s}
 function renderTabs(){var bar=$('#tabBar');if(!bar)return;bar.innerHTML='';for(var i=0;i<TABS.length;i++){var t=TABS[i];var btn=document.createElement('button');btn.className='tab-btn'+(t.id===currentTab?' active':'');btn.setAttribute('data-tab',t.id);btn.textContent=t.label;bar.appendChild(btn)}}
-function switchTab(tab){currentTab=tab;renderTabs();$('#content').innerHTML='<div class="loading">加载中...</div>';vscode.postMessage({type:'switchTab',tab:tab})}
+function switchTab(tab){currentTab=tab;_lastNewsIds=[];_lastAlertIds=[];renderTabs();$('#content').innerHTML='<div class="loading">加载中...</div>';vscode.postMessage({type:'switchTab',tab:tab})}
 $('#tabBar').addEventListener('click',function(e){var btn=e.target.closest('.tab-btn');if(btn)switchTab(btn.getAttribute('data-tab'))});
 document.addEventListener('click',function(e){
   var item=e.target.closest('.news-item');
@@ -159,50 +182,126 @@ function openStockDetail(code,name){
 }
 
 function renderMarket(d){
-  var indices=d.indices||d;if(!indices||!indices.length){$('#content').innerHTML='<div class="loading">暂无数据</div>';return}
-  var html='<div class="grid-3">';
-  for(var i=0;i<Math.min(3,indices.length);i++){var item=indices[i];var price=item.price||item.f2||0;var rate=item.changeRate!=null?item.changeRate:(item.f3||0);var name=item.name||item.f14||'';var up=rate>=0;html+='<div class="card"><div class="text-muted mb-1">'+esc(name)+'</div><div class="'+(up?'text-up':'text-down')+'" style="font-size:18px;font-weight:700">'+(price||0).toFixed(2)+'</div><div class="'+(up?'text-up':'text-down')+'">'+(rate>=0?'+':'')+(rate||0).toFixed(2)+'%</div></div>'}
+  var list=d.diff||d.indices||d;if(!list||!list.length){$('#content').innerHTML='<div class="loading">暂无数据</div>';return}
+  var dist=d.distribution||{};var counts=d.counts||{};var trade=d.trade||{};var yzt=d.yesterdayZt||{};
+  var html='';
+  html+='<div class="grid-3">';
+  for(var i=0;i<Math.min(3,list.length);i++){var item=list[i];var price=item.price||item.f2||0;var rate=item.changeRate!=null?item.changeRate:(item.f3||0);var name=item.name||item.f14||'';var up=rate>=0;html+='<div class="card"><div class="text-muted mb-1">'+esc(name)+'</div><div class="'+(up?'text-up':'text-down')+'" style="font-size:18px;font-weight:700">'+(price||0).toFixed(2)+'</div><div class="'+(up?'text-up':'text-down')+'">'+(rate>=0?'+':'')+(rate||0).toFixed(2)+'%</div></div>'}
   html+='</div>';
-  if(indices.length>3){html+='<div class="card"><div class="section-title">指数对比</div>';for(var j=0;j<indices.length;j++){var it=indices[j];var rt=it.changeRate!=null?it.changeRate:(it.f3||0);var up2=rt>=0;html+='<div class="flex items-center gap-2 mb-1"><span class="text-muted" style="width:56px">'+esc(it.name||it.f14||'')+'</span><span class="'+(up2?'text-up':'text-down')+'">'+(rt>=0?'+':'')+(rt||0).toFixed(2)+'%</span><span class="text-muted">'+(Number(it.price||it.f2)||0).toFixed(2)+'</span></div>'}html+='</div>'}
+  html+='<div class="card"><div style="display:flex;gap:12px;margin-bottom:8px">';
+  html+='<span class="tag tag-up">涨 '+(counts.up||0)+'</span>';
+  html+='<span class="text-muted" style="font-size:11px">平 '+(counts.flat||0)+'</span>';
+  html+='<span class="tag tag-down">跌 '+(counts.down||0)+'</span>';
+  html+='</div>';
+  var bars=[
+    {label:'涨停',val:dist.zt||0,color:'var(--up)'},
+    {label:'>5%',val:dist.g5||0,color:'var(--up)'},
+    {label:'>1%',val:dist.g1||0,color:'var(--up)'},
+    {label:'>0%',val:dist.g0||0,color:'var(--up)'},
+    {label:'平盘',val:dist.flat||0,color:'#666'},
+    {label:'0~1%',val:dist.d0||0,color:'var(--down)'},
+    {label:'1~5%',val:dist.d1||0,color:'var(--down)'},
+    {label:'>5%',val:dist.d5||0,color:'var(--down)'},
+    {label:'跌停',val:dist.dt||0,color:'var(--down)'}
+  ];
+  var maxVal=1;bars.forEach(function(b){if(b.val>maxVal)maxVal=b.val});
+  html+='<div style="display:flex;align-items:flex-end;gap:3px;height:80px;margin:8px 0">';
+  for(var i=0;i<bars.length;i++){var b=bars[i];var h=Math.max(2,Math.round(b.val/maxVal*70));html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div style="font-size:9px;color:'+b.color+';margin-bottom:2px">'+b.val+'</div><div style="width:100%;height:'+h+'px;background:'+b.color+';border-radius:2px 2px 0 0"></div><div style="font-size:8px;opacity:.5;margin-top:2px">'+b.label+'</div></div>'}
+  html+='</div>';
+  var total=(counts.up||0)+(counts.down||0)+(counts.flat||0);
+  if(total>0){
+    var upW=Math.round((counts.up||0)/total*100);
+    var flatW=Math.round((counts.flat||0)/total*100);
+    var downW=100-upW-flatW;
+    html+='<div style="margin:8px 0"><div style="display:flex;height:16px;border-radius:3px;overflow:hidden">';
+    html+='<div style="width:'+upW+'%;background:var(--up)"></div>';
+    html+='<div style="width:'+flatW+'%;background:#666"></div>';
+    html+='<div style="width:'+downW+'%;background:var(--down)"></div>';
+    html+='</div>';
+    html+='<div style="display:flex;justify-content:space-between;font-size:10px;margin-top:3px">';
+    html+='<span class="text-up">涨 '+(counts.up||0)+'家</span>';
+    html+='<span class="text-muted">平 '+(counts.flat||0)+'家</span>';
+    html+='<span class="text-down">跌 '+(counts.down||0)+'家</span>';
+    html+='</div></div>';
+  }
+  html+='</div>';
+  if(yzt.count>0){
+    html+='<div class="card"><div class="section-title">昨日涨停表现</div>';
+    html+='<div class="flex items-center gap-2">';
+    html+='<span>昨日涨停 <b>'+yzt.count+'</b> 家</span>';
+    html+='<span class="'+(yzt.avgChange>=0?'text-up':'text-down')+'">今日平均 '+(yzt.avgChange>=0?'+':'')+(yzt.avgChange||0).toFixed(2)+'%</span>';
+    html+='<span class="text-up">上涨 '+yzt.upCount+' 家</span>';
+    html+='</div></div>';
+  }
+  if(trade.total>0){
+    html+='<div class="card"><div class="section-title">三市成交额</div>';
+    html+='<div style="font-size:16px;font-weight:700">'+fmtYi(trade.total)+'</div>';
+    html+='<div class="text-muted" style="font-size:11px;margin-top:2px">';
+    html+='沪 '+fmtYi(trade.sh||0)+' · 深 '+fmtYi(trade.sz||0)+' · 创 '+fmtYi(trade.cyb||0);
+    html+='</div></div>';
+  }
+  if(list.length>3){html+='<div class="card"><div class="section-title">指数对比</div>';for(var j=0;j<list.length;j++){var it=list[j];var rt=it.changeRate!=null?it.changeRate:(it.f3||0);var up2=rt>=0;html+='<div class="flex items-center gap-2 mb-1"><span class="text-muted" style="width:80px">'+esc(it.name||it.f14||'')+'</span><span class="'+(up2?'text-up':'text-down')+'">'+(rt>=0?'+':'')+(rt||0).toFixed(2)+'%</span><span class="text-muted">'+(Number(it.price||it.f2)||0).toFixed(2)+'</span></div>'}html+='</div>'}
   $('#content').innerHTML=html
 }
 
 function renderNews(d){
   var list=d&&d.news?d.news:(d&&d.data?d.data.list:[]);if(!list.length){$('#content').innerHTML='<div class="loading">暂无新闻</div>';return}
-  var html='';for(var i=0;i<Math.min(80,list.length);i++){var n=list[i];var url=n.url_w||n.url_m||n.url||'';var title=n.title||n.Art_Title||'';var time=n.showtime||n.ctime||'';var src=n.Art_Media_Name||n.source||'';html+='<div class="news-item" data-url="'+esc(url)+'"><div class="time">'+esc(time)+' '+(src?'· '+esc(src):'')+'</div><div class="title">'+esc(title)+'</div></div>'}
+  var html='';var newIds=[];
+  for(var i=0;i<Math.min(80,list.length);i++){var n=list[i];var url=n.url_w||n.url_m||n.url||'';var title=n.title||n.Art_Title||'';var time=n.showtime||n.ctime||'';var src=n.Art_Media_Name||n.source||'';var content=n.content||n.digest||'';var nid=time+'_'+title;newIds.push(nid);html+='<div class="news-item" data-url="'+esc(url)+'"><div class="time">'+esc(time)+' '+(src?'· '+esc(src):'')+'</div><div class="title">'+esc(title)+'</div>';if(content)html+='<div style="font-size:11px;opacity:.6;margin-top:2px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(content)+'</div>';html+='</div>'}
+  if(voiceOn&&currentTab==='em_news'&&_lastNewsIds.length>0){
+    var firstNew=newIds.indexOf(_lastNewsIds[0]);
+    if(firstNew>0){for(var j=firstNew-1;j>=0;j--){var idx=newIds.indexOf(newIds[j]);if(idx>=0&&list[idx]){var t=list[idx].title||list[idx].Art_Title||'';if(t)speakText(t)}}}
+  }
+  _lastNewsIds=newIds;
   $('#content').innerHTML=html
 }
 
 function renderRealtimeNews(d){
   var list=d&&d.data?d.data.list:(d&&d.list?d.list:[]);if(!list||!list.length){$('#content').innerHTML='<div class="loading">暂无快讯</div>';return}
-  var html='';
+  var html='';var newIds=[];
   for(var i=0;i<Math.min(60,list.length);i++){
     var n=list[i];var title=n.title||n.Art_Title||n.digest||'';var time=n.showtime||n.ctime||n.display_time||'';var src=n.source||n.Art_Media_Name||'';
     var url=n.url_w||n.url_m||n.url||'';
+    var nid=time+'_'+title;
+    newIds.push(nid);
     html+='<div class="realtime-item'+(url?' news-item" data-url="'+esc(url):'')+'">';
     html+='<div class="rt-time">'+esc(time)+(src?' · '+esc(src):'')+'</div>';
     html+='<div class="rt-title">'+esc(title)+'</div></div>';
   }
+  if(voiceOn&&currentTab==='realtime_news'&&_lastNewsIds.length>0){
+    var firstNew=newIds.indexOf(_lastNewsIds[0]);
+    if(firstNew>0){for(var j=firstNew-1;j>=0;j--){var idx=newIds.indexOf(newIds[j]);if(idx>=0&&list[idx]){var t=list[idx].title||list[idx].Art_Title||list[idx].digest||'';if(t)speakText(t)}}}
+  }
+  _lastNewsIds=newIds;
   $('#content').innerHTML=html;
 }
 
 function renderSector(d){
-  var list=d&&d.data?d.data.diff:(d||[]);if(!list||!list.length){$('#content').innerHTML='<div class="loading">暂无数据</div>';return}
-  list=list.slice().sort(function(a,b){return (b.f174||b.f62||0)-(a.f174||a.f62||0)});
-  var html='<table><tr><th>板块</th><th>主力净流入</th></tr>';
-  for(var i=0;i<Math.min(30,list.length);i++){var x=list[i];var flow=Number(x.f174||x.f62||0);html+='<tr><td>'+esc(x.f14||'')+'</td><td class="'+(flow>=0?'text-up':'text-down')+'">'+(flow>=0?'+':'')+fmtYi(flow)+'</td></tr>'}
+  var ind=d.industry||[];var gn=d.concept||[];
+  var list=ind.concat(gn).sort(function(a,b){return (Number(b.netamount)||0)-(Number(a.netamount)||0)});
+  if(!list||!list.length){$('#content').innerHTML='<div class="loading">暂无数据</div>';return}
+  var html='<table><tr><th>板块</th><th>净流入</th><th>领涨股</th></tr>';
+  for(var i=0;i<Math.min(30,list.length);i++){var x=list[i];var f=Number(x.netamount||0);var sc=(x.ts_symbol||'').replace(/^(sh|sz|bj)/,function(m){return m.toUpperCase()});html+='<tr><td>'+esc(x.name||'')+'</td><td class="'+(f>=0?'text-up':'text-down')+'">'+(f>=0?'+':'')+fmtYi(f)+'</td><td class="stock-row" data-code="'+esc(sc)+'" data-name="'+esc(x.ts_name||'')+'">'+esc(x.ts_name||'')+' <span class="'+(Number(x.ts_changeratio)>=0?'text-up':'text-down')+'">'+(Number(x.ts_changeratio)>=0?'+':'')+(Number(x.ts_changeratio)*100).toFixed(2)+'%</span></td></tr>'}
   html+='</table>';$('#content').innerHTML=html
 }
 
 function renderFundFlow(d){
   var ind=d.industry||[];var gn=d.concept||[];
-  ind=ind.slice().sort(function(a,b){return (b.f174||0)-(a.f174||0)});
-  gn=gn.slice().sort(function(a,b){return (b.f174||0)-(a.f174||0)});
-  var html='<div class="section-title">行业资金流入 TOP10</div><table><tr><th>行业</th><th>主力净流入</th></tr>';
-  for(var i=0;i<Math.min(10,ind.length);i++){var x=ind[i];var f=Number(x.f174||0);html+='<tr><td>'+esc(x.f14||'')+'</td><td class="'+(f>=0?'text-up':'text-down')+'">'+(f>=0?'+':'')+fmtYi(f)+'</td></tr>'}
+  var indIn=ind.slice().sort(function(a,b){return (Number(b.netamount)||0)-(Number(a.netamount)||0)});
+  var indOut=ind.slice().sort(function(a,b){return (Number(a.netamount)||0)-(Number(b.netamount)||0)});
+  var gnIn=gn.slice().sort(function(a,b){return (Number(b.netamount)||0)-(Number(a.netamount)||0)});
+  var gnOut=gn.slice().sort(function(a,b){return (Number(a.netamount)||0)-(Number(b.netamount)||0)});
+  var html='<div class="section-title">行业资金流入 TOP10</div><table><tr><th>行业</th><th>净流入</th><th>领涨股</th></tr>';
+  for(var i=0;i<Math.min(10,indIn.length);i++){var x=indIn[i];var f=Number(x.netamount||0);if(f<=0)break;var sc=(x.ts_symbol||'').replace(/^(sh|sz|bj)/,function(m){return m.toUpperCase()});html+='<tr><td>'+esc(x.name||'')+'</td><td class="text-up">+'+fmtYi(f)+'</td><td class="stock-row" data-code="'+esc(sc)+'" data-name="'+esc(x.ts_name||'')+'">'+esc(x.ts_name||'')+' <span class="'+(Number(x.ts_changeratio)>=0?'text-up':'text-down')+'">'+(Number(x.ts_changeratio)>=0?'+':'')+(Number(x.ts_changeratio)*100).toFixed(2)+'%</span></td></tr>'}
   html+='</table>';
-  html+='<div class="section-title">概念资金流入 TOP10</div><table><tr><th>概念</th><th>主力净流入</th></tr>';
-  for(var j=0;j<Math.min(10,gn.length);j++){var y=gn[j];var g=Number(y.f174||0);html+='<tr><td>'+esc(y.f14||'')+'</td><td class="'+(g>=0?'text-up':'text-down')+'">'+(g>=0?'+':'')+fmtYi(g)+'</td></tr>'}
+  html+='<div class="section-title">行业资金流出 TOP10</div><table><tr><th>行业</th><th>净流出</th><th>领涨股</th></tr>';
+  for(var i=0;i<Math.min(10,indOut.length);i++){var x=indOut[i];var f=Number(x.netamount||0);if(f>=0)break;var sc=(x.ts_symbol||'').replace(/^(sh|sz|bj)/,function(m){return m.toUpperCase()});html+='<tr><td>'+esc(x.name||'')+'</td><td class="text-down">'+fmtYi(f)+'</td><td class="stock-row" data-code="'+esc(sc)+'" data-name="'+esc(x.ts_name||'')+'">'+esc(x.ts_name||'')+' <span class="'+(Number(x.ts_changeratio)>=0?'text-up':'text-down')+'">'+(Number(x.ts_changeratio)>=0?'+':'')+(Number(x.ts_changeratio)*100).toFixed(2)+'%</span></td></tr>'}
+  html+='</table>';
+  html+='<div class="section-title">概念资金流入 TOP10</div><table><tr><th>概念</th><th>净流入</th><th>领涨股</th></tr>';
+  for(var j=0;j<Math.min(10,gnIn.length);j++){var y=gnIn[j];var g=Number(y.netamount||0);if(g<=0)break;var sc=(y.ts_symbol||'').replace(/^(sh|sz|bj)/,function(m){return m.toUpperCase()});html+='<tr><td>'+esc(y.name||'')+'</td><td class="text-up">+'+fmtYi(g)+'</td><td class="stock-row" data-code="'+esc(sc)+'" data-name="'+esc(y.ts_name||'')+'">'+esc(y.ts_name||'')+' <span class="'+(Number(y.ts_changeratio)>=0?'text-up':'text-down')+'">'+(Number(y.ts_changeratio)>=0?'+':'')+(Number(y.ts_changeratio)*100).toFixed(2)+'%</span></td></tr>'}
+  html+='</table>';
+  html+='<div class="section-title">概念资金流出 TOP10</div><table><tr><th>概念</th><th>净流出</th><th>领涨股</th></tr>';
+  for(var j=0;j<Math.min(10,gnOut.length);j++){var y=gnOut[j];var g=Number(y.netamount||0);if(g>=0)break;var sc=(y.ts_symbol||'').replace(/^(sh|sz|bj)/,function(m){return m.toUpperCase()});html+='<tr><td>'+esc(y.name||'')+'</td><td class="text-down">'+fmtYi(g)+'</td><td class="stock-row" data-code="'+esc(sc)+'" data-name="'+esc(y.ts_name||'')+'">'+esc(y.ts_name||'')+' <span class="'+(Number(y.ts_changeratio)>=0?'text-up':'text-down')+'">'+(Number(y.ts_changeratio)>=0?'+':'')+(Number(y.ts_changeratio)*100).toFixed(2)+'%</span></td></tr>'}
   html+='</table>';$('#content').innerHTML=html
 }
 
@@ -243,8 +342,15 @@ function renderLhb(d){
 function renderAlert(d){
   var list=d&&d.data?d.data.list:(d&&d.list?d.list:[]);if(!list||!list.length){$('#content').innerHTML='<div class="loading">暂无异动</div>';return}
   var html='<table><tr><th>时间</th><th>名称/代码</th><th>异动</th><th>信息</th></tr>';
-  for(var i=0;i<Math.min(60,list.length);i++){var x=list[i];var label=CHG_TYPES[x.t]||('类型'+x.t);var isUp=(x.t==4||x.t==8||x.t==32||x.t==128||x.t==8193||x.t==8194||x.t==8201||x.t==8207||x.t==8209||x.t==8211||x.t==8213||x.t==8215);html+='<tr class="stock-row" data-code="'+esc(x.c||'')+'" data-name="'+esc(x.n||'')+'"><td class="text-muted">'+fmtTime(x.tm)+'</td><td>'+esc(x.n||'')+'<div class="text-muted" style="font-size:10px">'+esc(x.c||'')+'</div></td><td><span class="tag '+(isUp?'tag-up':'tag-down')+'">'+esc(label)+'</span></td><td class="text-muted">'+esc(x.i||'')+'</td></tr>'}
-  html+='</table>';$('#content').innerHTML=html
+  var newIds=[];
+  for(var i=0;i<Math.min(60,list.length);i++){var x=list[i];var label=CHG_TYPES[x.t]||('类型'+x.t);var isUp=(x.t==4||x.t==8||x.t==32||x.t==128||x.t==8193||x.t==8194||x.t==8201||x.t==8207||x.t==8209||x.t==8211||x.t==8213||x.t==8215);var aid=x.tm+'_'+x.c+'_'+x.t;newIds.push(aid);html+='<tr class="stock-row" data-code="'+esc(x.c||'')+'" data-name="'+esc(x.n||'')+'"><td class="text-muted">'+fmtTime(x.tm)+'</td><td>'+esc(x.n||'')+'<div class="text-muted" style="font-size:10px">'+esc(x.c||'')+'</div></td><td><span class="tag '+(isUp?'tag-up':'tag-down')+'">'+esc(label)+'</span></td><td class="text-muted">'+esc(x.i||'')+'</td></tr>'}
+  html+='</table>';
+  if(voiceOn&&currentTab==='alert'&&_lastAlertIds.length>0){
+    var firstNew=newIds.indexOf(_lastAlertIds[0]);
+    if(firstNew>0){for(var j=firstNew-1;j>=0;j--){var idx=newIds.indexOf(newIds[j]);if(idx>=0&&list[idx]){var x=list[idx];var lbl=CHG_TYPES[x.t]||'异动';speakText((x.n||'')+lbl+(x.i||''))}}}
+  }
+  _lastAlertIds=newIds;
+  $('#content').innerHTML=html
 }
 
 function renderHot(d){
@@ -321,15 +427,24 @@ function renderStockDetail(s){
   html+='<button class="kl-pbtn" data-period="month">月K</button>';
   html+='<button class="kl-add" id="klAddSub">+ 副图</button>';
   html+='</div>';
+  html+='<div class="kl-chart-wrap" id="klChartWrap">';
   html+='<div class="kl-chart" id="klChart">';
   html+='<canvas class="kl-canvas" id="klMain"></canvas>';
   html+='<div class="kl-sub" id="klSubVol"><div class="kl-sub-hdr"><span>成交量</span></div><canvas class="kl-canvas" id="klVol"></canvas></div>';
+  html+='</div>';
+  html+='<div class="kl-side" id="klSide">';
+  html+='<div class="kl-side-title">五档盘口</div>';
+  html+='<div id="orderBook"></div>';
+  html+='<div class="kl-side-title" style="margin-top:8px">分时成交</div>';
+  html+='<div id="tickList"></div>';
+  html+='</div>';
   html+='</div>';
   html+='<div class="detail-actions"><button class="btn-del" id="detailDel">删除自选</button><button class="btn-back" id="detailBackBtn">返回列表</button></div>';
   html+='<div class="detail-tabs" id="detailTabs">';
   html+='<button class="detail-tab active" data-dtab="news">资讯</button>';
   html+='<button class="detail-tab" data-dtab="notice">公告</button>';
-  html+='<button class="detail-tab" data-dtab="essential">操盘必读</button>';
+  html+='<button class="detail-tab" data-dtab="finance">财务</button>';
+  html+='<button class="detail-tab" data-dtab="profile">资料</button>';
   html+='</div>';
   html+='<div class="detail-panel" id="detailPanel"><div class="loading" style="padding:10px">加载中...</div></div>';
   $('#content').innerHTML=html;
@@ -362,7 +477,8 @@ function renderStockDetail(s){
       if(panel)panel.innerHTML='<div class="loading" style="padding:10px">加载中...</div>';
       if(_detailTab==='news')vscode.postMessage({type:'fetchStockNews',code:s.code});
       else if(_detailTab==='notice')vscode.postMessage({type:'fetchStockNotice',code:s.code});
-      else if(_detailTab==='essential')vscode.postMessage({type:'fetchStockEssential',code:s.code});
+      else if(_detailTab==='finance')vscode.postMessage({type:'fetchStockFinance',code:s.code});
+      else if(_detailTab==='profile')vscode.postMessage({type:'fetchStockProfile',code:s.code});
     });
   }
 }
@@ -698,18 +814,94 @@ function drawIntraday(d){
   },3000);
 }
 
+function updateOrderBook(d){
+  if(!d)return;
+  var ob=document.getElementById('orderBook');if(!ob)return;
+  var preClose=Number(d.f18||0);
+  var html='';
+  var sells=[
+    {label:'卖5',price:d.sell5,vol:d.sell5vol},
+    {label:'卖4',price:d.sell4,vol:d.sell4vol},
+    {label:'卖3',price:d.sell3,vol:d.sell3vol},
+    {label:'卖2',price:d.sell2,vol:d.sell2vol},
+    {label:'卖1',price:d.sell1,vol:d.sell1vol},
+  ];
+  for(var i=0;i<sells.length;i++){
+    var s=sells[i];var cls=s.price>preClose?'ob-up':(s.price<preClose?'ob-down':'');
+    html+='<div class="ob-row"><span class="ob-label">'+s.label+'</span>';
+    html+='<span class="ob-price '+cls+'">'+(s.price?s.price.toFixed(2):'-')+'</span>';
+    html+='<span class="ob-vol">'+(s.vol?s.vol:'-')+'</span></div>';
+  }
+  html+='<div class="ob-row" style="border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:2px 0;margin:2px 0">';
+  html+='<span class="ob-label"></span><span class="ob-price" style="font-weight:600">'+Number(d.f2||0).toFixed(2)+'</span>';
+  html+='<span class="ob-vol"></span></div>';
+  var buys=[
+    {label:'买1',price:d.buy1,vol:d.buy1vol},
+    {label:'买2',price:d.buy2,vol:d.buy2vol},
+    {label:'买3',price:d.buy3,vol:d.buy3vol},
+    {label:'买4',price:d.buy4,vol:d.buy4vol},
+    {label:'买5',price:d.buy5,vol:d.buy5vol},
+  ];
+  for(var i=0;i<buys.length;i++){
+    var b=buys[i];var cls=b.price>preClose?'ob-up':(b.price<preClose?'ob-down':'');
+    html+='<div class="ob-row"><span class="ob-label">'+b.label+'</span>';
+    html+='<span class="ob-price '+cls+'">'+(b.price?b.price.toFixed(2):'-')+'</span>';
+    html+='<span class="ob-vol">'+(b.vol?b.vol:'-')+'</span></div>';
+  }
+  ob.innerHTML=html;
+  var tk=document.getElementById('tickList');if(!tk)return;
+  var vol=Number(d.f5||0);var amt=Number(d.f6||0);
+  tk.innerHTML='<div class="tick-row"><span class="tick-time">成交量</span><span class="tick-price"></span><span class="tick-vol">'+(vol>=10000?(vol/10000).toFixed(1)+'万':vol.toLocaleString())+'</span></div>'+
+    '<div class="tick-row"><span class="tick-time">成交额</span><span class="tick-price"></span><span class="tick-vol">'+(amt>=100000000?(amt/100000000).toFixed(2)+'亿':(amt>=10000?(amt/10000).toFixed(0)+'万':amt.toLocaleString()))+'</span></div>'+
+    '<div class="tick-row"><span class="tick-time">换手率</span><span class="tick-price"></span><span class="tick-vol">'+Number(d.f8||0).toFixed(2)+'%</span></div>'+
+    '<div class="tick-row"><span class="tick-time">涨跌</span><span class="tick-price"></span><span class="tick-vol '+(Number(d.f4||0)>=0?'ob-up':'ob-down')+'">'+(Number(d.f4||0)>=0?'+':'')+Number(d.f4||0).toFixed(2)+'</span></div>'+
+    '<div class="tick-row"><span class="tick-time">振幅</span><span class="tick-price"></span><span class="tick-vol">'+(Number(d.f15||0)&&Number(d.f16||0)?((Number(d.f15)-Number(d.f16))/Number(d.f18||1)*100).toFixed(2)+'%':'-')+'</span></div>';
+}
+
 function renderDetailTabContent(tab,data){
   var panel=document.getElementById('detailPanel');if(!panel)return;
-  if(tab==='essential'){
+  if(tab==='essential'||tab==='profile'){
+    if(tab==='profile'){
+      var subTabs=[{id:'essential',label:'操盘必读'},{id:'company',label:'公司概况'},{id:'holder',label:'股东研究'},{id:'industry',label:'行业分析'}];
+      var shtml='<div style="display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid var(--border)">';
+      for(var si=0;si<subTabs.length;si++){
+        var active=(data&&data._sub===subTabs[si].id)?'active':'';
+        shtml+='<button class="detail-tab '+active+'" data-psub="'+subTabs[si].id+'" style="font-size:11px;padding:3px 8px">'+subTabs[si].label+'</button>';
+      }
+      shtml+='</div><div id="profileContent"></div>';
+      panel.innerHTML=shtml;
+      var subBtns=panel.querySelectorAll('[data-psub]');
+      for(var bi=0;bi<subBtns.length;bi++){
+        subBtns[bi].addEventListener('click',function(){
+          var all2=panel.querySelectorAll('[data-psub]');
+          for(var k=0;k<all2.length;k++)all2[k].classList.toggle('active',all2[k].dataset.psub===this.dataset.psub);
+          vscode.postMessage({type:'fetchStockProfileSub',code:_detailCode,sub:this.dataset.psub});
+        });
+      }
+      vscode.postMessage({type:'fetchStockProfileSub',code:_detailCode,sub:'essential'});
+      return;
+    }
     if(!data||!data.items||!data.items.length){panel.innerHTML='<div style="padding:10px;opacity:.5;font-size:11px">暂无数据</div>';return}
     var html='<div style="padding:8px">';
     for(var i=0;i<data.items.length;i++){
       var it=data.items[i];
       html+='<div style="display:flex;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px">';
-      html+='<span style="width:70px;opacity:.5;flex-shrink:0">'+esc(it.label)+'</span>';
-      html+='<span style="color:#ddd">'+esc(it.value)+'</span></div>';
+      html+='<span style="width:80px;opacity:.5;flex-shrink:0">'+esc(it.label)+'</span>';
+      html+='<span style="color:#ddd;word-break:break-all">'+esc(it.value)+'</span></div>';
     }
-    html+='</div>';panel.innerHTML=html;return;
+    html+='</div';panel.innerHTML=html;return;
+  }
+  if(tab==='finance'){
+    if(!data||!data.items||!data.items.length){panel.innerHTML='<div style="padding:10px;opacity:.5;font-size:11px">暂无数据</div>';return}
+    var fhtml='<div style="padding:8px">';
+    for(var fi=0;fi<data.items.length;fi++){
+      var fitem=data.items[fi];
+      fhtml+='<div style="display:flex;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px">';
+      fhtml+='<span style="width:90px;opacity:.5;flex-shrink:0">'+esc(fitem.label)+'</span>';
+      var valColor=fitem.color||'#ddd';
+      fhtml+='<span style="color:'+valColor+'">'+esc(fitem.value)+'</span></div>';
+    }
+    fhtml+='</div>';panel.innerHTML=fhtml;return;
   }
   if(!data||!data.length){panel.innerHTML='<div style="padding:10px;opacity:.5;font-size:11px">暂无数据</div>';return}
   var html='';
@@ -748,6 +940,7 @@ function updateDetailQuote(d){
     else if(i===7){var chg=Number(v);cells[i].textContent=(chg>=0?'+':'')+chg.toFixed(2);cells[i].className='val '+(chg>=0?'text-up':'text-down')}
     else cells[i].textContent=Number(v).toFixed(2);
   }
+  updateOrderBook(d);
 }
 
 renderTabs();switchTab('market_overview');
@@ -779,10 +972,28 @@ window.addEventListener('message',function(e){
     renderDetailTabContent('notice',msg.data||[]);
   }else if(msg.type==='stockEssentialData'&&msg.code===_detailCode){
     renderDetailTabContent('essential',msg.data);
+  }else if(msg.type==='stockFinanceData'&&msg.code===_detailCode){
+    renderDetailTabContent('finance',msg.data);
+  }else if(msg.type==='stockProfileData'&&msg.code===_detailCode){
+    renderDetailTabContent('profile',msg.data);
+  }else if(msg.type==='stockProfileSubData'&&msg.code===_detailCode){
+    var pc=document.getElementById('profileContent');if(pc){
+      if(!msg.data||!msg.data.items||!msg.data.items.length){pc.innerHTML='<div style="padding:10px;opacity:.5;font-size:11px">暂无数据</div>';return}
+      var phtml='<div style="padding:8px">';
+      for(var pi=0;pi<msg.data.items.length;pi++){
+        var pit=msg.data.items[pi];
+        phtml+='<div style="display:flex;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px">';
+        phtml+='<span style="width:80px;opacity:.5;flex-shrink:0">'+esc(pit.label)+'</span>';
+        phtml+='<span style="color:#ddd;word-break:break-all">'+esc(pit.value)+'</span></div>';
+      }
+      phtml+='</div>';pc.innerHTML=phtml;
+    }
   }else if(msg.type==='quoteData'&&msg.code===_detailCode){
     updateDetailQuote(msg.data);
   }else if(msg.type==='setOpacity'){
     document.documentElement.style.setProperty('--panel-opacity',msg.opacity);
+  }else if(msg.type==='setVoice'){
+    voiceOn=!!msg.on;renderTabs();
   }
 });
 </script>

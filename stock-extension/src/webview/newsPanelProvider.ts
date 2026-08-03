@@ -96,4 +96,8 @@ export class NewsPanelViewProvider implements vscode.WebviewViewProvider {
       this._view.webview.postMessage({ type: 'refresh' });
     }
   }
+
+  updateOpacity(opacity: number) {
+    this._view?.webview.postMessage({ type: 'setOpacity', opacity });
+  }
 }

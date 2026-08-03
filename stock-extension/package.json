@@ -10,7 +10,7 @@
     "url": "https://github.com/stockext/stock-extension"
   },
   "license": "BSD-3-Clause",
-  "icon": "resources/logo.png",
+  "icon": "resources/icon-large.svg",
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -477,6 +477,11 @@
           "minimum": 0.1,
           "maximum": 1,
           "description": "面板透明度 (0.1-1)"
+        },
+        "stock-ext.voiceBroadcast": {
+          "type": "boolean",
+          "default": false,
+          "description": "自动语音播报新闻/快讯/异动"
         }
       }
     }
