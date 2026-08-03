@@ -1,17 +1,11 @@
 import * as http from 'http';
 import { getProxyPort } from '../shared/proxyPort';
+import { apiGet } from '../shared/apiClient';
 import type { StockItem, SectorInfo, AlertItem, NewsItem, KlineData, MarketOverview } from '../shared/types';
 
 function proxyGet(path: string): Promise<any> {
-  return new Promise((resolve) => {
-    http.get(`http://localhost:${getProxyPort()}${path}`, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch { resolve(null); }
-      });
-    }).on('error', () => resolve(null));
-  });
+  // 优先云端 API（配置 stock-ext.apiBaseUrl 时），失败则回退本地代理
+  return apiGet(path, 12000);
 }
 
 function emFlattenCode(code: string): string {

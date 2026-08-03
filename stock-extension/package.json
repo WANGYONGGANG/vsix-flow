@@ -482,6 +482,21 @@
           "type": "boolean",
           "default": false,
           "description": "自动语音播报新闻/快讯/异动"
+        },
+        "stock-ext.apiBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "云端 API 基址（Vercel 部署地址，如 https://stockext.vercel.app，配置后将不再依赖本地代理服务）"
+        },
+        "stock-ext.aiModels": {
+          "type": "array",
+          "default": [],
+          "description": "AI 模型列表（每项：id / name / provider / baseURL / apiKey / model / temperature / enabled）"
+        },
+        "stock-ext.activeAIModelId": {
+          "type": "string",
+          "default": "",
+          "description": "当前使用的 AI 模型 ID"
         }
       }
     }

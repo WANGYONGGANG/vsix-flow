@@ -1,0 +1,9 @@
+{
+  "name": "stockext-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StockExt Vercel Serverless API - 东方财富接口代理 + AI 兼容代理",
+  "engines": {
+    "node": ">=18"
+  }
+}

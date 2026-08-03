@@ -1,0 +1,575 @@
+// ============================================
+// 首页：行情中心（12 个 Tabs + 轮询）
+// ============================================
+
+import { useEffect, useRef, useState } from 'react';
+import { useSettings } from '../store/useSettings';
+import { useRouter } from '../router/useRouter';
+import { api } from '../api/client';
+import {
+  fmtYi, upSign, normalizeCode, mapEmDiffToStockItem, escapeHtml,
+} from '../../local-shared/utils';
+import { CHG_TYPES, isAStockTradingHours } from '../../local-shared/constants';
+
+type TabId = 'market_overview' | 'fundFlow' | 'em_news' | 'realtime_news' |
+  'sector_limit' | 'limit_leader' | 'strong_sector' | 'dragon_tiger' |
+  'yesterday_limit' | 'alert' | 'hot_stocks' | 'watchlist';
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'market_overview', label: '概况' },
+  { id: 'fundFlow', label: '资金' },
+  { id: 'em_news', label: '新闻' },
+  { id: 'realtime_news', label: '快讯' },
+  { id: 'sector_limit', label: '板块' },
+  { id: 'limit_leader', label: '龙头' },
+  { id: 'strong_sector', label: '强板' },
+  { id: 'dragon_tiger', label: '龙虎' },
+  { id: 'yesterday_limit', label: '涨停' },
+  { id: 'alert', label: '异动' },
+  { id: 'hot_stocks', label: '热股' },
+  { id: 'watchlist', label: '自选' },
+];
+
+export default function HomePage() {
+  const { settings, addWatch, delWatch, getWatchCodes } = useSettings();
+  const { navigate } = useRouter();
+  const [tab, setTab] = useState<TabId>('market_overview');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [addDialog, setAddDialog] = useState(false);
+  const tickRef = useRef<any>(null);
+
+  // 轮询：概况 / 自选 / 快讯 / 异动
+  useEffect(() => {
+    load();
+    schedule();
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  function schedule() {
+    if (tickRef.current) clearInterval(tickRef.current);
+    const pollOnly = settings.pollOnlyDuringAStockHours;
+    tickRef.current = setInterval(() => {
+      if (pollOnly && !isAStockTradingHours()) return;
+      if (['market_overview', 'watchlist', 'realtime_news', 'alert'].includes(tab)) load();
+    }, Math.max(3000, settings.pollIntervalMs || 5000));
+  }
+
+  async function load() {
+    setLoading(true);
+    try {
+      let d: any = null;
+      switch (tab) {
+        case 'market_overview': {
+          const [r1, r2] = await Promise.all([api.marketOverview(), api.marketOverviewDetail()]);
+          d = { ...(r1 || {}), ...(r2 || {}), data: { ...(r1?.data || {}), ...(r2?.data || {}) } };
+          break;
+        }
+        case 'fundFlow': {
+          const [hy, gn] = await Promise.all([api.sinaBkzj(0), api.sinaBkzj(1)]);
+          d = { industry: hy?.data?.list || [], concept: gn?.data?.list || [] };
+          break;
+        }
+        case 'em_news': d = await api.emNewsSearch('A股 股市'); break;
+        case 'realtime_news': d = await api.emNews(1, 60); break;
+        case 'sector_limit': d = await api.sectorLimit(); break;
+        case 'limit_leader':
+        case 'strong_sector':
+        case 'yesterday_limit': d = await api.ztPool(); break;
+        case 'dragon_tiger': d = await api.lhb(); break;
+        case 'alert': d = await api.stockChanges(); break;
+        case 'hot_stocks': d = await api.hotStocks(); break;
+        case 'watchlist': {
+          const codes = getWatchCodes();
+          d = codes.length ? (await api.quote(codes)) : { data: { diff: [] } };
+          break;
+        }
+      }
+      setData(d);
+    } finally { setLoading(false); }
+  }
+
+  return (
+    <div className="page">
+      <div className="tab-bar">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            className={'tab-btn' + (tab === t.id ? ' active' : '')}
+            onClick={() => setTab(t.id)}
+          >{t.label}</button>
+        ))}
+      </div>
+
+      <div className="content-scroll">
+        {loading && !data && <div className="loading">加载中…</div>}
+        {!loading && !data && <div className="loading">暂无数据</div>}
+
+        {tab === 'market_overview' && <MarketOverview data={data} onNavigate={navigate} />}
+        {tab === 'fundFlow' && <FundFlow data={data} onNavigate={navigate} />}
+        {tab === 'em_news' && <NewsList data={data} search />}
+        {tab === 'realtime_news' && <NewsList data={data} />}
+        {tab === 'sector_limit' && <SectorLimit data={data} onNavigate={navigate} />}
+        {tab === 'yesterday_limit' && <YesterdayLimit data={data} onNavigate={navigate} />}
+        {tab === 'limit_leader' && <LimitLeader data={data} onNavigate={navigate} />}
+        {tab === 'strong_sector' && <StrongSector data={data} />}
+        {tab === 'dragon_tiger' && <LHBList data={data} onNavigate={navigate} />}
+        {tab === 'alert' && <AlertList data={data} onNavigate={navigate} />}
+        {tab === 'hot_stocks' && <HotStocks data={data} onNavigate={navigate} />}
+        {tab === 'watchlist' && (
+          <Watchlist
+            data={data}
+            onNavigate={navigate}
+            onAdd={() => setAddDialog(true)}
+            onDel={delWatch}
+          />
+        )}
+      </div>
+
+      {addDialog && (
+        <AddWatchDialog
+          onClose={() => setAddDialog(false)}
+          onAdd={(c) => { addWatch(c); setAddDialog(false); setTimeout(() => load(), 100); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// =============== 各 Tab 渲染函数 ===============
+function MarketOverview({ data, onNavigate }: any) {
+  const diff: any[] = data?.data?.diff || data?.diff || [];
+  const d = data?.data || data || {};
+  const counts: any = d.counts || {};
+  const trade: any = d.trade || {};
+  const yzt: any = d.yesterdayZt || {};
+  if (!diff.length) return <div className="loading">暂无指数数据</div>;
+  const open = (code: string, name: string) => onNavigate(`/stock/${code}?name=${encodeURIComponent(name)}`);
+  return (
+    <>
+      <div className="grid-3">
+        {diff.slice(0, 3).map((it) => {
+          const s = mapEmDiffToStockItem(it); const up = s.changeRate >= 0;
+          return (
+            <div key={s.code} className="card" onClick={() => open(s.code, s.name)}>
+              <div className="text-muted mb-1">{escapeHtml(s.name)}</div>
+              <div className={up ? 'text-up' : 'text-down'} style={{ fontSize: '20px', fontWeight: 700 }}>
+                {Number(s.price || 0).toFixed(2)}
+              </div>
+              <div className={up ? 'text-up' : 'text-down'}>
+                {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {(counts.up > 0 || counts.down > 0) && (
+        <div className="card">
+          <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
+            <span className="tag tag-up">涨 {counts.up || 0}</span>
+            <span className="text-muted" style={{ fontSize: 11 }}>平 {counts.flat || 0}</span>
+            <span className="tag tag-down">跌 {counts.down || 0}</span>
+          </div>
+          <div className="updown-bar">
+            <div className="updown-rect">
+              <div style={{ width: pct(counts.up, counts) + '%', background: 'var(--up)' }}></div>
+              <div style={{ width: pct(counts.flat, counts) + '%', background: '#555' }}></div>
+              <div style={{ width: pct(counts.down, counts) + '%', background: 'var(--down)' }}></div>
+            </div>
+            <div className="updown-legend">
+              <span className="text-up">涨 {counts.up || 0}家</span>
+              <span className="text-muted">平 {counts.flat || 0}</span>
+              <span className="text-down">跌 {counts.down || 0}家</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {yzt && yzt.count > 0 && (
+        <div className="card">
+          <div className="section-title" style={{ marginTop: 0 }}>昨日涨停表现</div>
+          <div className="flex items-center gap-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
+            <span>昨日涨停 <b>{yzt.count}</b> 家</span>
+            <span className={Number(yzt.avgChange) >= 0 ? 'text-up' : 'text-down'}>
+              今日平均 {upSign(Number(yzt.avgChange))}{Number(yzt.avgChange || 0).toFixed(2)}%
+            </span>
+            <span className="text-up">上涨 {yzt.upCount || 0} 家</span>
+          </div>
+        </div>
+      )}
+
+      {trade.total > 0 && (
+        <div className="card">
+          <div className="section-title" style={{ marginTop: 0 }}>三市成交额</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>{fmtYi(trade.total || 0)}</div>
+          <div className="text-muted" style={{ fontSize: 11, marginTop: 4 }}>
+            沪 {fmtYi(trade.sh || 0)} · 深 {fmtYi(trade.sz || 0)} · 创 {fmtYi(trade.cyb || 0)}
+          </div>
+        </div>
+      )}
+
+      {diff.length > 3 && (
+        <div className="card">
+          <div className="section-title" style={{ marginTop: 0 }}>指数对比</div>
+          <table>
+            <tbody>
+              {diff.map((it) => {
+                const s = mapEmDiffToStockItem(it); const up = s.changeRate >= 0;
+                return (
+                  <tr key={s.code} className="stock-row" onClick={() => open(s.code, s.name)}>
+                    <td>{escapeHtml(s.name)}</td>
+                    <td className={up ? 'text-up' : 'text-down'}>
+                      {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
+                    </td>
+                    <td className="text-muted">{Number(s.price || 0).toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+function pct(n: number, c: any): number {
+  const t = (c.up || 0) + (c.down || 0) + (c.flat || 0);
+  if (!t) return 0; return Math.round((n || 0) / t * 100);
+}
+
+function NewsList({ data, search }: any) {
+  const list: any[] = data?.data?.list || data?.news || [];
+  if (!list.length) return <div className="loading">暂无新闻</div>;
+  return (
+    <>
+      {list.slice(0, 80).map((n, idx) => {
+        const url = n.url_w || n.url_m || n.url || '';
+        const title = n.title || n.Art_Title || '';
+        const time = n.showtime || n.ctime || n.display_time || n.time || '';
+        const src = n.source || n.Art_Media_Name || n.site || '';
+        const content = n.content || n.digest || '';
+        const open = () => { if (url) window.open(url, '_blank', 'noopener'); };
+        return (
+          <div key={idx} className="news-item" onClick={open}>
+            <div className="time">{escapeHtml(time)}{src ? ' · ' + escapeHtml(src) : ''}</div>
+            <div className="title">{escapeHtml(title)}</div>
+            {content && (
+              <div className="digest">{escapeHtml(String(content).replace(/<[^>]+>/g, ''))}</div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function FundFlow({ data, onNavigate }: any) {
+  const hy: any[] = data?.industry || [];
+  const gn: any[] = data?.concept || [];
+  const open = (code: string, name: string) => onNavigate(`/stock/${code}?name=${encodeURIComponent(name)}`);
+  return (
+    <>
+      <SectionFlow title="行业资金流入 TOP10" list={hy.slice().sort(sortNet)} up onNavigate={onNavigate} />
+      <SectionFlow title="行业资金流出 TOP10" list={hy.slice().sort((a: any, b: any) => a - b)} up={false} onNavigate={onNavigate} />
+      <SectionFlow title="概念资金流入 TOP10" list={gn.slice().sort(sortNet)} up onNavigate={onNavigate} />
+      <SectionFlow title="概念资金流出 TOP10" list={gn.slice().sort((a: any, b: any) => sortNet(a, b) * -1)} up={false} onNavigate={onNavigate} />
+    </>
+  );
+}
+const sortNet = (a: any, b: any) => (Number(b.netamount || 0) - Number(a.netamount || 0));
+
+function SectionFlow({ title, list, up, onNavigate }: any) {
+  const items = up ? list.slice(0, 10).filter((x: any) => Number(x.netamount || 0) > 0)
+    : list.slice(-10).reverse().filter((x: any) => Number(x.netamount || 0) < 0);
+  if (!items.length) return null;
+  return (
+    <div className="card">
+      <div className="section-title" style={{ marginTop: 0 }}>{title}</div>
+      <table>
+        <thead>
+          <tr><th>板块</th><th>净流入</th><th>领涨股</th></tr>
+        </thead>
+        <tbody>
+          {items.map((x: any, i: number) => {
+            const f = Number(x.netamount || 0);
+            const sc = (x.ts_symbol || '').replace(/^(sh|sz|bj)/, (m: string) => m.toUpperCase());
+            return (
+              <tr key={i}>
+                <td>{escapeHtml(x.name || '')}</td>
+                <td className={f >= 0 ? 'text-up' : 'text-down'}>{upSign(f)}{fmtYi(f)}</td>
+                <td className="stock-row" onClick={() => sc && onNavigate(`/stock/${sc}?name=${encodeURIComponent(x.ts_name || '')}`)}>
+                  {escapeHtml(x.ts_name || '')}
+                  <span className={Number(x.ts_changeratio || 0) >= 0 ? ' text-up' : ' text-down'}>
+                    {' '}{upSign(Number(x.ts_changeratio || 0) * 100)}{(Number(x.ts_changeratio || 0) * 100).toFixed(2)}%
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SectorLimit({ data, onNavigate }: any) {
+  const diff: any[] = data?.data?.diff || [];
+  if (!diff.length) return <div className="loading">暂无数据</div>;
+  return (
+    <div className="card">
+      <table>
+        <thead><tr><th>板块</th><th>涨幅</th><th>净流入</th><th>涨/跌</th></tr></thead>
+        <tbody>
+          {diff.slice(0, 50).map((x) => (
+            <tr key={x.f12}>
+              <td>{escapeHtml(x.f14 || '')}</td>
+              <td className={Number(x.f3 || 0) >= 0 ? 'text-up' : 'text-down'}>
+                {upSign(Number(x.f3 || 0))}{Number(x.f3 || 0).toFixed(2)}%
+              </td>
+              <td className={Number(x.f62 || 0) >= 0 ? 'text-up' : 'text-down'}>
+                {upSign(Number(x.f62 || 0))}{fmtYi(x.f62)}
+              </td>
+              <td><span className="tag tag-up">{x.f104 || 0}</span> <span className="tag tag-down">{x.f105 || 0}</span></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function YesterdayLimit({ data, onNavigate }: any) {
+  const pool: any[] = data?.data?.pool || [];
+  if (!pool.length) return <div className="loading">暂无涨停数据</div>;
+  const open = (c: string, n: string) => onNavigate(`/stock/${c}?name=${encodeURIComponent(n)}`);
+  const sorted = pool.slice().sort((a, b) => ((b.lbc || 0) - (a.lbc || 0)) || ((b.zdp || 0) - (a.zdp || 0)));
+  return (
+    <div className="card">
+      <table>
+        <thead><tr><th>名称/代码</th><th>连板</th><th>原因</th><th>封板</th><th>炸板</th></tr></thead>
+        <tbody>
+          {sorted.map((x) => (
+            <tr key={x.c} className="stock-row" onClick={() => open(x.c, x.n)}>
+              <td>{escapeHtml(x.n || '')}<div className="text-muted" style={{ fontSize: 10 }}>{x.c || ''}</div></td>
+              <td><span className="tag tag-up">{x.lbc || 1}板</span></td>
+              <td className="text-muted">{escapeHtml(x.hybk || '')}</td>
+              <td>{fmtTime(x.fbt)}</td>
+              <td>{x.zbc || 0}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+function LimitLeader({ data, onNavigate }: any) {
+  const pool: any[] = (data?.data?.pool || []).filter((x: any) => (x.lbc || 1) >= 2);
+  if (!pool.length) return <div className="loading">今日暂无连板股</div>;
+  const open = (c: string, n: string) => onNavigate(`/stock/${c}?name=${encodeURIComponent(n)}`);
+  pool.sort((a: any, b: any) => ((b.lbc || 0) - (a.lbc || 0)) || ((b.zdp || 0) - (a.zdp || 0)));
+  return (
+    <div className="card">
+      <table>
+        <thead><tr><th>名称/代码</th><th>连板</th><th>涨幅</th><th>板块</th></tr></thead>
+        <tbody>
+          {pool.map((x: any) => (
+            <tr key={x.c} className="stock-row" onClick={() => open(x.c, x.n)}>
+              <td>{escapeHtml(x.n || '')}<div className="text-muted" style={{ fontSize: 10 }}>{x.c || ''}</div></td>
+              <td><span className="tag tag-accent">{x.lbc || 1}板</span></td>
+              <td className="text-up">+{(Number(x.zdp || 0)).toFixed(2)}%</td>
+              <td className="text-muted">{escapeHtml(x.hybk || '')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+function StrongSector({ data }: any) {
+  const pool: any[] = data?.data?.pool || [];
+  if (!pool.length) return <div className="loading">暂无数据</div>;
+  const map: Record<string, { name: string; count: number; codes: string[] }> = {};
+  for (const x of pool) {
+    const k = x.hybk || '其他';
+    if (!map[k]) map[k] = { name: k, count: 0, codes: [] };
+    map[k].count++;
+    if (map[k].codes.length < 3) map[k].codes.push(x.n);
+  }
+  const arr = Object.values(map).sort((a, b) => b.count - a.count);
+  return (
+    <div className="card">
+      <table>
+        <thead><tr><th>板块</th><th>涨停数</th><th>代表股</th></tr></thead>
+        <tbody>
+          {arr.map((s) => (
+            <tr key={s.name}>
+              <td>{escapeHtml(s.name)}</td>
+              <td><span className="tag tag-up">{s.count}</span></td>
+              <td className="text-muted">{escapeHtml(s.codes.join('、'))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function LHBList({ data, onNavigate }: any) {
+  const list: any[] = data?.data?.list || [];
+  if (!list.length) return <div className="loading">暂无龙虎榜</div>;
+  const open = (c: string, n: string) => onNavigate(`/stock/${c}?name=${encodeURIComponent(n)}`);
+  return (
+    <div className="card">
+      <table>
+        <thead><tr><th>名称/代码</th><th>涨跌幅</th><th>净买额</th><th>原因</th></tr></thead>
+        <tbody>
+          {list.slice(0, 50).map((x) => {
+            const net = Number(x.BILLBOARD_NET_AMT || 0);
+            const change = Number(x.CHANGE_RATE || 0);
+            return (
+              <tr key={x.SECURITY_CODE} className="stock-row"
+                onClick={() => open(x.SECURITY_CODE, x.SECURITY_NAME_ABBR)}>
+                <td>
+                  {escapeHtml(x.SECURITY_NAME_ABBR || '')}
+                  <div className="text-muted" style={{ fontSize: 10 }}>{x.SECURITY_CODE || ''}</div>
+                </td>
+                <td className={change >= 0 ? 'text-up' : 'text-down'}>{upSign(change)}{change.toFixed(2)}%</td>
+                <td className={net >= 0 ? 'text-up' : 'text-down'}>{upSign(net)}{fmtYi(net)}</td>
+                <td className="text-muted">{escapeHtml(x.EXPLANATION || x.EXPLAIN || '')}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AlertList({ data, onNavigate }: any) {
+  const list: any[] = data?.data?.list || data?.data?.allstock || [];
+  if (!list.length) return <div className="loading">暂无异动</div>;
+  const open = (c: string, n: string) => onNavigate(`/stock/${c}?name=${encodeURIComponent(n)}`);
+  return (
+    <div className="card">
+      <table>
+        <thead><tr><th>时间</th><th>名称</th><th>异动</th><th>信息</th></tr></thead>
+        <tbody>
+          {list.slice(0, 80).map((x, i) => {
+            const label = CHG_TYPES[x.t] || ('类型' + x.t);
+            const isUp = [4, 8, 32, 128, 8193, 8194, 8201, 8207, 8209, 8211, 8213, 8215].includes(x.t);
+            return (
+              <tr key={i} className="stock-row" onClick={() => open(x.c, x.n)}>
+                <td className="text-muted">{fmtTime(x.tm)}</td>
+                <td>
+                  {escapeHtml(x.n || '')}
+                  <div className="text-muted" style={{ fontSize: 10 }}>{x.c || ''}</div>
+                </td>
+                <td><span className={'tag ' + (isUp ? 'tag-up' : 'tag-down')}>{label}</span></td>
+                <td className="text-muted">{escapeHtml(x.i || '')}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function HotStocks({ data, onNavigate }: any) {
+  const diff: any[] = data?.data?.diff || [];
+  if (!diff.length) return <div className="loading">暂无数据</div>;
+  const open = (c: string, n: string) => onNavigate(`/stock/${c}?name=${encodeURIComponent(n)}`);
+  return (
+    <div className="card">
+      <table>
+        <thead><tr><th>代码</th><th>名称</th><th>最新价</th><th>涨跌幅</th></tr></thead>
+        <tbody>
+          {diff.map((x) => {
+            const rate = Number(x.f3 || 0);
+            return (
+              <tr key={x.f12} className="stock-row" onClick={() => open(x.f12, x.f14)}>
+                <td>{x.f12}</td><td>{escapeHtml(x.f14 || '')}</td>
+                <td>{(Number(x.f2 || 0)).toFixed(2)}</td>
+                <td className={rate >= 0 ? 'text-up' : 'text-down'}>{upSign(rate)}{rate.toFixed(2)}%</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Watchlist({ data, onNavigate, onAdd, onDel }: any) {
+  const diff: any[] = data?.data?.diff || [];
+  if (!diff.length) {
+    return (
+      <>
+        <div className="loading">暂无自选股</div>
+        <button className="wl-add-btn" onClick={onAdd}>+ 添加自选股</button>
+      </>
+    );
+  }
+  return (
+    <>
+      {diff.map((x) => {
+        const s = mapEmDiffToStockItem(x); const up = s.changeRate >= 0;
+        return (
+          <div className="wl-card" key={s.code}>
+            <div className="wl-row" onClick={() => onNavigate(`/stock/${s.code}?name=${encodeURIComponent(s.name)}`)}>
+              <div className="wl-name">
+                <div className="nm">{escapeHtml(s.name)}</div>
+                <div className="cd">{s.code}</div>
+              </div>
+              <div className="wl-price">
+                <div className={'pr ' + (up ? 'text-up' : 'text-down')}>{Number(s.price || 0).toFixed(2)}</div>
+              </div>
+              <div className="wl-chg">
+                <span className={'tag ' + (up ? 'tag-up' : 'tag-down')}>
+                  {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
+                </span>
+              </div>
+              <button className="wl-del" onClick={(e) => { e.stopPropagation(); onDel(s.code); }}>删除</button>
+            </div>
+          </div>
+        );
+      })}
+      <button className="wl-add-btn" onClick={onAdd}>+ 添加自选股</button>
+    </>
+  );
+}
+
+function AddWatchDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (c: string) => void }) {
+  const [v, setV] = useState('');
+  return (
+    <div className="modal-mask" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>×</button>
+        <h3>添加自选股</h3>
+        <div className="form-item" style={{ padding: '0 0 14px' }}>
+          <div className="lbl">股票代码</div>
+          <div className="val">
+            <input autoFocus type="text" value={v} onChange={(e) => setV(e.target.value)}
+              placeholder="600519 或 sh600519" />
+            <div className="text-muted" style={{ fontSize: 11, marginTop: 6 }}>
+              自动识别：60/68 开头→沪市，00/30 开头→深市
+            </div>
+          </div>
+        </div>
+        <button className="primary-btn" onClick={() => {
+          const c = normalizeCode(v.trim());
+          if (c.length >= 7) onAdd(c);
+        }}>确认添加</button>
+        <button className="ghost-btn" style={{ marginBottom: 12 }} onClick={onClose}>取消</button>
+      </div>
+    </div>
+  );
+}
+
+function fmtTime(t: string | number): string {
+  const s = String(t || '');
+  if (s.length >= 6) return s.slice(0, 2) + ':' + s.slice(2, 4);
+  return s;
+}
