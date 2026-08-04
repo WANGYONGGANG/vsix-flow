@@ -10,7 +10,6 @@
     "url": "https://github.com/stockext/stock-extension"
   },
   "license": "BSD-3-Clause",
-  "icon": "resources/icon-large.svg",
   "engines": {
     "vscode": "^1.100.0"
   },

@@ -31,13 +31,55 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 export default function HomePage() {
-  const { settings, addWatch, delWatch, getWatchCodes } = useSettings();
+  const { settings, addWatch, delWatch, getWatchCodes, moveWatch, reorderWatch } = useSettings();
   const { navigate } = useRouter();
   const [tab, setTab] = useState<TabId>('market_overview');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [addDialog, setAddDialog] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(false);
   const tickRef = useRef<any>(null);
+
+  function speakText(text: string) {
+    if (!text) return;
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    u.rate = 1.1;
+    u.pitch = 1;
+    window.speechSynthesis.speak(u);
+  }
+
+  function getLatestText(): string {
+    if (tab === 'realtime_news' || tab === 'em_news') {
+      const list: any[] = data?.data?.list || data?.news || [];
+      if (!list.length) return '';
+      const n = list[0];
+      const title = n.title || n.Art_Title || '';
+      const content = n.content || n.digest || '';
+      return (title + ' ' + content).replace(/<[^>]+>/g, '').trim();
+    }
+    if (tab === 'alert') {
+      const list: any[] = data?.data?.list || data?.data?.allstock || [];
+      if (!list.length) return '';
+      const x = list[0];
+      const label = CHG_TYPES[x.t] || ('类型' + x.t);
+      return `${x.n || ''} ${label} ${x.i || ''}`;
+    }
+    return '';
+  }
+
+  function toggleVoice() {
+    const next = !voiceOn;
+    setVoiceOn(next);
+    if (next) {
+      const t = getLatestText();
+      if (t) speakText(t);
+    } else {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+  }
 
   // 轮询：概况 / 自选 / 快讯 / 异动
   useEffect(() => {
@@ -90,6 +132,9 @@ export default function HomePage() {
     } finally { setLoading(false); }
   }
 
+  const voiceTabs: TabId[] = ['em_news', 'realtime_news', 'alert'];
+  const showVoiceBtn = voiceTabs.includes(tab);
+
   return (
     <div className="page">
       <div className="tab-bar">
@@ -100,6 +145,24 @@ export default function HomePage() {
             onClick={() => setTab(t.id)}
           >{t.label}</button>
         ))}
+        {showVoiceBtn && (
+          <button
+            className={'voice-toggle' + (voiceOn ? ' on' : '')}
+            onClick={toggleVoice}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 8px', borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: voiceOn ? 'rgba(232,179,57,.1)' : 'var(--card)',
+              color: voiceOn ? 'var(--accent)' : 'var(--fg)',
+              fontSize: 10, cursor: 'pointer', flexShrink: 0,
+              marginLeft: 8, transition: 'all .2s',
+            }}
+          >
+            <span style={{ fontSize: 12 }}>{voiceOn ? '🔊' : '🔇'}</span>
+            <span>{voiceOn ? '播报中' : '播报'}</span>
+          </button>
+        )}
       </div>
 
       <div className="content-scroll">
@@ -123,6 +186,8 @@ export default function HomePage() {
             onNavigate={navigate}
             onAdd={() => setAddDialog(true)}
             onDel={delWatch}
+            moveWatch={moveWatch}
+            reorderWatch={reorderWatch}
           />
         )}
       </div>
@@ -502,8 +567,26 @@ function HotStocks({ data, onNavigate }: any) {
   );
 }
 
-function Watchlist({ data, onNavigate, onAdd, onDel }: any) {
+function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: any) {
   const diff: any[] = data?.data?.diff || [];
+  const dragElRef = useRef<any>(null);
+
+  function getDragAfter(container: HTMLElement, y: number) {
+    const list = Array.from(container.querySelectorAll<HTMLElement>('.wl-card:not(.dragging)'));
+    for (const el of list) {
+      const box = el.getBoundingClientRect();
+      if (y < box.top + box.height / 2) return el;
+    }
+    return null;
+  }
+
+  function commitOrder(container: HTMLElement) {
+    const codes: string[] = [];
+    const all = container.querySelectorAll<HTMLElement>('.wl-card');
+    all.forEach((c) => { const code = c.getAttribute('data-code'); if (code) codes.push(code); });
+    reorderWatch(codes);
+  }
+
   if (!diff.length) {
     return (
       <>
@@ -517,7 +600,35 @@ function Watchlist({ data, onNavigate, onAdd, onDel }: any) {
       {diff.map((x) => {
         const s = mapEmDiffToStockItem(x); const up = s.changeRate >= 0;
         return (
-          <div className="wl-card" key={s.code}>
+          <div
+            className="wl-card"
+            key={s.code}
+            data-code={s.code}
+            draggable
+            onDragStart={(e: any) => {
+              dragElRef.current = e.currentTarget;
+              e.currentTarget.classList.add('dragging');
+              try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', s.code); } catch (_err) { /* noop */ }
+            }}
+            onDragOver={(e: any) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }}
+            onDragEnter={(e: any) => { e.preventDefault(); }}
+            onDrop={(e: any) => {
+              e.preventDefault();
+              const self = e.currentTarget;
+              const dragEl = dragElRef.current;
+              if (!dragEl || dragEl === self) return;
+              const after = getDragAfter(self.parentNode as HTMLElement, e.clientY);
+              const container = self.parentNode as HTMLElement;
+              if (after == null) container.appendChild(dragEl);
+              else container.insertBefore(dragEl, after);
+              commitOrder(container);
+            }}
+            onDragEnd={(e: any) => {
+              e.currentTarget.classList.remove('dragging');
+              dragElRef.current = null;
+            }}
+            style={{ cursor: 'grab' }}
+          >
             <div className="wl-row" onClick={() => onNavigate(`/stock/${s.code}?name=${encodeURIComponent(s.name)}`)}>
               <div className="wl-name">
                 <div className="nm">{escapeHtml(s.name)}</div>
@@ -530,6 +641,28 @@ function Watchlist({ data, onNavigate, onAdd, onDel }: any) {
                 <span className={'tag ' + (up ? 'tag-up' : 'tag-down')}>
                   {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
                 </span>
+              </div>
+              <div className="wl-acts" style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                <button
+                  className="wl-code-act"
+                  title="置顶"
+                  onClick={() => moveWatch(s.code, 'top')}
+                  style={{
+                    border: '1px solid var(--border)', background: 'transparent',
+                    color: 'var(--fg)', fontSize: 10, lineHeight: 1, padding: '4px 7px',
+                    borderRadius: 4, cursor: 'pointer', opacity: 0.85,
+                  }}
+                >⤒ 置顶</button>
+                <button
+                  className="wl-code-act"
+                  title="置底"
+                  onClick={() => moveWatch(s.code, 'bottom')}
+                  style={{
+                    border: '1px solid var(--border)', background: 'transparent',
+                    color: 'var(--fg)', fontSize: 10, lineHeight: 1, padding: '4px 7px',
+                    borderRadius: 4, cursor: 'pointer', opacity: 0.85,
+                  }}
+                >⤓ 置底</button>
               </div>
               <button className="wl-del" onClick={(e) => { e.stopPropagation(); onDel(s.code); }}>删除</button>
             </div>

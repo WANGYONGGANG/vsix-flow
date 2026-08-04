@@ -27,4 +27,9 @@ export interface AppSettings {
   voiceBroadcast: boolean;
   stocksRemind: Record<string, any>;
   remindSwitch: number;
+  opacity: number;
+  hideStatusBar: boolean;
+  hideStatusBarIcon: boolean;
+  hideSidebarIcon?: boolean;
+  hideActivityIcon?: boolean;
 }

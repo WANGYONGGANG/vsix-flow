@@ -59,6 +59,32 @@ export function useSettings() {
     update({ stockPortfolio: { ...settings.stockPortfolio, groups } });
   }, [settings, update]);
 
+  const moveWatch = useCallback((rawCode: string, dir: 'up' | 'down' | 'top' | 'bottom') => {
+    const code = normalizeCode(rawCode);
+    const groups = settings.stockPortfolio.groups.length
+      ? settings.stockPortfolio.groups
+      : [{ name: '默认分组', codes: [] as string[] }];
+    const g = groups[0];
+    const codes = [...(g.codes || [])];
+    const i = codes.indexOf(code);
+    if (i < 0) return;
+    codes.splice(i, 1);
+    if (dir === 'top') codes.unshift(code);
+    else if (dir === 'bottom') codes.push(code);
+    else if (dir === 'up') codes.splice(Math.max(0, i - 1), 0, code);
+    else codes.splice(Math.min(codes.length, i + 1), 0, code);
+    groups[0] = { ...g, codes };
+    update({ stockPortfolio: { ...settings.stockPortfolio, groups } });
+  }, [settings, update]);
+
+  const reorderWatch = useCallback((codes: string[]) => {
+    const groups = settings.stockPortfolio.groups.length
+      ? settings.stockPortfolio.groups
+      : [{ name: '默认分组', codes: [] as string[] }];
+    groups[0] = { ...(groups[0] || { name: '默认分组' }), codes: codes.map(normalizeCode) };
+    update({ stockPortfolio: { ...settings.stockPortfolio, groups } });
+  }, [settings, update]);
+
   const getWatchCodes = useCallback((): string[] => {
     return (settings.stockPortfolio.groups || []).flatMap((g) => g.codes || []);
   }, [settings]);
@@ -110,7 +136,7 @@ export function useSettings() {
 
   return {
     settings, update, save,
-    addWatch, delWatch, getWatchCodes,
+    addWatch, delWatch, moveWatch, reorderWatch, getWatchCodes,
     saveAIModel, deleteAIModel, setActiveAIModel, activeAIModel,
     exportJSON, importJSON,
   };

@@ -28,7 +28,8 @@ export const api = {
   quote: (codes: string[]) => request<any>(`/api/quote?codes=${codes.join(',')}`),
   marketOverview: () => request<any>('/api/market-overview'),
   marketOverviewDetail: () => request<any>('/api/market-overview-detail'),
-  kline: (code: string, period = 'day') => request<any>(`/api/kline?code=${code}&period=${period}`),
+  kline: (code: string, period = 'day', limit?: number, fq = 'qfq') =>
+    request<any>(`/api/kline?code=${code}&period=${period}${limit ? `&limit=${limit}` : ''}&fq=${fq}`),
   intraday: (code: string) => request<any>(`/api/intraday?code=${code}`),
   emNews: (page = 1, pageSize = 60) => request<any>(`/api/em-news?page=${page}&pageSize=${pageSize}`),
   emNewsSearch: (keyword = 'A股', page = 1, pageSize = 50) => request<any>(`/api/em-news-search?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`),
@@ -41,6 +42,7 @@ export const api = {
   stockNews: (code: string, pageSize = 20) => request<any>(`/api/stock-news?code=${code}&pageSize=${pageSize}`),
   stockNotice: (code: string) => request<any>(`/api/stock-notice?code=${code}`),
   stockFinance: (code: string) => request<any>(`/api/stock-finance?code=${code}`),
+  stockEssential: (code: string) => request<any>(`/api/stock-essential?code=${code}`),
   stockProfile: (code: string, sub = 'essential') => request<any>(`/api/stock-profile?code=${code}&sub=${sub}`),
 
   // AI Chat - 支持 SSE 流式响应

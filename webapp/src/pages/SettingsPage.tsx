@@ -2,7 +2,7 @@
 // 设置页：UI 偏好 / AI 模型管理 / 数据导入导出 / 关于
 // ============================================
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSettings } from '../store/useSettings';
 import { useRouter } from '../router/useRouter';
 
@@ -14,6 +14,14 @@ export default function SettingsPage() {
   const { navigate } = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    const opacity = (settings as any).opacity ?? 1;
+    document.documentElement.style.setProperty('--panel-opacity', String(opacity));
+    document.body.style.opacity = String(opacity);
+    const app = document.getElementById('app');
+    if (app) app.style.opacity = String(opacity);
+  }, [(settings as any).opacity]);
 
   const handleImport = async (f: File) => {
     const ok = await importJSON(f);
@@ -71,6 +79,32 @@ export default function SettingsPage() {
           <div className="val flex jcsb items-center">
             <div className={'switch' + (settings.voiceBroadcast ? ' on' : '')}
               onClick={() => update({ voiceBroadcast: !settings.voiceBroadcast })} />
+          </div>
+        </div>
+        <div className="form-item">
+          <div className="lbl">面板透明度</div>
+          <div className="val">
+            <div className="flex items-center gap-2">
+              <input type="range" min={0.1} max={1} step={0.1}
+                value={(settings as any).opacity ?? 1}
+                onChange={(e) => update({ opacity: Number(e.target.value) } as any)}
+                style={{ flex: 1 }} />
+              <span style={{ fontSize: 13, opacity: .7, minWidth: 36, textAlign: 'right' }}>{((settings as any).opacity ?? 1).toFixed(1)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="form-item">
+          <div className="lbl">隐藏状态栏</div>
+          <div className="val flex jcsb items-center">
+            <div className={'switch' + ((settings as any).hideStatusBar ? ' on' : '')}
+              onClick={() => update({ hideStatusBar: !(settings as any).hideStatusBar } as any)} />
+          </div>
+        </div>
+        <div className="form-item">
+          <div className="lbl">隐藏状态栏图标</div>
+          <div className="val flex jcsb items-center">
+            <div className={'switch' + ((settings as any).hideStatusBarIcon ? ' on' : '')}
+              onClick={() => update({ hideStatusBarIcon: !(settings as any).hideStatusBarIcon } as any)} />
           </div>
         </div>
 

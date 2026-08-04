@@ -34,4 +34,7 @@ export const DEFAULT_SETTINGS = {
   voiceBroadcast: false,
   stocksRemind: {},
   remindSwitch: 1,
+  opacity: 1,
+  hideStatusBar: false,
+  hideStatusBarIcon: false,
 };

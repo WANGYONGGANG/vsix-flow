@@ -25,7 +25,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Day / Week / Month - 腾讯前复权
   const tcCode = toTencentCode(code);
   const fq = getQuery(req, 'fq', 'qfq');
-  const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${tcCode},${period},,,320,${fq}`);
+  const limit = Number(getQuery(req, 'limit') || 320) || 320;
+  const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${tcCode},${period},,,${limit},${fq}`);
   const data = r?.data?.[tcCode] || {};
   const key = data[`${fq}${period}`] ? `${fq}${period}` : (data[period] ? period : '');
   const rows: string[] = (data[key] || []).map((row: any[]) => `${row[0]},${row[1]},${row[2]},${row[3]},${row[4]},${row[5] || 0}`);
