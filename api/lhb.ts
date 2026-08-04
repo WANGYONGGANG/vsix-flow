@@ -1,7 +1,7 @@
 // 龙虎榜
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions } from '../_shared/response';
-import { httpGetJson } from '../_shared/http';
+import { json, handleOptions } from './_shared/response';
+import { httpGetJson } from './_shared/http';
 
 const COLUMNS = 'SECURITY_CODE,SECURITY_NAME_ABBR,CLOSE_PRICE,CHANGE_RATE,EXPLAIN,EXPLANATION,TRADE_DATE,BILLBOARD_NET_AMT,BUY_SEAT,SELL_SEAT,ACCUM_AMOUNT,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT';
 

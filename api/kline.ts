@@ -1,7 +1,7 @@
 // K 线：日 / 周 / 月 / 5m / 15m / 30m / 60m
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from '../_shared/response';
-import { httpsGetText, httpGetJson, toSinaCode, toTencentCode, stripJsonp } from '../_shared/http';
+import { json, handleOptions, getQuery } from './_shared/response';
+import { httpsGetText, httpGetJson, toSinaCode, toTencentCode, stripJsonp } from './_shared/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;

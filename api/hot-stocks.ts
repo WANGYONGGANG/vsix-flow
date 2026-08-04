@@ -1,7 +1,7 @@
 // 热门股 - 默认一批权重股
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions } from '../_shared/response';
-import { httpsGetText, tencentTextToDiff } from '../_shared/http';
+import { json, handleOptions } from './_shared/response';
+import { httpsGetText, tencentTextToDiff } from './_shared/http';
 
 const HOT = 'sh600519,sz000858,sh601318,sh600036,sz300750,sh688981,sz000001,sh601899,sz002594,sh600900';
 

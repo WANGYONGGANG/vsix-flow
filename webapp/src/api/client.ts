@@ -8,10 +8,13 @@ export const API_BASE = (import.meta as any).env?.VITE_API_BASE || '';
 
 async function request<T = any>(path: string, init?: RequestInit): Promise<T | null> {
   try {
+    const hasBody = !!(init?.body || init?.method && init.method !== 'GET' && init.method !== 'HEAD');
+    const customHeaders = hasBody ? { 'Content-Type': 'application/json', ...(init?.headers || {}) } : (init?.headers || {});
     const res = await fetch(API_BASE + path, {
       credentials: 'omit',
+      method: 'GET',
       ...(init || {}),
-      headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+      headers: customHeaders,
     });
     if (!res.ok) {
       try { console.warn('[api] err', path, res.status, await res.text()); } catch { /* empty */ }

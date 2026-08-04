@@ -1,7 +1,7 @@
 // 新浪板块资金流 - fenlei=0 行业 / 1 概念
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from '../_shared/response';
-import { httpsGetText } from '../_shared/http';
+import { json, handleOptions, getQuery } from './_shared/response';
+import { httpsGetText } from './_shared/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;

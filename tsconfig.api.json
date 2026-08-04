@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "_shared/*": ["./api/_shared/*"],
+      "@vercel/node": ["./api/_shared/vercel-node-shim.ts"]
+    }
+  },
+  "include": ["api/**/*.ts", "scripts/**/*.ts"]
+}

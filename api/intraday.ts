@@ -1,7 +1,7 @@
 // 分时图
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from '../_shared/response';
-import { httpGetJson, toTencentCode } from '../_shared/http';
+import { json, handleOptions, getQuery } from './_shared/response';
+import { httpGetJson, toTencentCode } from './_shared/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;

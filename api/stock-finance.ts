@@ -1,7 +1,7 @@
 // 个股主要财务指标
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from '../_shared/response';
-import { httpGetJson, toSinaCode, toCleanCode } from '../_shared/http';
+import { json, handleOptions, getQuery } from './_shared/response';
+import { httpGetJson, toSinaCode, toCleanCode } from './_shared/http';
 
 function fmtAmt(v: unknown) {
   const n = Number(v || 0);

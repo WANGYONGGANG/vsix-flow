@@ -169,17 +169,17 @@ export default function HomePage() {
         {loading && !data && <div className="loading">加载中…</div>}
         {!loading && !data && <div className="loading">暂无数据</div>}
 
-        {tab === 'market_overview' && <MarketOverview data={data} onNavigate={navigate} />}
-        {tab === 'fundFlow' && <FundFlow data={data} onNavigate={navigate} />}
-        {tab === 'em_news' && <NewsList data={data} search />}
-        {tab === 'realtime_news' && <NewsList data={data} />}
-        {tab === 'sector_limit' && <SectorLimit data={data} onNavigate={navigate} />}
-        {tab === 'yesterday_limit' && <YesterdayLimit data={data} onNavigate={navigate} />}
-        {tab === 'limit_leader' && <LimitLeader data={data} onNavigate={navigate} />}
-        {tab === 'strong_sector' && <StrongSector data={data} />}
-        {tab === 'dragon_tiger' && <LHBList data={data} onNavigate={navigate} />}
-        {tab === 'alert' && <AlertList data={data} onNavigate={navigate} />}
-        {tab === 'hot_stocks' && <HotStocks data={data} onNavigate={navigate} />}
+        {data && tab === 'market_overview' && <MarketOverview data={data} onNavigate={navigate} />}
+        {data && tab === 'fundFlow' && <FundFlow data={data} onNavigate={navigate} />}
+        {data && tab === 'em_news' && <NewsList data={data} search />}
+        {data && tab === 'realtime_news' && <NewsList data={data} />}
+        {data && tab === 'sector_limit' && <SectorLimit data={data} onNavigate={navigate} />}
+        {data && tab === 'yesterday_limit' && <YesterdayLimit data={data} onNavigate={navigate} />}
+        {data && tab === 'limit_leader' && <LimitLeader data={data} onNavigate={navigate} />}
+        {data && tab === 'strong_sector' && <StrongSector data={data} />}
+        {data && tab === 'dragon_tiger' && <LHBList data={data} onNavigate={navigate} />}
+        {data && tab === 'alert' && <AlertList data={data} onNavigate={navigate} />}
+        {data && tab === 'hot_stocks' && <HotStocks data={data} onNavigate={navigate} />}
         {tab === 'watchlist' && (
           <Watchlist
             data={data}

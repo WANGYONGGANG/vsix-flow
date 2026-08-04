@@ -1,7 +1,7 @@
 // 异动
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions } from '../_shared/response';
-import { httpGetJson } from '../_shared/http';
+import { json, handleOptions } from './_shared/response';
+import { httpGetJson } from './_shared/http';
 
 const TYPES = '8201,8202,8193,4,32,64,8207,8209,8211,8213,8215,8204,8203,8194,8,16,128,8208,8210,8212,8214,8216';
 

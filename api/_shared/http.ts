@@ -1,44 +1,35 @@
 // ============================================
-// API 层 HTTP 请求工具 + 代码转换（来自 VSCode 扩展）
+// API 层 HTTP 请求工具：统一用 Node 20 内置 fetch
+// 原因：容器内 HTTP_PROXY 通过 NODE_OPTIONS preload 打补丁，只有 fetch(undici) 兼容
 // ============================================
-
-import * as https from 'https';
-import * as http from 'http';
 
 const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-export function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
-  return new Promise((resolve) => {
-    const headers: Record<string, string> = { 'User-Agent': DEFAULT_UA };
-    if (referer) headers['Referer'] = referer;
-    const mod = fullUrl.startsWith('https') ? https : http;
-    const req = mod.get(fullUrl, { headers, timeout: 15000 }, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch { resolve(null); }
-      });
-    });
-    req.on('error', () => resolve(null));
-    req.on('timeout', () => { req.destroy(); resolve(null); });
-  });
+export async function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    const r = await fetch(fullUrl, {
+      headers: { 'User-Agent': DEFAULT_UA, ...(referer ? { Referer: referer } : {}) },
+      signal: ctrl.signal,
+    } as any);
+    clearTimeout(t);
+    const text = await r.text();
+    try { return JSON.parse(text); } catch { return null; }
+  } catch { return null; }
 }
 
-export function httpsGetText(fullUrl: string, referer?: string): Promise<string> {
-  return new Promise((resolve) => {
-    const headers: Record<string, string> = { 'User-Agent': DEFAULT_UA };
-    if (referer) headers['Referer'] = referer;
-    const req = https.get(fullUrl, { headers, timeout: 15000 }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        const buf = Buffer.concat(chunks);
-        try { resolve(buf.toString('utf8')); } catch { resolve(''); }
-      });
-    });
-    req.on('error', () => resolve(''));
-    req.on('timeout', () => { req.destroy(); resolve(''); });
-  });
+export async function httpsGetText(fullUrl: string, referer?: string): Promise<string> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    const r = await fetch(fullUrl, {
+      headers: { 'User-Agent': DEFAULT_UA, ...(referer ? { Referer: referer } : {}) },
+      signal: ctrl.signal,
+    } as any);
+    clearTimeout(t);
+    return await r.text();
+  } catch { return ''; }
 }
 
 // ============ 代码格式转换 ============
