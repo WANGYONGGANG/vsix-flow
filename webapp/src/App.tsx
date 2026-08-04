@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSettings } from './store/useSettings';
 import { useRouter } from './router/useRouter';
-import HomePage from './pages/HomePage';
+import HomePage, { TABS, TabId } from './pages/HomePage';
 import StockDetailPage from './pages/StockDetailPage';
 import AIChatPage from './pages/AIChatPage';
 import SettingsPage from './pages/SettingsPage';
@@ -11,7 +11,7 @@ import { isAStockTradingHours } from '../local-shared/constants';
 const BOTTOM_NAV = [
   { to: '/', label: '行情', icon: '📈' },
   { to: '/ai', label: 'AI', icon: '✨' },
-  { to: '/settings', label: '我的', icon: '⚙️' },
+  { to: '/settings', label: '我的', icon: '👤' },
 ];
 
 // ===== 内联 SVG 图标（不依赖外部库，尺寸 20/20，stroke=currentColor）=====
@@ -59,6 +59,8 @@ export default function App() {
   const { path, navigate } = useRouter();
   const { settings } = useSettings();
   const [now, setNow] = useState(() => new Date());
+  // 行情首页当前 tab（桌面端用左侧栏控制，小屏仍用横滚 tab-bar 内部控制）
+  const [homeTab, setHomeTab] = useState<TabId>('market_overview');
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30 * 1000);
@@ -72,75 +74,96 @@ export default function App() {
   }, [now]);
 
   const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const md = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
   const inDetail = path.startsWith('/stock/') || path.startsWith('/settings/model');
   const isHome = path === '/' || path.startsWith('/stock/');
   const isAI = path === '/ai';
   const isSettings = path === '/settings' || path.startsWith('/settings/model');
-
-  // 顶部标题 / 副标题
-  const pageTitle = (() => {
-    if (path.startsWith('/stock/')) return { main: '股票详情', sub: hhmm(now) + ' · ' + marketStatus.label };
-    if (path === '/') return { main: '行情中心', sub: hhmm(now) };
-    if (path === '/ai') return { main: 'AI 智能助手', sub: hhmm(now) };
-    if (path === '/settings') return { main: '设置', sub: hhmm(now) };
-    if (path.startsWith('/settings/model')) return { main: 'AI 模型配置', sub: hhmm(now) };
-    return { main: 'Stock', sub: '' };
-  })();
-
-  // 左按钮：详情页显示返回
+  const showSidebar = path === '/'; // 只有首页才显示左侧 12 Tab 侧边栏
   const showBack = inDetail && !isSettings;
 
   return (
     <div className="app-shell">
-      {/* 顶部栏 */}
-      <div className="topbar">
+      {/* 顶部栏（删去中间的"行情中心"大标题，紧凑化） */}
+      <div className="topbar topbar-compact">
         <div className="topbar-left">
           {showBack ? (
             <button className="icon-btn" aria-label="返回" onClick={() => navigate('/')}>
               <IconBack />
             </button>
           ) : (
-            <BrandLogo size={36} />
+            <BrandLogo size={34} />
           )}
-          <div className="topbar-title">
-            <div className="t-main">{pageTitle.main}</div>
-            <div className="t-sub">
-              {path === '/' && (
-                <span className={'market-dot ' + marketStatus.dot} />
-              )}
-              {pageTitle.sub}
-            </div>
+          <div className="topbar-subline">
+            {path === '/' && <span className={'market-dot ' + marketStatus.dot} />}
+            <span className="t-date">{md(now)}</span>
+            <span className="t-time">{hhmm(now)}</span>
+            {path === '/' && <span className="t-status">{marketStatus.label}</span>}
           </div>
         </div>
         <div className="topbar-right">
-          {(path === '/' || path === '/stock/') && (
-            <button className="icon-btn icon-accent" aria-label="AI 助手" onClick={() => navigate('/ai')}>
+          {(path === '/' || path.startsWith('/stock/')) && (
+            <button
+              className="fab-float"
+              aria-label="AI 助手"
+              title="向 AI 提问市场走势"
+              onClick={() => navigate('/ai')}
+            >
               <IconSparkle />
-            </button>
-          )}
-          {(path === '/' || path === '/ai') && (
-            <button className="icon-btn" aria-label="设置" onClick={() => navigate('/settings')}>
-              <IconSettings />
+              <span>问 AI</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* 主区域 */}
-      <div className="main-area">
-        {path === '/' && <HomePage />}
-        {path.startsWith('/stock/') && (
-          <StockDetailPage code={decodeURIComponent(path.split('/stock/')[1] || '')} />
+      {/* 主体：首页 = 左侧导航 + 主内容；其他页面 = 只有主内容 */}
+      <div className={'main-area' + (showSidebar ? ' with-sidebar' : '')}>
+        {showSidebar && (
+          <aside className="home-sidebar" aria-label="行情分类">
+            <div className="sb-list">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  title={t.tip}
+                  className={'sb-item' + (homeTab === t.id ? ' active' : '')}
+                  onClick={() => setHomeTab(t.id)}
+                >
+                  <span className="sb-ic">{t.icon}</span>
+                  <span className="sb-lb">{t.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="sb-footer">
+              <button
+                className="sb-footer-btn"
+                title="前往我的设置（AI 模型配置 / 主题 / 轮询）"
+                onClick={() => navigate('/settings')}
+              >
+                <span className="sb-ic">👤</span>
+                <span className="sb-lb">我的 / 设置</span>
+                <span className="sb-chevron">›</span>
+              </button>
+            </div>
+          </aside>
         )}
-        {path === '/ai' && <AIChatPage />}
-        {path === '/settings' && <SettingsPage />}
-        {path.startsWith('/settings/model') && (
-          <AIModelEditorPage modelId={decodeURIComponent(path.split('/settings/model/')[1] || '') || null} />
-        )}
+
+        <div className="main-inner">
+          {path === '/' && (
+            <HomePage initialTab={homeTab} initialOnNavigate={navigate} />
+          )}
+          {path.startsWith('/stock/') && (
+            <StockDetailPage code={decodeURIComponent(path.split('/stock/')[1] || '')} />
+          )}
+          {path === '/ai' && <AIChatPage />}
+          {path === '/settings' && <SettingsPage />}
+          {path.startsWith('/settings/model') && (
+            <AIModelEditorPage modelId={decodeURIComponent(path.split('/settings/model/')[1] || '') || null} />
+          )}
+        </div>
       </div>
 
-      {/* 底部导航 - 详情页不显示 */}
+      {/* 底部导航 - 详情页不显示；设置（我的）放在底部导航 */}
       {!inDetail || isSettings ? null : (
         <div className="bottom-nav">
           {BOTTOM_NAV.map((n) => (

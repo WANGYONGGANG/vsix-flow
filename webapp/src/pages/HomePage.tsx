@@ -15,30 +15,39 @@ type TabId = 'market_overview' | 'fundFlow' | 'em_news' | 'realtime_news' |
   'sector_limit' | 'limit_leader' | 'strong_sector' | 'dragon_tiger' |
   'yesterday_limit' | 'alert' | 'hot_stocks' | 'watchlist';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'market_overview', label: '概况' },
-  { id: 'fundFlow', label: '资金' },
-  { id: 'em_news', label: '新闻' },
-  { id: 'realtime_news', label: '快讯' },
-  { id: 'sector_limit', label: '板块' },
-  { id: 'limit_leader', label: '龙头' },
-  { id: 'strong_sector', label: '强板' },
-  { id: 'dragon_tiger', label: '龙虎' },
-  { id: 'yesterday_limit', label: '涨停' },
-  { id: 'alert', label: '异动' },
-  { id: 'hot_stocks', label: '热股' },
-  { id: 'watchlist', label: '自选' },
-];
+export type { TabId };
 
-export default function HomePage() {
+const TABS: { id: TabId; label: string; icon: string; tip?: string }[] = [
+  { id: 'market_overview', label: '概况', icon: '📊', tip: '指数涨跌家数/三市成交' },
+  { id: 'fundFlow',       label: '资金', icon: '💰', tip: '板块资金流入流出 TOP10' },
+  { id: 'em_news',        label: '新闻', icon: '📰', tip: '财经新闻搜索' },
+  { id: 'realtime_news',  label: '快讯', icon: '⚡', tip: '实时财经快讯（可播报）' },
+  { id: 'sector_limit',   label: '板块', icon: '🧩', tip: '板块涨幅/流入/涨跌家数' },
+  { id: 'limit_leader',   label: '龙头', icon: '👑', tip: '今日连板龙头 ≥2 连板' },
+  { id: 'strong_sector',  label: '强板', icon: '🔥', tip: '涨停股所属板块统计' },
+  { id: 'dragon_tiger',   label: '龙虎', icon: '🐯', tip: '龙虎榜上榜个股/游资' },
+  { id: 'yesterday_limit',label: '涨停', icon: '📈', tip: '今日涨停全池/封板时间' },
+  { id: 'alert',          label: '异动', icon: '🚨', tip: '盘中异动实时提醒（可播报）' },
+  { id: 'hot_stocks',     label: '热股', icon: '🌶️', tip: '热门/热门股票排行' },
+  { id: 'watchlist',      label: '自选', icon: '⭐', tip: '我的自选股，支持拖拽排序' },
+];
+export { TABS };
+
+export default function HomePage({
+    initialTab = 'market_overview' as TabId,
+    initialOnNavigate,
+  }: { initialTab?: TabId; initialOnNavigate?: (to: string) => void } = {}) {
   const { settings, addWatch, delWatch, getWatchCodes, moveWatch, reorderWatch } = useSettings();
-  const { navigate } = useRouter();
-  const [tab, setTab] = useState<TabId>('market_overview');
+  const { navigate: routerNavigate } = useRouter();
+  const navigate = initialOnNavigate || routerNavigate;
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [addDialog, setAddDialog] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
   const tickRef = useRef<any>(null);
+
+  useEffect(() => { if (tab !== initialTab) setTab(initialTab); /* sync external control */ }, [initialTab]);
 
   function speakText(text: string) {
     if (!text) return;
@@ -136,30 +145,27 @@ export default function HomePage() {
   const showVoiceBtn = voiceTabs.includes(tab);
 
   return (
-    <div className="page">
-      <div className="tab-bar">
+    <div className="page home-layout">
+      {/* 移动端：保留顶部横滚 tab-bar（.tab-bar-mobile）；桌面端隐藏，使用 App 侧左侧栏 */}
+      <div className="tab-bar-mobile">
         {TABS.map((t) => (
           <button
             key={t.id}
+            title={t.tip}
             className={'tab-btn' + (tab === t.id ? ' active' : '')}
             onClick={() => setTab(t.id)}
-          >{t.label}</button>
+          >
+            <span className="tb-ic">{t.icon}</span>
+            <span>{t.label}</span>
+          </button>
         ))}
         {showVoiceBtn && (
           <button
             className={'voice-toggle' + (voiceOn ? ' on' : '')}
             onClick={toggleVoice}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '3px 8px', borderRadius: 4,
-              border: '1px solid var(--border)',
-              background: voiceOn ? 'rgba(232,179,57,.1)' : 'var(--card)',
-              color: voiceOn ? 'var(--accent)' : 'var(--fg)',
-              fontSize: 10, cursor: 'pointer', flexShrink: 0,
-              marginLeft: 8, transition: 'all .2s',
-            }}
+            title="语音播报最新一条"
           >
-            <span style={{ fontSize: 12 }}>{voiceOn ? '🔊' : '🔇'}</span>
+            <span className="tb-ic">{voiceOn ? '🔊' : '🔇'}</span>
             <span>{voiceOn ? '播报中' : '播报'}</span>
           </button>
         )}
