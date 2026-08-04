@@ -167,19 +167,18 @@ export default function HomePage() {
 
       <div className="content-scroll">
         {loading && !data && <div className="loading">加载中…</div>}
-        {!loading && !data && <div className="loading">暂无数据</div>}
 
-        {data && tab === 'market_overview' && <MarketOverview data={data} onNavigate={navigate} />}
-        {data && tab === 'fundFlow' && <FundFlow data={data} onNavigate={navigate} />}
-        {data && tab === 'em_news' && <NewsList data={data} search />}
-        {data && tab === 'realtime_news' && <NewsList data={data} />}
-        {data && tab === 'sector_limit' && <SectorLimit data={data} onNavigate={navigate} />}
-        {data && tab === 'yesterday_limit' && <YesterdayLimit data={data} onNavigate={navigate} />}
-        {data && tab === 'limit_leader' && <LimitLeader data={data} onNavigate={navigate} />}
-        {data && tab === 'strong_sector' && <StrongSector data={data} />}
-        {data && tab === 'dragon_tiger' && <LHBList data={data} onNavigate={navigate} />}
-        {data && tab === 'alert' && <AlertList data={data} onNavigate={navigate} />}
-        {data && tab === 'hot_stocks' && <HotStocks data={data} onNavigate={navigate} />}
+        {tab === 'market_overview' && <MarketOverview data={data} onNavigate={navigate} />}
+        {tab === 'fundFlow' && <FundFlow data={data} onNavigate={navigate} />}
+        {tab === 'em_news' && <NewsList data={data} search />}
+        {tab === 'realtime_news' && <NewsList data={data} />}
+        {tab === 'sector_limit' && <SectorLimit data={data} onNavigate={navigate} />}
+        {tab === 'yesterday_limit' && <YesterdayLimit data={data} onNavigate={navigate} />}
+        {tab === 'limit_leader' && <LimitLeader data={data} onNavigate={navigate} />}
+        {tab === 'strong_sector' && <StrongSector data={data} />}
+        {tab === 'dragon_tiger' && <LHBList data={data} onNavigate={navigate} />}
+        {tab === 'alert' && <AlertList data={data} onNavigate={navigate} />}
+        {tab === 'hot_stocks' && <HotStocks data={data} onNavigate={navigate} />}
         {tab === 'watchlist' && (
           <Watchlist
             data={data}
@@ -333,11 +332,11 @@ function NewsList({ data, search }: any) {
 function FundFlow({ data, onNavigate }: any) {
   const hy: any[] = data?.industry || [];
   const gn: any[] = data?.concept || [];
-  const open = (code: string, name: string) => onNavigate(`/stock/${code}?name=${encodeURIComponent(name)}`);
+  if (!hy.length && !gn.length) return <div className="loading">暂无资金数据</div>;
   return (
     <>
       <SectionFlow title="行业资金流入 TOP10" list={hy.slice().sort(sortNet)} up onNavigate={onNavigate} />
-      <SectionFlow title="行业资金流出 TOP10" list={hy.slice().sort((a: any, b: any) => a - b)} up={false} onNavigate={onNavigate} />
+      <SectionFlow title="行业资金流出 TOP10" list={hy.slice().sort((a: any, b: any) => sortNet(a, b) * -1)} up={false} onNavigate={onNavigate} />
       <SectionFlow title="概念资金流入 TOP10" list={gn.slice().sort(sortNet)} up onNavigate={onNavigate} />
       <SectionFlow title="概念资金流出 TOP10" list={gn.slice().sort((a: any, b: any) => sortNet(a, b) * -1)} up={false} onNavigate={onNavigate} />
     </>
