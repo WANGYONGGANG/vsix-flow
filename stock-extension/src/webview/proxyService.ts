@@ -6,7 +6,9 @@ import { TextDecoder } from 'util';
 const gbDec = new TextDecoder('gb18030');
 
 function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
+  let settled = false;
   return new Promise((resolve) => {
+    const done = (val: any) => { if (!settled) { settled = true; resolve(val); } };
     const headers: Record<string, string> = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
     if (referer) headers['Referer'] = referer;
     const mod = fullUrl.startsWith('https') ? https : http;
@@ -14,28 +16,34 @@ function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
       let data = '';
       res.on('data', (c) => { data += c; });
       res.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch { resolve(null); }
+        try { done(JSON.parse(data)); } catch { done(null); }
       });
     });
-    req.on('error', () => resolve(null));
-    req.setTimeout(15000, () => { req.destroy(); });
+    req.on('error', () => done(null));
+    req.setTimeout(8000, () => { req.destroy(); done(null); });
   });
 }
 
-function httpsGetText(fullUrl: string, referer: string, encoding?: string): Promise<string> {
+function httpsGetText(fullUrl: string, referer: string, encoding?: string, method?: string, body?: string, contentType?: string): Promise<string> {
+  let settled = false;
   return new Promise((resolve) => {
+    const done = (val: string) => { if (!settled) { settled = true; resolve(val); } };
     const headers: Record<string, string> = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
     if (referer) headers['Referer'] = referer;
-    const req = https.get(fullUrl, { headers }, (res) => {
+    if (contentType) headers['Content-Type'] = contentType;
+    if (body) headers['Content-Length'] = Buffer.byteLength(body).toString();
+    const req = https.request(fullUrl, { method: method || 'GET', headers }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
         const buf = Buffer.concat(chunks);
-        resolve(encoding === 'utf8' ? buf.toString('utf8') : gbDec.decode(buf));
+        done(encoding === 'utf8' ? buf.toString('utf8') : gbDec.decode(buf));
       });
     });
-    req.on('error', () => resolve(''));
-    req.setTimeout(15000, () => { req.destroy(); });
+    req.on('error', () => done(''));
+    req.setTimeout(8000, () => { req.destroy(); done(''); });
+    if (body) req.write(body);
+    req.end();
   });
 }
 
@@ -79,6 +87,8 @@ function fmtHoldNum(v: any): string {
 function stripJsonp(text: string): any {
   // Strip Sina script prefix if present
   let t = text.replace(/^\/\*<script>[\s\S]*?<\/script>\*\/\s*/, '');
+  // Strip trailing semicolon that Sina appends (e.g. "=([...]);")
+  t = t.replace(/;\s*$/, '');
   // Try =([...]) pattern (Sina)
   const m1 = t.match(/=\(([\s\S]+)\)$/);
   if (m1) { try { return JSON.parse(m1[1]); } catch {} }
@@ -188,6 +198,7 @@ export class ProxyService {
             f16: parseFloat(p[34]) || 0,
             f17: parseFloat(p[5]) || 0,
             f18: parseFloat(p[4]) || 0,
+            f72: parseInt(p[72]) || 0,
             // Buy/Sell 1-5
             buy1: parseFloat(p[9]) || 0, buy1vol: parseInt(p[10]) || 0,
             buy2: parseFloat(p[11]) || 0, buy2vol: parseInt(p[12]) || 0,
@@ -207,48 +218,173 @@ export class ProxyService {
 
       // 市场概况数据：涨跌分布 + 三市成交额 + 昨日涨停表现
       if (targetUrl.startsWith('/api/market-overview-detail')) {
-        // 腾讯指数数据 - 获取成交额
-        const idxText = await httpsGetText('https://qt.gtimg.cn/q=sh000001,sz399001,sz399006', 'https://finance.qq.com/');
+        // 1. 腾讯指数数据 - 获取成交额
         let shAmt = 0, szAmt = 0, cybAmt = 0;
-        idxText.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
-          const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
-          if (!m) return;
-          const p = m[2].split('~');
-          const amt = (parseFloat(p[37]) || 0) * 10000;
-          if (m[1] === 'sh000001') { shAmt = amt; }
-          else if (m[1] === 'sz399001') { szAmt = amt; }
-          else if (m[1] === 'sz399006') { cybAmt = amt; }
-        });
-        const totalTrade = shAmt + szAmt + cybAmt;
-        // 昨日涨停表现
+        try {
+          const idxText = await httpsGetText('https://qt.gtimg.cn/q=sh000001,sz399001,sz399006', 'https://finance.qq.com/');
+          idxText.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
+            const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
+            if (!m) return;
+            const p = m[2].split('~');
+            const amt = (parseFloat(p[37]) || 0) * 10000;
+            if (m[1] === 'sh000001') { shAmt = amt; }
+            else if (m[1] === 'sz399001') { szAmt = amt; }
+            else if (m[1] === 'sz399006') { cybAmt = amt; }
+          });
+        } catch {}
+        // 深市用综指(sz399001成指 vs 399106综指)：为准确呈现三市，用总成交额=沪+深
+        // 创业板(sz399006)是深市子集，不重复计入total，仅作展示
+        const totalTrade = shAmt + szAmt;
+        // 2. 获取昨日同期成交额（沪+深，用腾讯day/query分时精确取昨日同刻，与今日total口径一致）
+        let yesterdayTrade = 0;
+        try {
+          // 本地日期回退到最近交易日
+          const lastT = new Date();
+          do { lastT.setDate(lastT.getDate() - 1); } while (lastT.getDay() === 0 || lastT.getDay() === 6);
+          const ymd = `${lastT.getFullYear()}${String(lastT.getMonth() + 1).padStart(2, '0')}${String(lastT.getDate()).padStart(2, '0')}`;
+          // 沪、深 两个指数分别取昨日同刻累计成交额（分时累值,单位元）
+          for (const tc of ['sh000001', 'sz399001']) {
+            const qUrl = `https://web.ifzq.gtimg.cn/appstock/app/day/query?code=${tc}`;
+            const qData = await httpsGetText(qUrl, 'https://gu.qq.com/', 'utf8');
+            if (!qData) continue;
+            try {
+              const qJ = JSON.parse(qData);
+              const qDataObj = qJ?.data?.[tc] || {};
+              const days = qDataObj.data || [];
+              for (const day of days) {
+                if (day?.date !== ymd) continue;
+                const rows: string[] = day?.data || [];
+                // 分时行: 'hhmm 现价 累计量 累计额'；取小于等于当前时点的最新一行累计额
+                if (rows.length) {
+                  const now2 = new Date();
+                  const hh = now2.getHours(), mm = now2.getMinutes();
+                  const curMin = hh * 60 + mm;
+                  let bestAmt = 0;
+                  let lastAmt = 0;
+                  for (const line of rows) {
+                    const p = line.split(' ');
+                    const t = p[0] || '';
+                    const hm = (parseInt(t.slice(0, 2)) || 0) * 60 + (parseInt(t.slice(2, 4)) || 0);
+                    lastAmt = parseFloat(p[3]) || 0;
+                    if (hm <= curMin) bestAmt = lastAmt;
+                  }
+                  // 若当前已收盘(>=15:00)取全天额
+                  yesterdayTrade += bestAmt > 0 ? bestAmt : lastAmt;
+                }
+                break;
+              }
+            } catch {}
+          }
+        } catch {}
+        // 3. 计算量比（今日总成交/昨日同期总成交）
+        let volumeRatio = 0;
+        if (yesterdayTrade > 0 && totalTrade > 0) {
+          volumeRatio = totalTrade / yesterdayTrade;
+        }
+        // 4. 涨跌家数 - 多源容错
+        let totalUp = 0, totalDown = 0, totalFlat = 0;
+        // 方法1: East Money ulist API（push2被阻断时用push2delay镜像）
+        // 东财行情中心涨跌家数口径=沪综指+深成指(沪深两市)的 f104/f105/f106
+        const ulistHosts = ['https://push2.eastmoney.com', 'https://push2delay.eastmoney.com'];
+        for (const host of ulistHosts) {
+          if (totalUp > 0 || totalDown > 0) break;
+          try {
+            const emText = await httpsGetText(`${host}/api/qt/ulist.np/get?fltt=2&secids=1.000001,0.399001&fields=f104,f105,f106`, 'https://quote.eastmoney.com/', 'utf8');
+            if (emText) {
+              const emData = JSON.parse(emText);
+              const diffs = emData?.data?.diff || [];
+              for (const d of diffs) {
+                totalUp += d.f104 || 0;
+                totalDown += d.f105 || 0;
+                totalFlat += d.f106 || 0;
+              }
+            }
+          } catch {}
+        }
+        // 方法2: ulist失败时，用clist获取涨跌统计
+        if (totalUp === 0 && totalDown === 0) {
+          for (const host of ulistHosts) {
+            if (totalUp > 0 || totalDown > 0) break;
+            try {
+              const clistText = await httpsGetText(`${host}/api/qt/clist/get?pn=1&pz=6000&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f3`, 'https://quote.eastmoney.com/', 'utf8');
+              if (clistText) {
+                const cj = JSON.parse(clistText);
+                const items = cj?.data?.diff || [];
+                for (const it of items) {
+                  const f3 = it.f3 || 0;
+                  if (f3 > 0) totalUp++;
+                  else if (f3 < 0) totalDown++;
+                  else totalFlat++;
+                }
+              }
+            } catch {}
+          }
+        }
+        // 3. 涨跌分布 - 用真实涨停/跌停数 + 其余按档位估算（与东财对齐）
+        let zt = 0, g5 = 0, g1 = 0, g0 = 0, d0 = 0, d1 = 0, d5 = 0, dt = 0;
+        let hasZt = false, hasDt = false;
+        try {
+          const ut = '7eea3edcaed734bea9cbfc24409ed989';
+          const today = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}`;
+          // 今日涨停池
+          const ztR = await httpGetJson(`https://push2ex.eastmoney.com/getTopicZTPool?ut=${ut}&dpt=wz.ztzt&Pageindex=0&pagesize=500&sort=fbt%3Aasc&date=${today}`, 'https://quote.eastmoney.com/ztb/detail.html');
+          const ztN = ztR?.data?.pool?.length || ztR?.data?.tc || 0;
+          if (ztN > 0) { zt = ztN; hasZt = true; }
+        } catch {}
+        try {
+          // 跌停数：优先跌停池，失败时用clist跌幅榜统计(f3<=-9.8近似跌停)
+          const ut = '7eea3edcaed734bea9cbfc24409ed989';
+          const today = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}`;
+          const dtR = await httpGetJson(`https://push2ex.eastmoney.com/getTopicDTPool?ut=${ut}&dpt=wz.ztzt&Pageindex=0&pagesize=500&sort=fund%3Aasc&date=${today}`, 'https://quote.eastmoney.com/');
+          const dtN = dtR?.data?.pool?.length || dtR?.data?.tc || 0;
+          if (dtN > 0) { dt = dtN; hasDt = true; }
+          else {
+            // 用push2delay clist跌幅榜统计跌停（非ST约-10%、ST约-5%，这里用<=-9.8））
+            const dlText = await httpsGetText('https://push2delay.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f3', 'https://quote.eastmoney.com/', 'utf8');
+            if (dlText) {
+              const dlJ = JSON.parse(dlText);
+              const dl = dlJ?.data?.diff || [];
+              let dtCnt = 0;
+              for (const x of dl) { if ((x.f3 ?? 0) <= -9.8) dtCnt++; }
+              if (dtCnt > 0) { dt = dtCnt; hasDt = true; }
+            }
+          }
+        } catch {}
+        if (totalUp > 0) {
+          if (!hasZt) zt = Math.round(totalUp * 0.03);
+          const upRemain = Math.max(0, totalUp - zt);
+          g5 = Math.round(upRemain * 0.12);
+          g1 = Math.round(upRemain * 0.35);
+          g0 = Math.max(0, upRemain - g5 - g1);
+        }
+        if (totalDown > 0) {
+          if (!hasDt) dt = Math.round(totalDown * 0.02);
+          const downRemain = Math.max(0, totalDown - dt);
+          d5 = Math.round(downRemain * 0.10);
+          d1 = Math.round(downRemain * 0.35);
+          d0 = Math.max(0, downRemain - d5 - d1);
+        }
+        // 4. 昨日涨停表现（用本地时区回退，getYesterdayZTPool返回今日实时涨跌幅zdp）
         let ztCount = 0, ztUpCount = 0, ztAvgChange = 0;
         try {
           const ut = '7eea3edcaed734bea9cbfc24409ed989';
-          const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10).replace(/-/g, '');
-          const r2 = await httpGetJson(`https://push2ex.eastmoney.com/getTopicZTPool?ut=${ut}&dpt=wz.ztzt&Pageindex=0&pagesize=200&sort=fbt%3Aasc&date=${yesterday}`, 'https://quote.eastmoney.com/ztb/detail.html');
+          const ydayToday = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}`;
+          const r2 = await httpGetJson(`https://push2ex.eastmoney.com/getYesterdayZTPool?ut=${ut}&dpt=wz.ztzt&Pageindex=0&pagesize=500&sort=zs%3Adesc&date=${ydayToday}`, 'https://quote.eastmoney.com/ztb/detail=zrzt');
           const ztPool = r2?.data?.pool || [];
           ztCount = ztPool.length;
-          if (ztPool.length > 0) {
-            const ztCodes = ztPool.slice(0, 30).map((x: any) => toTencentCode(x.c || '')).join(',');
-            if (ztCodes) {
-              const ztText = await httpsGetText(`https://qt.gtimg.cn/q=${ztCodes}`, 'https://finance.qq.com/');
-              let sumChange = 0, validCount = 0;
-              ztText.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
-                const mz = line.match(/v_[a-z]{2}\d+="(.*)"/);
-                if (!mz) return;
-                const pz = mz[1].split('~');
-                const change = parseFloat(pz[32]) || 0;
-                sumChange += change; validCount++;
-                if (change > 0) ztUpCount++;
-              });
-              if (validCount > 0) ztAvgChange = sumChange / validCount;
-            }
+          const valid = ztPool
+            .map((x: any) => (x.zdp != null ? Number(x.zdp) : NaN))
+            .filter((v: number) => !isNaN(v));
+          if (valid.length > 0) {
+            ztAvgChange = valid.reduce((a: number, b: number) => a + b, 0) / valid.length;
+            ztUpCount = valid.filter((v: number) => v > 0).length;
           }
         } catch {}
         this.json(res, 200, {
           data: {
-            counts: { up: 0, down: 0, flat: 0 },
-            trade: { sh: shAmt, sz: szAmt, cyb: cybAmt, total: totalTrade },
+            distribution: { zt, g5, g1, g0, flat: totalFlat, d0, d1, d5, dt },
+            counts: { up: totalUp, down: totalDown, flat: totalFlat },
+            trade: { sh: shAmt, sz: szAmt, cyb: cybAmt, total: totalTrade, yesterdayTotal: yesterdayTrade, volumeRatio },
             yesterdayZt: { count: ztCount, upCount: ztUpCount, avgChange: ztAvgChange },
           }
         });
@@ -311,7 +447,8 @@ export class ProxyService {
         const mdata = r?.data?.[code]?.data?.data || [];
         const rows: string[] = mdata.map((d: any) => {
           const parts = d.split(' ');
-          return parts.length >= 2 ? `${parts[0]},${parts[1]}` : d;
+          if (parts.length >= 4) return `${parts[0]},${parts[1]},${parts[2]},${parts[3]}`;
+          return parts.length >= 2 ? `${parts[0]},${parts[1]},0,0` : d;
         });
         const qt = r?.data?.[code]?.qt?.[code] || {};
         this.json(res, 200, { data: { minutes: rows, preClose: qt[4] || 0 } });
@@ -319,20 +456,39 @@ export class ProxyService {
       }
 
       if (targetUrl.startsWith('/api/hot-stocks')) {
-        const hot = 'sh600519,sz000858,sh601318,sh600036,sz300750,sh688981,sz000001,sh601899,sz002594,sh600900';
-        const text = await httpsGetText(`https://qt.gtimg.cn/q=${hot}`, 'https://finance.qq.com/');
+        // 东财个股人气榜TOP（真正的热门股），再查腾讯实时行情
+        let hotCodes: string[] = [];
+        try {
+          const rankPayload = JSON.stringify({ appId: 'appId01', globalId: '786e4c21-70dc-435a-93bb-38', marketType: '', pageNo: 1, pageSize: 30 });
+          const rankText = await httpsGetText(`https://emappdata.eastmoney.com/stockrank/getAllCurrentList`, 'https://guba.eastmoney.com/rank/', 'utf8', 'POST', rankPayload, 'application/json');
+          if (rankText) {
+            const rankJ = JSON.parse(rankText);
+            (rankJ?.data || []).slice(0, 30).forEach((r: any, idx: number) => {
+              const sc = String(r?.sc || '');
+              hotCodes.push({ sh: 'sh', sz: 'sz' }[sc.slice(0, 2).toLowerCase()] + sc.slice(2));
+            });
+          }
+        } catch {}
+        if (!hotCodes.length) {
+          hotCodes = ['sh600519', 'sz000858', 'sh601318', 'sh600036', 'sz300750', 'sh688981', 'sz000001', 'sh601899', 'sz002594', 'sh600900'];
+        }
+        const text = await httpsGetText(`https://qt.gtimg.cn/q=${hotCodes.join(',')}`, 'https://finance.qq.com/');
         const diff = text.split('\n').filter((l) => l.trim()).map((line) => {
           const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
           if (!m) return null;
           const p = m[2].split('~');
+          const raw = m[1];
+          const code = toCleanCode(raw);
+          const key = (raw.startsWith('sh') ? 'sh' : 'sz') + code;
           return {
             f2: parseFloat(p[3]) || 0, f3: parseFloat(p[32]) || 0, f4: parseFloat(p[31]) || 0,
             f5: (parseFloat(p[6]) || 0) * 100, f6: (parseFloat(p[37]) || 0) * 10000, f8: parseFloat(p[38]) || 0,
-            f12: toCleanCode(m[1]), f14: p[1] || '',
+            f12: code, f14: p[1] || '',
             f15: parseFloat(p[33]) || 0, f16: parseFloat(p[34]) || 0,
             f17: parseFloat(p[5]) || 0, f18: parseFloat(p[4]) || 0,
+            rank: hotCodes.indexOf(key) + 1,
           };
-        }).filter(Boolean);
+        }).filter(Boolean).sort((a: any, b: any) => (a.rank || 999) - (b.rank || 999));
         this.json(res, 200, { data: { diff } });
         return;
       }

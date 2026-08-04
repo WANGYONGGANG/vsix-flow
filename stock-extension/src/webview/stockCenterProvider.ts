@@ -55,7 +55,10 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
       } else if (msg.type === 'fetchKline' && msg.code) {
         const period = msg.period || 'day';
-        if (period === 'intraday') {
+        if (period === 'chips') {
+          const r = await proxyGet(`/api/kline?code=${msg.code}&period=day&fq=1`);
+          webviewView.webview.postMessage({ type: 'klineData', code: msg.code, data: r?.data?.klines || [], period: 'chips' });
+        } else if (period === 'intraday') {
           const r = await proxyGet(`/api/intraday?code=${msg.code}`);
           webviewView.webview.postMessage({ type: 'intradayData', code: msg.code, data: r?.data || {} });
         } else {
@@ -83,6 +86,12 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         const r = await proxyGet(`/api/quote?codes=${msg.code}`);
         const diff = r?.data?.diff || [];
         if (diff.length) webviewView.webview.postMessage({ type: 'quoteData', code: msg.code, data: diff[0] });
+      } else if (msg.type === 'moveWatch' && msg.code) {
+        await this.moveWatch(msg.code, msg.dir || 'up');
+        webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
+      } else if (msg.type === 'reorderWatch' && Array.isArray(msg.codes)) {
+        await this.reorderWatch(msg.codes);
+        webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
       }
     });
   }
@@ -141,7 +150,23 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         const groups: { codes?: string[] }[] = portfolio.groups && portfolio.groups.length ? portfolio.groups : [{ codes: ['sh000001', 'sh601899'] }];
         const codes = groups.flatMap((g) => g.codes || []);
         if (!codes.length) return { indices: [] };
-        return { indices: (await proxyGet(`/api/quote?codes=${codes.join(',')}`))?.data?.diff || [] };
+        const indices = (await proxyGet(`/api/quote?codes=${codes.join(',')}`))?.data?.diff || [];
+        const alerts: any = {};
+        try {
+          const ar = await proxyGet('/api/stock-changes');
+          const alist: any[] = ar?.data?.list || [];
+          const chgTypes: Record<number, string> = { 4: '秒板', 8: '封板', 16: '打开涨停', 32: '大笔买入', 64: '大笔卖出', 128: '大笔买入', 8193: '火箭发射', 8194: '快速反弹', 8201: '加速上涨', 8202: '高台跳水', 8203: '加速下跌', 8204: '大笔卖出', 8207: '大幅上升', 8208: '大幅下降', 8209: '封涨停', 8210: '封跌停', 8211: '打开涨停', 8212: '打开跌停', 8213: '创历史新高', 8214: '创历史新低', 8215: '竞价上涨', 8216: '竞价下跌' };
+          for (const a of alist) {
+            const key = String(a.c || '');
+            if (!key) continue;
+            const t = a.t;
+            const label = chgTypes[t] || ('类型' + t);
+            const isUp = t === 4 || t === 8 || t === 32 || t === 128 || t === 8193 || t === 8194 || t === 8201 || t === 8207 || t === 8209 || t === 8211 || t === 8213 || t === 8215;
+            if (!alerts[key]) alerts[key] = [];
+            alerts[key].push({ t, label, isUp, info: a.i || '' });
+          }
+        } catch {}
+        return { indices, alerts };
       }
       default:
         return null;
@@ -167,6 +192,36 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     for (const g of groups) {
       g.codes = g.codes.filter((c: string) => c !== code);
     }
+    await config.update('stockPortfolio', { ...portfolio, groups }, vscode.ConfigurationTarget.Global);
+  }
+
+  private async moveWatch(code: string, dir: string): Promise<void> {
+    const config = vscode.workspace.getConfiguration('stock-ext');
+    const portfolio: any = config.get('stockPortfolio') || {};
+    const groups = portfolio.groups && portfolio.groups.length
+      ? portfolio.groups
+      : [{ name: '默认分组', codes: ['sh000001', 'sh601899'] }];
+    const g = groups[0];
+    const codes = g.codes || [];
+    const idx = codes.indexOf(code);
+    if (idx < 0) return;
+    codes.splice(idx, 1);
+    if (dir === 'top') codes.unshift(code);
+    else if (dir === 'bottom') codes.push(code);
+    else if (dir === 'up') codes.splice(Math.max(0, idx - 1), 0, code);
+    else if (dir === 'down') codes.splice(Math.min(codes.length, idx + 1), 0, code);
+    else codes.splice(idx, 0, code);
+    await config.update('stockPortfolio', { ...portfolio, groups }, vscode.ConfigurationTarget.Global);
+  }
+
+  private async reorderWatch(codes: string[]): Promise<void> {
+    const config = vscode.workspace.getConfiguration('stock-ext');
+    const portfolio: any = config.get('stockPortfolio') || {};
+    const groups = portfolio.groups && portfolio.groups.length
+      ? portfolio.groups
+      : [{ name: '默认分组', codes: ['sh000001', 'sh601899'] }];
+    if (!groups[0]) groups[0] = { codes: [] };
+    groups[0].codes = codes;
     await config.update('stockPortfolio', { ...portfolio, groups }, vscode.ConfigurationTarget.Global);
   }
 
