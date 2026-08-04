@@ -92,6 +92,56 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
       } else if (msg.type === 'reorderWatch' && Array.isArray(msg.codes)) {
         await this.reorderWatch(msg.codes);
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
+      } else if (msg.type === 'setConfig' && msg.key) {
+        const config = vscode.workspace.getConfiguration('stock-ext');
+        await config.update(msg.key, msg.val, vscode.ConfigurationTarget.Global);
+        const keys = ['interval', 'pollOnlyDuringAStockHours', 'riseColor', 'fallColor', 'hideStatusBar', 'hideStatusBarIcon', 'opacity', 'voiceBroadcast'];
+        const configValues: Record<string, any> = {};
+        keys.forEach(k => { configValues[k] = config.get(k); });
+        const aiModels = config.get<any[]>('aiModels') || [];
+        const activeModelId = config.get<string>('activeAIModelId') || '';
+        webviewView.webview.postMessage({ type: 'settingsData', data: { config: configValues, aiModels, activeModelId } });
+        if (msg.key === 'opacity') this.updateOpacity(Number(msg.val));
+        if (msg.key === 'voiceBroadcast') this.updateVoice(!!msg.val);
+      } else if (msg.type === 'addModel' && msg.model) {
+        const config = vscode.workspace.getConfiguration('stock-ext');
+        const models = config.get<any[]>('aiModels') || [];
+        models.push(msg.model);
+        await config.update('aiModels', models, vscode.ConfigurationTarget.Global);
+        const activeModelId = config.get<string>('activeAIModelId') || '';
+        webviewView.webview.postMessage({ type: 'modelsUpdated', aiModels: models, activeModelId });
+      } else if (msg.type === 'delModel' && msg.id) {
+        const config = vscode.workspace.getConfiguration('stock-ext');
+        const models = (config.get<any[]>('aiModels') || []).filter((m: any) => m.id !== msg.id);
+        await config.update('aiModels', models, vscode.ConfigurationTarget.Global);
+        let activeModelId = config.get<string>('activeAIModelId') || '';
+        if (activeModelId === msg.id) { activeModelId = ''; await config.update('activeAIModelId', '', vscode.ConfigurationTarget.Global); }
+        webviewView.webview.postMessage({ type: 'modelsUpdated', aiModels: models, activeModelId });
+      } else if (msg.type === 'setActiveModel') {
+        const config = vscode.workspace.getConfiguration('stock-ext');
+        await config.update('activeAIModelId', msg.id || '', vscode.ConfigurationTarget.Global);
+      } else if (msg.type === 'openModelConfig') {
+        webviewView.webview.postMessage({ type: 'switchToTab', tab: 'settings' });
+      } else if (msg.type === 'agentChat' && msg.text) {
+        try {
+          const lm = vscode.lm as any;
+          if (lm && typeof lm.sendChatRequest === 'function') {
+            const chatRequest = await lm.sendChatRequest(
+              [{ role: 'user', content: msg.text }],
+              {},
+              new vscode.CancellationTokenSource().token
+            );
+            let result = '';
+            for await (const chunk of chatRequest.text) {
+              result += chunk;
+            }
+            webviewView.webview.postMessage({ type: 'agentResponse', text: result });
+          } else {
+            webviewView.webview.postMessage({ type: 'agentResponse', text: 'AI 模型暂不可用，请在设置中配置模型' });
+          }
+        } catch (err: any) {
+          webviewView.webview.postMessage({ type: 'agentResponse', text: '错误: ' + (err.message || '请求失败') });
+        }
       }
     });
   }
@@ -167,6 +217,15 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
           }
         } catch {}
         return { indices, alerts };
+      }
+      case 'settings': {
+        const config = vscode.workspace.getConfiguration('stock-ext');
+        const keys = ['interval', 'pollOnlyDuringAStockHours', 'riseColor', 'fallColor', 'hideStatusBar', 'hideStatusBarIcon', 'opacity', 'voiceBroadcast'];
+        const configValues: Record<string, any> = {};
+        keys.forEach(k => { configValues[k] = config.get(k); });
+        const aiModels = config.get<any[]>('aiModels') || [];
+        const activeModelId = config.get<string>('activeAIModelId') || '';
+        return { config: configValues, aiModels, activeModelId };
       }
       default:
         return null;

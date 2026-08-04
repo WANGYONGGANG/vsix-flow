@@ -47,7 +47,7 @@ function load(){var el=document.getElementById('settings');el.innerHTML='';
     else if(s.type==='range')html+='<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end"><input type="range" min="'+(s.min||0)+'" max="'+(s.max||1)+'" step="'+(s.step||0.1)+'" value="'+val+'" data-key="'+s.key+'" oninput="this.nextElementSibling.textContent=this.value;setConfig(this.dataset.key,Number(this.value))"><span style="font-size:12px;min-width:30px;text-align:right">'+val+'</span></div>';
     else html+='<input type="number" value="'+val+'" data-key="'+s.key+'" '+(s.min?'min="'+s.min+'"':'')+' onchange="setConfig(this.dataset.key,Number(this.value))">';
     html+='</div>'}
-  html+='</div><h2>操作</h2><div class="group"><div class="row"><label>刷新行情数据</label><button onclick="vscode.postMessage({type:\\'command\\',command:\\'stock-ext.locateWatchlist\\'})">刷新</button></div></div>';
+  html+='</div><h2>操作</h2><div class="group"><div class="row"><label>刷新行情数据</label><button onclick="vscode.postMessage({type:\'command\',command:\'stock-ext.locateWatchlist\'})">刷新</button></div></div>';
   el.innerHTML=html}
 function setConfig(key,val){CONFIG[key]=val;vscode.postMessage({type:'setConfig',key,val})}
 load();

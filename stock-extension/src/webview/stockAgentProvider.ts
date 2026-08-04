@@ -27,7 +27,7 @@ body{display:flex;flex-direction:column}
 .msg{margin-bottom:10px;display:flex;gap:8px}
 .msg.user{flex-direction:row-reverse}
 .msg .avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.msg.assistant .avatar{background:var(--accent);color:#fff}
+.msg.assistant .avatar{background:none;color:#fff}
 .msg.user .avatar{background:var(--card);color:var(--fg)}
 .msg .bubble{max-width:80%;padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.6}
 .msg.assistant .bubble{background:var(--msg-bg)}
@@ -51,7 +51,7 @@ body{display:flex;flex-direction:column}
   <button onclick="sendQuick('explain')">解读标的</button>
 </div>
 <div class="messages" id="messages">
-  <div class="msg assistant"><div class="avatar">L</div><div class="bubble">你好！我是 StockAgent，可以帮你分析股票和基金信息。</div></div>
+  <div class="msg assistant"><div class="avatar">👩‍💼</div><div class="bubble">你好！我是 StockAgent，可以帮你分析股票和基金信息。</div></div>
 </div>
 <div class="input-area">
   <input id="input" placeholder="输入消息..." onkeydown="if(event.key==='Enter')send()">
@@ -62,7 +62,7 @@ const vscode=acquireVsCodeApi();
 const msgs=document.getElementById('messages');
 var loading=false;
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
-function addMsg(role,content){var div=document.createElement('div');div.className='msg '+role;var avatar=document.createElement('div');avatar.className='avatar';avatar.textContent=role==='assistant'?'L':'U';var bubble=document.createElement('div');bubble.className='bubble';bubble.innerHTML=content;if(role==='assistant'){div.appendChild(avatar);div.appendChild(bubble)}else{div.appendChild(bubble);div.appendChild(avatar)}msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight}
+function addMsg(role,content){var div=document.createElement('div');div.className='msg '+role;var avatar=document.createElement('div');avatar.className='avatar';avatar.textContent=role==='assistant'?'👩‍💼':'🧑';var bubble=document.createElement('div');bubble.className='bubble';bubble.innerHTML=content;if(role==='assistant'){div.appendChild(avatar);div.appendChild(bubble)}else{div.appendChild(bubble);div.appendChild(avatar)}msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight}
 function send(){var inp=document.getElementById('input');if(!inp.value.trim()||loading)return;var text=inp.value;inp.value='';addMsg('user',esc(text));loading=true;document.getElementById('sendBtn').disabled=true;vscode.postMessage({type:'chat',text})}
 function sendQuick(action){addMsg('user','/'+action);loading=true;document.getElementById('sendBtn').disabled=true;vscode.postMessage({type:'quickAction',action})}
 window.addEventListener('message',function(e){var msg=e.data;loading=false;document.getElementById('sendBtn').disabled=false;if(msg.type==='response'){addMsg('assistant',msg.text||'暂无回复')}else if(msg.type==='error'){addMsg('assistant','错误: '+(msg.text||'请求失败'))}else if(msg.type==='setOpacity'){document.documentElement.style.setProperty('--panel-opacity',msg.opacity)}});

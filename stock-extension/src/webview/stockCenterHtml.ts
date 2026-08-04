@@ -167,7 +167,7 @@ var TABS=[
   {id:'market_overview',label:'概况'},{id:'fundFlow',label:'资金'},{id:'em_news',label:'新闻'},
   {id:'realtime_news',label:'快讯'},{id:'sector_limit',label:'板块'},{id:'limit_leader',label:'龙头'},
   {id:'strong_sector',label:'强板'},{id:'dragon_tiger',label:'龙虎'},{id:'yesterday_limit',label:'涨停'},
-  {id:'alert',label:'异动'},{id:'hot_stocks',label:'热股'},{id:'watchlist',label:'自选'},
+  {id:'alert',label:'异动'},{id:'hot_stocks',label:'热股'},{id:'watchlist',label:'自选'},{id:'agent',label:'AI助手'},{id:'settings',label:'设置'},
 ];
 var CHG_TYPES={4:'秒板',8:'封板',16:'打开涨停',32:'大笔买入',64:'大笔卖出',128:'大笔买入',8193:'火箭发射',8194:'快速反弹',8201:'加速上涨',8202:'高台跳水',8203:'加速下跌',8204:'大笔卖出',8207:'大幅上升',8208:'大幅下降',8209:'封涨停',8210:'封跌停',8211:'打开涨停',8212:'打开跌停',8213:'创历史新高',8214:'创历史新低',8215:'竞价上涨',8216:'竞价下跌'};
 var currentTab='market_overview';
@@ -188,6 +188,174 @@ function renderTabs(){var bar=$('#tabBar');if(!bar)return;bar.innerHTML='';for(v
 var _refreshTimer=null;
 var _inDetail=false;
 var _tabCache={};
+var _agentMsgs=[];
+var _agentLoading=false;
+var _settingsData=null;
+var _agentModels=[];
+var _activeModelId='';
+function renderAgentTab(){
+  var ct=$('#content');if(!ct)return;
+  var html='<div style="display:flex;flex-direction:column;height:100%;padding:0">';
+  html+='<div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">';
+  html+='<span style="font-size:18px">👩‍💼</span>';
+  html+='<span style="font-weight:600;font-size:13px;flex:1">StockAgent</span>';
+  html+='<select id="agentModelSel" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--fg);font-size:11px;max-width:140px;outline:none">';
+  if(_agentModels.length===0){html+='<option value="">默认模型</option>'}
+  for(var i=0;i<_agentModels.length;i++){
+    var ml=_agentModels[i];
+    html+='<option value="'+esc(ml.id)+'"'+(ml.id===_activeModelId?' selected':'')+'>'+esc(ml.name||ml.model||ml.id)+'</option>';
+  }
+  html+='</select>';
+  html+='<button onclick="vscode.postMessage({type:\'openModelConfig\'})" style="background:none;border:none;color:var(--fg);cursor:pointer;opacity:.5;font-size:14px" title="配置模型">⚙</button>';
+  html+='</div>';
+  html+='<div style="display:flex;gap:4px;padding:6px 12px;flex-wrap:wrap;border-bottom:1px solid var(--border)">';
+  html+='<button onclick="sendAgentQuick(\'summary\')" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--fg);cursor:pointer">📊 摘要快讯</button>';
+  html+='<button onclick="sendAgentQuick(\'portfolio\')" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--fg);cursor:pointer">💼 自选概览</button>';
+  html+='<button onclick="sendAgentQuick(\'explain\')" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--fg);cursor:pointer">🔍 解读标的</button>';
+  html+='</div>';
+  html+='<div id="agentMsgs" style="flex:1;overflow-y:auto;padding:10px 12px">';
+  if(_agentMsgs.length===0){
+    html+='<div style="text-align:center;padding:40px 20px;opacity:.4">';
+    html+='<div style="font-size:32px;margin-bottom:12px">👩‍💼</div>';
+    html+='<div style="font-size:13px;margin-bottom:6px">你好，我是 StockAgent</div>';
+    html+='<div style="font-size:11px;line-height:1.6">可以帮你分析行情、解读资讯、<br>整理自选信息（不提供投资建议）</div></div>';
+  }
+  for(var i=0;i<_agentMsgs.length;i++){
+    var m=_agentMsgs[i];
+    var isUser=m.role==='user';
+    html+='<div style="display:flex;gap:8px;margin-bottom:12px;'+(isUser?'justify-content:flex-end':'')+'">';
+    if(!isUser)html+='<div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;background:rgba(255,77,79,.1)">👩‍💼</div>';
+    html+='<div style="max-width:75%;padding:8px 12px;border-radius:'+(!isUser?'2px 10px 10px 10px':'10px 2px 10px 10px')+';font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-word;';
+    html+=!isUser?'background:#1a1d24;color:#d4d4d4':'background:var(--accent);color:#fff">';
+    html+=esc(m.text)+'</div>';
+    if(isUser)html+='<div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:var(--card)">🧑</div>';
+    html+='</div>';
+  }
+  if(_agentLoading){
+    html+='<div style="display:flex;gap:8px;margin-bottom:12px">';
+    html+='<div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;background:rgba(255,77,79,.1)">👩‍💼</div>';
+    html+='<div style="padding:10px 14px;border-radius:2px 10px 10px 10px;background:#1a1d24;font-size:12px">';
+    html+='<span style="animation:pulse 1.2s infinite">思考中</span></div></div>';
+  }
+  html+='</div>';
+  html+='<div style="display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border)">';
+  html+='<input id="agentInput" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--fg);font-size:12px;outline:none" placeholder="输入消息..." onkeydown="if(event.key===\'Enter\')sendAgentMsg()">';
+  html+='<button id="agentSendBtn" onclick="sendAgentMsg()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:12px;white-space:nowrap">发送</button>';
+  html+='</div></div>';
+  ct.innerHTML=html;
+  var sel=$('#agentModelSel');
+  if(sel)sel.addEventListener('change',function(){_activeModelId=this.value;vscode.postMessage({type:'setActiveModel',id:this.value})});
+  var msgsCt=$('#agentMsgs');
+  if(msgsCt)msgsCt.scrollTop=msgsCt.scrollHeight;
+}
+function sendAgentMsg(){
+  var inp=$('#agentInput');if(!inp||!inp.value.trim()||_agentLoading)return;
+  var text=inp.value.trim();inp.value='';
+  _agentMsgs.push({role:'user',text:text});
+  _agentLoading=true;renderAgentTab();
+  vscode.postMessage({type:'agentChat',text:text,modelId:_activeModelId});
+}
+function sendAgentQuick(action){
+  if(_agentLoading)return;
+  _agentMsgs.push({role:'user',text:'/'+action});
+  _agentLoading=true;renderAgentTab();
+  vscode.postMessage({type:'agentChat',text:'/'+action,modelId:_activeModelId});
+}
+function renderSettings(data){
+  var ct=$('#content');if(!ct)return;
+  if(!data){ct.innerHTML='<div style="text-align:center;padding:40px;opacity:.5">加载中...</div>';return}
+  var cfg=data.config||{};
+  var aiModels=data.aiModels||[];
+  var activeModelId=data.activeModelId||'';
+  var html='<div style="padding:12px;max-width:600px">';
+  html+='<h2 style="font-size:14px;margin-bottom:12px;color:#fff">⚙ 常规设置</h2>';
+  html+='<div style="background:var(--card);border-radius:8px;padding:10px;margin-bottom:16px">';
+  var S=[
+    {key:'interval',label:'轮询间隔(ms)',type:'number',def:5000,min:3000},
+    {key:'pollOnlyDuringAStockHours',label:'仅A股交易时段轮询',type:'checkbox',def:false},
+    {key:'riseColor',label:'涨的颜色',type:'color',def:'#ff4d4f'},
+    {key:'fallColor',label:'跌的颜色',type:'color',def:'#23c343'},
+    {key:'hideStatusBar',label:'隐藏状态栏',type:'checkbox',def:false},
+    {key:'hideStatusBarIcon',label:'隐藏状态栏图标',type:'checkbox',def:false},
+    {key:'opacity',label:'面板透明度',type:'range',def:1,min:0.1,max:1,step:0.1},
+    {key:'voiceBroadcast',label:'自动语音播报',type:'checkbox',def:false},
+  ];
+  for(var i=0;i<S.length;i++){
+    var s=S[i];var val=cfg[s.key]!==undefined?cfg[s.key]:s.def;
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0';
+    if(i>0)html+=';border-top:1px solid var(--border)';html+='">';
+    html+='<label style="font-size:12px">'+s.label+'</label>';
+    if(s.type==='checkbox'){
+      html+='<input type="checkbox"'+(val?' checked':'')+' data-key="'+s.key+'" onchange="settingsChange(this.dataset.key,this.checked)" style="cursor:pointer">';
+    }else if(s.type==='color'){
+      html+='<input type="color" value="'+val+'" data-key="'+s.key+'" onchange="settingsChange(this.dataset.key,this.value)" style="width:32px;height:24px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:none;padding:0">';
+    }else if(s.type==='range'){
+      html+='<div style="display:flex;align-items:center;gap:6px"><input type="range" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+val+'" data-key="'+s.key+'" oninput="this.nextElementSibling.textContent=this.value;settingsChange(this.dataset.key,Number(this.value))" style="width:100px"><span style="font-size:11px;min-width:24px;text-align:right">'+val+'</span></div>';
+    }else{
+      html+='<input type="number" value="'+val+'" data-key="'+s.key+'"'+(s.min?' min="'+s.min+'"':'')+' onchange="settingsChange(this.dataset.key,Number(this.value))" style="width:80px;text-align:right;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--fg);font-size:12px">';
+    }
+    html+='</div>';
+  }
+  html+='</div>';
+  html+='<h2 style="font-size:14px;margin-bottom:12px;color:#fff">🤖 AI 模型</h2>';
+  html+='<div style="background:var(--card);border-radius:8px;padding:10px;margin-bottom:8px">';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+  html+='<label style="font-size:12px">当前模型</label>';
+  html+='<select id="settingsActiveModel" onchange="settingsChangeActiveModel(this.value)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--fg);font-size:12px;max-width:180px">';
+  html+='<option value="">默认</option>';
+  for(var i=0;i<aiModels.length;i++){
+    var ml=aiModels[i];
+    html+='<option value="'+esc(ml.id)+'"'+(ml.id===activeModelId?' selected':'')+'>'+esc(ml.name||ml.model||ml.id)+'</option>';
+  }
+  html+='</select></div>';
+  html+='<div id="settingsModelList">';
+  for(var i=0;i<aiModels.length;i++){
+    var ml=aiModels[i];
+    html+='<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--border);font-size:12px">';
+    html+='<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(ml.name||ml.model||'')+' <span style="opacity:.4">'+esc(ml.provider||'')+'</span></span>';
+    html+='<button onclick="settingsDelModel(\''+esc(ml.id)+'\')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px">删除</button></div>';
+  }
+  html+='</div>';
+  html+='<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">';
+  html+='<button onclick="settingsAddModel()" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px;width:100%">+ 添加模型</button>';
+  html+='</div></div>';
+  html+='<div id="settingsModelForm" style="display:none;background:var(--card);border-radius:8px;padding:10px;margin-top:8px"></div>';
+  html+='</div>';
+  ct.innerHTML=html;
+}
+function settingsChange(key,val){
+  vscode.postMessage({type:'setConfig',key:key,val:val});
+}
+function settingsChangeActiveModel(id){
+  vscode.postMessage({type:'setActiveModel',id:id});
+}
+function settingsAddModel(){
+  var f=$('#settingsModelForm');if(!f)return;
+  f.style.display='block';
+  f.innerHTML='<div style="font-size:12px;font-weight:600;margin-bottom:8px">添加模型</div>'
+    +'<div style="display:grid;gap:6px">'
+    +'<input id="mf_name" placeholder="名称 (如 GPT-4)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
+    +'<input id="mf_provider" placeholder="提供商 (如 openai)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
+    +'<input id="mf_baseURL" placeholder="Base URL (如 https://api.openai.com/v1)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
+    +'<input id="mf_apiKey" placeholder="API Key" type="password" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
+    +'<input id="mf_model" placeholder="模型ID (如 gpt-4o)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
+    +'<input id="mf_temperature" placeholder="Temperature (0-1, 默认0.7)" type="number" min="0" max="1" step="0.1" value="0.7" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
+    +'</div>'
+    +'<div style="display:flex;gap:6px;margin-top:8px">'
+    +'<button onclick="settingsSaveModel()" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:4px;padding:6px;cursor:pointer;font-size:12px">保存</button>'
+    +'<button onclick="$(\'settingsModelForm\').style.display=\'none\'" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:6px;cursor:pointer;font-size:12px;color:var(--fg)">取消</button>'
+    +'</div>';
+}
+function settingsSaveModel(){
+  var n=$('#mf_name'),p=$('#mf_provider'),u=$('#mf_baseURL'),k=$('#mf_apiKey'),m=$('#mf_model'),t=$('#mf_temperature');
+  if(!n||!n.value.trim())return;
+  var model={id:'m_'+Date.now(),name:n.value.trim(),provider:p?p.value.trim():'',baseURL:u?u.value.trim():'',apiKey:k?k.value.trim():'',model:m?m.value.trim():'',temperature:t?Number(t.value):0.7,enabled:true};
+  vscode.postMessage({type:'addModel',model:model});
+  $('#settingsModelForm').style.display='none';
+}
+function settingsDelModel(id){
+  vscode.postMessage({type:'delModel',id:id});
+}
 function renderTabData(tab,data){
   if(tab==='market_overview')renderMarket(data);
   else if(tab==='fundFlow')renderFundFlow(data);
@@ -201,11 +369,25 @@ function renderTabData(tab,data){
   else if(tab==='hot_stocks')renderHot(data);
   else if(tab==='watchlist'){if(!_inDetail)renderWatchlist(data)}
   else if(tab==='realtime_news')renderRealtimeNews(data);
+  else if(tab==='settings'){
+    _settingsData=data;
+    if(data){_agentModels=data.aiModels||[];_activeModelId=data.activeModelId||''}
+    renderSettings(data);
+  }
+  else if(tab==='agent'){renderAgentTab()}
   else $('#content').innerHTML='<div class="loading">开发中...</div>'
 }
 function switchTab(tab){
   currentTab=tab;_lastNewsIds=[];_lastAlertIds=[];renderTabs();
   _inDetail=false;
+  if(tab==='agent'){
+    renderAgentTab();return;
+  }
+  if(tab==='settings'){
+    $('#content').innerHTML='<div style="text-align:center;padding:40px;opacity:.5">加载中...</div>';
+    vscode.postMessage({type:'switchTab',tab:'settings'});
+    return;
+  }
   if(_tabCache[tab]&&_refreshTimer&&tab==='market_overview'){
     // 已有展示内容，不覆盖，等待新数据到达后再刷新
   }else if(_tabCache[tab]){
@@ -1649,6 +1831,24 @@ window.addEventListener('message',function(e){
     renderDetailTabContent('finance',msg.data);
   }else if(msg.type==='stockProfileData'&&msg.code===_detailCode){
     renderDetailTabContent('profile',msg.data);
+  }else if(msg.type==='agentResponse'){
+    _agentLoading=false;
+    _agentMsgs.push({role:'assistant',text:msg.text||'暂无回复'});
+    if(currentTab==='agent')renderAgentTab();
+  }else if(msg.type==='settingsData'){
+    _settingsData=msg.data;
+    if(msg.data){_agentModels=msg.data.aiModels||[];_activeModelId=msg.data.activeModelId||''}
+    if(currentTab==='settings')renderSettings(msg.data);
+    if(currentTab==='agent')renderAgentTab();
+  }else if(msg.type==='modelsUpdated'){
+    _agentModels=msg.aiModels||[];
+    _activeModelId=msg.activeModelId||'';
+    if(currentTab==='settings'&&_settingsData){
+      _settingsData.aiModels=_agentModels;
+      _settingsData.activeModelId=_activeModelId;
+      renderSettings(_settingsData);
+    }
+    if(currentTab==='agent')renderAgentTab();
   }else if(msg.type==='stockProfileSubData'&&msg.code===_detailCode){
     var pc=document.getElementById('profileContent');if(pc){
       if(!msg.data||!msg.data.items||!msg.data.items.length){pc.innerHTML='<div style="padding:10px;opacity:.5;font-size:11px">暂无数据</div>';return}
@@ -1667,6 +1867,8 @@ window.addEventListener('message',function(e){
     document.documentElement.style.setProperty('--panel-opacity',msg.opacity);
   }else if(msg.type==='setVoice'){
     voiceOn=!!msg.on;renderTabs();
+  }else if(msg.type==='switchToTab'){
+    switchTab(msg.tab);
   }
 });
 </script>

@@ -54,7 +54,7 @@ const vscode=acquireVsCodeApi();
 function refresh(){vscode.postMessage({type:'refresh'})}
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 function fmtTime(t){return String(t).slice(5,16)}
-function render(items){var el=document.getElementById('newsList');if(!items||!items.length){el.innerHTML='<div class="loading">暂无新闻</div>';return}el.innerHTML=items.slice(0,100).map(function(n){return '<div class="news-item" onclick="vscode.postMessage({type:\\'openUrl\\',url:\\''+esc(n.url||'')+'\\'})"><div class="time">'+fmtTime(n.time)+'</div><div class="title">'+esc(n.title)+'</div></div>'}).join('')}
+function render(items){var el=document.getElementById('newsList');if(!items||!items.length){el.innerHTML='<div class="loading">暂无新闻</div>';return}el.innerHTML=items.slice(0,100).map(function(n){return '<div class="news-item" onclick="vscode.postMessage({type:\'openUrl\',url:\''+esc(n.url||'')+'\'})"><div class="time">'+fmtTime(n.time)+'</div><div class="title">'+esc(n.title)+'</div></div>'}).join('')}
 window.addEventListener('message',function(e){var msg=e.data;if(msg.type==='news')render(msg.items);else if(msg.type==='setOpacity')document.documentElement.style.setProperty('--panel-opacity',msg.opacity)});
 vscode.postMessage({type:'ready'});
 </script>
