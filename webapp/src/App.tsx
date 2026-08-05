@@ -12,10 +12,37 @@ import { WatchEntry } from '../local-shared/types';
 import { api } from './api/client';
 
 const BOTTOM_NAV = [
-  { to: '/', label: '行情', icon: '📈' },
-  { to: '/ai', label: 'AI', icon: '✨' },
-  { to: '/settings', label: '我的', icon: '👤' },
+  { to: '/', label: '行情', icon: 'chart' },
+  { to: '/ai', label: 'AI', icon: 'ai' },
+  { to: '/settings', label: '我的', icon: 'user' },
 ];
+
+// ===== 内联 SVG 图标（不依赖外部库，尺寸 20/20，stroke=currentColor）=====
+const IconNavChart = (p: any) => (
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M3 3v18h18" />
+    <path d="M7 15l4-6 3 4 5-8" />
+  </svg>
+);
+const IconNavAI = (p: any) => (
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
+    strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M12 2l1.8 4.6L18 8.4l-4.2 1.8L12 15l-1.8-4.8L6 8.4l4.2-1.8L12 2z" />
+    <path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14z" />
+    <circle cx="19" cy="6" r="1.5" />
+  </svg>
+);
+const IconNavUser = (p: any) => (
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <circle cx="12" cy="8.5" r="4" />
+    <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+  </svg>
+);
+const NAV_ICON: Record<string, (p: any) => JSX.Element> = {
+  chart: IconNavChart, ai: IconNavAI, user: IconNavUser,
+};
 
 // ===== 内联 SVG 图标（不依赖外部库，尺寸 20/20，stroke=currentColor）=====
 const IconSettings = (p: any) => (
@@ -370,32 +397,58 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-right">
-          {(path === '/' || path.startsWith('/stock/') || isReport) && (
+          {(path === '/' || isReport) && (
             <button
-              className="fab-float"
+              className="icon-btn"
               aria-label="AI 助手"
               title="向 AI 提问市场走势"
               onClick={() => navigate('/ai')}
             >
               <IconSparkle />
-              <span>问 AI</span>
             </button>
           )}
           {(path === '/' || isReport) && (
             <button
-              className="fab-float"
+              className="icon-btn"
               aria-label="选股报告"
               title="生成六维选股报告"
               onClick={() => navigate('/report')}
-              style={{ background: 'linear-gradient(135deg,#e8590c,#d6336c)' }}
             >
-              📊<span>报告</span>
+              📊
             </button>
           )}
         </div>
       </div>
 
-      {/* 迷你行情条（替代 VS Code StatusBar）：仅在首页 / 报告页 / 详情页展示 */}
+      {/* 品牌副标题栏：替代原来 mini-ticker 里直接暴露快捷按钮的布局，让层级更像 App */}
+      {(isHome || isReport || isAI || isSettings) && (
+        <div className="brand-bar">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {isHome && <span className="section-hd">行情中心</span>}
+            {isAI && <span className="section-hd">AI 助手</span>}
+            {isReport && <span className="section-hd">选股报告</span>}
+            {isSettings && <span className="section-hd">我的 / 设置</span>}
+          </div>
+          {(isHome || isReport) && (
+            <>
+              <button className="fab-float" aria-label="AI 助手" onClick={() => navigate('/ai')}>
+                ✨<span>AI</span>
+              </button>
+              <button
+                className="fab-float"
+                aria-label="选股报告"
+                title="生成六维选股报告"
+                onClick={() => navigate('/report')}
+                style={{ background: 'linear-gradient(135deg,#e8590c,#d6336c)' }}
+              >
+                📊<span>报告</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 迷你行情条（替代 VS Code StatusBar）：仅在首页 / 报告页展示 */}
       {(isHome || isReport) && <MiniTickerBar navigate={navigate} onAskAI={() => navigate('/ai')} />}
 
       {/* 主体：首页 = 左侧导航 + 主内容；其他页面 = 只有主内容 */}
@@ -447,20 +500,24 @@ export default function App() {
 
       {/* 底部 TabBar：详情页隐藏；其他一级页面（首页/AI/我的设置/报告）显示 */}
       {inDetail && !isSettings ? null : (
-        <div className="bottom-nav">
-          {BOTTOM_NAV.map((n) => (
-            <button
-              key={n.to}
-              className={
-                (n.to === '/' && isHome) || (n.to === '/ai' && isAI) || (n.to === '/settings' && isSettings)
-                  ? 'active' : ''
-              }
-              onClick={() => navigate(n.to)}
-            >
-              <span className="nav-ic">{n.icon}</span>
-              <span>{n.label}</span>
-            </button>
-          ))}
+        <div className="bottom-nav" role="tablist" aria-label="主导航">
+          {BOTTOM_NAV.map((n) => {
+            const Ic = NAV_ICON[n.icon];
+            const active =
+              (n.to === '/' && isHome) || (n.to === '/ai' && isAI) || (n.to === '/settings' && isSettings);
+            return (
+              <button
+                key={n.to}
+                className={active ? 'active' : ''}
+                role="tab"
+                aria-selected={active}
+                onClick={() => navigate(n.to)}
+              >
+                <span className="nav-ic"><Ic /></span>
+                <span>{n.label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
