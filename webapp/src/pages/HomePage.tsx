@@ -208,13 +208,6 @@ export default function HomePage({
 }
 
 // =============== 各 Tab 渲染函数 ===============
-const AI_QUICK_PROMPTS = [
-  { ic: '🎯', q: '简单说说今天 A 股整体盘面' },
-  { ic: '💡', q: '最近哪些板块 / 概念持续有资金流入？' },
-  { ic: '📈', q: '如何判断主力资金是真流入还是诱多？' },
-  { ic: '🧠', q: '给我一份适合上班族的选股 checklist' },
-  { ic: '📊', q: '六维评分模型里，哪几个维度对短期走势影响更大？' },
-];
 function aiNavigate(prompt: string, onNavigate: (t: string) => void) {
   onNavigate('/ai?prompt=' + encodeURIComponent(prompt));
 }
@@ -226,91 +219,98 @@ function MarketOverview({ data, onNavigate }: any) {
   const yzt: any = d.yesterdayZt || {};
   if (!diff.length) return <div className="loading">暂无指数数据</div>;
   const open = (code: string, name: string) => onNavigate(`/stock/${code}?name=${encodeURIComponent(name)}`);
+
+  // 找到 涨停/跌停 数（如果 counts 里有）
+  const ztCount = counts.zt || counts.limitUp || 0;
+  const dtCount = counts.dt || counts.limitDown || 0;
+
   return (
     <>
-      <div className="card" style={{ borderLeft: '4px solid var(--accent)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <div className="section-title" style={{ margin: 0 }}>📣 快捷问 AI · 对应扩展「股票中心」</div>
-          <button className="pill on" style={{ fontSize: 12, padding: '4px 10px', border: 'none', cursor: 'pointer' }}
-            onClick={() => onNavigate('/ai')}>打开 AI 助手 →</button>
-        </div>
-        <div style={{ fontSize: 12, opacity: .75, marginBottom: 8 }}>
-          把你的市场疑问、投资方法论或具体股票扔给 AI，注意 AI 回答不构成投资建议。
-        </div>
-        <div className="ai-quick-row">
-          {AI_QUICK_PROMPTS.map((p, i) => (
-            <button key={i} className="ai-quick-chip" onClick={() => aiNavigate(p.q, onNavigate)}>
-              <span style={{ marginRight: 4 }}>{p.ic}</span>{p.q}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid-3">
+      {/* 三大指数 — 东财风格大卡片 */}
+      <div className="idx-banner">
         {diff.slice(0, 3).map((it) => {
           const s = mapEmDiffToStockItem(it); const up = s.changeRate >= 0;
+          const bg = up ? 'var(--up)' : 'var(--down)';
           return (
-            <div key={s.code} className="card" onClick={() => open(s.code, s.name)}>
-              <div className="text-muted mb-1">{escapeHtml(s.name)}</div>
-              <div className={up ? 'text-up' : 'text-down'} style={{ fontSize: '20px', fontWeight: 700 }}>
-                {Number(s.price || 0).toFixed(2)}
-              </div>
-              <div className={up ? 'text-up' : 'text-down'}>
+            <div key={s.code} className="idx-card" style={{ background: bg }} onClick={() => open(s.code, s.name)}>
+              <div className="idx-name">{escapeHtml(s.name)}</div>
+              <div className="idx-price">{Number(s.price || 0).toFixed(2)}</div>
+              <div className="idx-chg">
                 {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
+                <span className="idx-chg-abs">
+                  {upSign(Number(s.change || 0))}{Number(s.change || 0).toFixed(2)}
+                </span>
               </div>
             </div>
           );
         })}
       </div>
 
+      {/* 涨跌家数 + 涨停跌停概览 */}
       {(counts.up > 0 || counts.down > 0) && (
-        <div className="card">
-          <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
-            <span className="tag tag-up">涨 {counts.up || 0}</span>
-            <span className="text-muted" style={{ fontSize: 11 }}>平 {counts.flat || 0}</span>
-            <span className="tag tag-down">跌 {counts.down || 0}</span>
-          </div>
+        <div className="card market-summary-card">
           <div className="updown-bar">
             <div className="updown-rect">
               <div style={{ width: pct(counts.up, counts) + '%', background: 'var(--up)' }}></div>
-              <div style={{ width: pct(counts.flat, counts) + '%', background: '#555' }}></div>
+              <div style={{ width: pct(counts.flat, counts) + '%', background: '#999' }}></div>
               <div style={{ width: pct(counts.down, counts) + '%', background: 'var(--down)' }}></div>
             </div>
             <div className="updown-legend">
-              <span className="text-up">涨 {counts.up || 0}家</span>
+              <span className="text-up">涨 {counts.up || 0}</span>
               <span className="text-muted">平 {counts.flat || 0}</span>
-              <span className="text-down">跌 {counts.down || 0}家</span>
+              <span className="text-down">跌 {counts.down || 0}</span>
             </div>
           </div>
+          {(ztCount > 0 || dtCount > 0) && (
+            <div className="limit-row">
+              <span className="lr-item up">涨停 <b>{ztCount}</b></span>
+              <span className="lr-sep">·</span>
+              <span className="lr-item down">跌停 <b>{dtCount}</b></span>
+            </div>
+          )}
         </div>
       )}
 
-      {yzt && yzt.count > 0 && (
-        <div className="card">
-          <div className="section-title" style={{ marginTop: 0 }}>昨日涨停表现</div>
-          <div className="flex items-center gap-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
-            <span>昨日涨停 <b>{yzt.count}</b> 家</span>
-            <span className={Number(yzt.avgChange) >= 0 ? 'text-up' : 'text-down'}>
-              今日平均 {upSign(Number(yzt.avgChange))}{Number(yzt.avgChange || 0).toFixed(2)}%
-            </span>
-            <span className="text-up">上涨 {yzt.upCount || 0} 家</span>
+      {/* 三市成交 + 昨日涨停 — 东财统计行 */}
+      <div className="stat-row">
+        {trade.total > 0 && (
+          <div className="stat-card">
+            <div className="stat-lbl">三市成交</div>
+            <div className="stat-val text-accent">{fmtYi(trade.total || 0)}</div>
+            <div className="stat-sub">沪 {fmtYi(trade.sh || 0)} · 深 {fmtYi(trade.sz || 0)}</div>
           </div>
-        </div>
-      )}
-
-      {trade.total > 0 && (
-        <div className="card">
-          <div className="section-title" style={{ marginTop: 0 }}>三市成交额</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>{fmtYi(trade.total || 0)}</div>
-          <div className="text-muted" style={{ fontSize: 11, marginTop: 4 }}>
-            沪 {fmtYi(trade.sh || 0)} · 深 {fmtYi(trade.sz || 0)} · 创 {fmtYi(trade.cyb || 0)}
+        )}
+        {yzt && yzt.count > 0 && (
+          <div className="stat-card">
+            <div className="stat-lbl">昨涨停表现</div>
+            <div className="stat-val">{yzt.count} 家</div>
+            <div className={Number(yzt.avgChange) >= 0 ? 'stat-sub text-up' : 'stat-sub text-down'}>
+              均 {upSign(Number(yzt.avgChange))}{Number(yzt.avgChange || 0).toFixed(2)}%
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
+      {/* 快捷入口 — 九宫格风格 */}
+      <div className="quick-grid">
+        <button className="qg-item" onClick={() => aiNavigate('简单说说今天 A 股整体盘面', onNavigate)}>
+          <span className="qg-ic">🎯</span><span className="qg-lb">盘面解读</span>
+        </button>
+        <button className="qg-item" onClick={() => aiNavigate('最近哪些板块 / 概念持续有资金流入？', onNavigate)}>
+          <span className="qg-ic">💡</span><span className="qg-lb">资金主线</span>
+        </button>
+        <button className="qg-item" onClick={() => aiNavigate('给我一份适合上班族的选股 checklist', onNavigate)}>
+          <span className="qg-ic">📈</span><span className="qg-lb">选股清单</span>
+        </button>
+        <button className="qg-item" onClick={() => aiNavigate('如何判断主力资金是真流入还是诱多？', onNavigate)}>
+          <span className="qg-ic">🧠</span><span className="qg-lb">主力识别</span>
+        </button>
+      </div>
+
+      {/* 指数列表 */}
       {diff.length > 3 && (
-        <div className="card">
-          <div className="section-title" style={{ marginTop: 0 }}>指数对比</div>
+        <>
+          <div className="section-title">全部指数</div>
           <table>
             <tbody>
               {diff.map((it) => {
@@ -319,15 +319,17 @@ function MarketOverview({ data, onNavigate }: any) {
                   <tr key={s.code} className="stock-row" onClick={() => open(s.code, s.name)}>
                     <td>{escapeHtml(s.name)}</td>
                     <td className={up ? 'text-up' : 'text-down'}>
+                      {Number(s.price || 0).toFixed(2)}
+                    </td>
+                    <td className={up ? 'text-up' : 'text-down'}>
                       {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
                     </td>
-                    <td className="text-muted">{Number(s.price || 0).toFixed(2)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
+        </>
       )}
     </>
   );

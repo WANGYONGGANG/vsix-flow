@@ -13,35 +13,119 @@ import { api } from './api/client';
 
 const BOTTOM_NAV = [
   { to: '/', label: '行情', icon: 'chart' },
+  { to: '/report', label: '选股', icon: 'report' },
   { to: '/ai', label: 'AI', icon: 'ai' },
   { to: '/settings', label: '我的', icon: 'user' },
 ];
 
-// ===== 内联 SVG 图标（不依赖外部库，尺寸 20/20，stroke=currentColor）=====
-const IconNavChart = (p: any) => (
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-    strokeLinecap="round" strokeLinejoin="round" {...p}>
-    <path d="M3 3v18h18" />
-    <path d="M7 15l4-6 3 4 5-8" />
-  </svg>
-);
-const IconNavAI = (p: any) => (
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
-    strokeLinecap="round" strokeLinejoin="round" {...p}>
-    <path d="M12 2l1.8 4.6L18 8.4l-4.2 1.8L12 15l-1.8-4.8L6 8.4l4.2-1.8L12 2z" />
-    <path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14z" />
-    <circle cx="19" cy="6" r="1.5" />
-  </svg>
-);
-const IconNavUser = (p: any) => (
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-    strokeLinecap="round" strokeLinejoin="round" {...p}>
-    <circle cx="12" cy="8.5" r="4" />
-    <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
-  </svg>
-);
+// ===== 新颖 SVG 图标 — 双层结构 + 微动效（激活态使用红渐变 + 高光描边）=====
+// 行情：上涨 K 线 + 心跳折线（双层）
+const IconNavChart = ({ active }: { active?: boolean }) => {
+  const c = active ? '#e63946' : '#9aa0a6';
+  const c2 = active ? '#ff7a18' : '#bcc1c6';
+  return (
+    <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+      {active && (
+        <>
+          <defs>
+            <linearGradient id="nav-chart-g" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stopColor="#ff7a18" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#e63946" stopOpacity="0.05" />
+            </linearGradient>
+          </defs>
+          <rect x="2" y="2" width="24" height="24" rx="8" fill="url(#nav-chart-g)" />
+        </>
+      )}
+      {/* 心跳折线 */}
+      <path d="M3 16 H8 L10 11 L13 19 L15 14 H17 L19 9 L22 16 H25"
+        stroke={c2} strokeWidth="1.6" fill="none"
+        strokeLinecap="round" strokeLinejoin="round" opacity={active ? 0.85 : 0.7} />
+      {/* K 线柱（前景） */}
+      <rect x="6.5" y="13" width="3" height="9" rx="1" fill={c} />
+      <rect x="12" y="9" width="3" height="13" rx="1" fill={c} />
+      <rect x="17.5" y="6" width="3" height="16" rx="1" fill={c} />
+      {/* 上影/下影细线 */}
+      <line x1="8" y1="11" x2="8" y2="13" stroke={c} strokeWidth="0.8" strokeLinecap="round" />
+      <line x1="13.5" y1="7" x2="13.5" y2="9" stroke={c} strokeWidth="0.8" strokeLinecap="round" />
+      <line x1="19" y1="4" x2="19" y2="6" stroke={c} strokeWidth="0.8" strokeLinecap="round" />
+    </svg>
+  );
+};
+// 选股报告：六维雷达（六边形 + 数据点）
+const IconNavReport = ({ active }: { active?: boolean }) => {
+  const c = active ? '#e63946' : '#9aa0a6';
+  const c2 = active ? '#ff7a18' : '#bcc1c6';
+  return (
+    <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+      {active && <rect x="2" y="2" width="24" height="24" rx="8" fill="rgba(230,57,70,.08)" />}
+      {/* 外六边形 */}
+      <path d="M14 4 L23 9 L23 19 L14 24 L5 19 L5 9 Z"
+        stroke={c2} strokeWidth="1.2" fill="none" opacity={active ? 0.5 : 0.6}
+        strokeLinejoin="round" />
+      {/* 中六边形 */}
+      <path d="M14 9 L19 11.5 L19 17.5 L14 20 L9 17.5 L9 11.5 Z"
+        stroke={c} strokeWidth="1.2" fill={active ? 'rgba(230,57,70,.06)' : 'none'}
+        strokeLinejoin="round" />
+      {/* 数据多边形 */}
+      <path d="M14 7 L21 12 L18 19 L10 19 L7 12 Z"
+        fill={active ? 'rgba(230,57,70,.18)' : 'rgba(150,150,150,.1)'}
+        stroke={c} strokeWidth="1.6" strokeLinejoin="round" />
+      {/* 数据点 */}
+      <circle cx="14" cy="7" r="1.4" fill={c} />
+      <circle cx="21" cy="12" r="1.4" fill={c} />
+      <circle cx="18" cy="19" r="1.4" fill={c} />
+      <circle cx="10" cy="19" r="1.4" fill={c} />
+      <circle cx="7" cy="12" r="1.4" fill={c} />
+    </svg>
+  );
+};
+// AI：脑波 + 火花（神经节点）
+const IconNavAI = ({ active }: { active?: boolean }) => {
+  const c = active ? '#e63946' : '#9aa0a6';
+  const c2 = active ? '#ff7a18' : '#bcc1c6';
+  return (
+    <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+      {active && <rect x="2" y="2" width="24" height="24" rx="8" fill="rgba(230,57,70,.08)" />}
+      {/* 神经网络节点 */}
+      <circle cx="6" cy="9" r="1.6" fill={c2} />
+      <circle cx="6" cy="19" r="1.6" fill={c2} />
+      <circle cx="14" cy="14" r="2.2" fill={c} />
+      <circle cx="22" cy="9" r="1.6" fill={c2} />
+      <circle cx="22" cy="19" r="1.6" fill={c2} />
+      {/* 连接线 */}
+      <line x1="7.5" y1="9.5" x2="12" y2="13" stroke={c} strokeWidth="1.1" strokeLinecap="round" opacity={active ? 0.85 : 0.6} />
+      <line x1="7.5" y1="18.5" x2="12" y2="15" stroke={c} strokeWidth="1.1" strokeLinecap="round" opacity={active ? 0.85 : 0.6} />
+      <line x1="16" y1="13" x2="20.5" y2="9.5" stroke={c} strokeWidth="1.1" strokeLinecap="round" opacity={active ? 0.85 : 0.6} />
+      <line x1="16" y1="15" x2="20.5" y2="18.5" stroke={c} strokeWidth="1.1" strokeLinecap="round" opacity={active ? 0.85 : 0.6} />
+      {/* 中心高光 */}
+      <circle cx="14" cy="14" r="0.8" fill="#fff" opacity="0.8" />
+      {/* 火花 */}
+      <path d="M22 4 L23 6 L25 7 L23 8 L22 10 L21 8 L19 7 L21 6 Z"
+        fill={c} opacity={active ? 1 : 0.5} />
+    </svg>
+  );
+};
+// 我的：用户头像 + 盾牌勾选（双层）
+const IconNavUser = ({ active }: { active?: boolean }) => {
+  const c = active ? '#e63946' : '#9aa0a6';
+  const c2 = active ? '#ff7a18' : '#bcc1c6';
+  return (
+    <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+      {active && <rect x="2" y="2" width="24" height="24" rx="8" fill="rgba(230,57,70,.08)" />}
+      {/* 头像主体 */}
+      <circle cx="14" cy="11" r="4.5" fill={c} />
+      <circle cx="14" cy="11" r="2" fill="#fff" opacity="0.6" />
+      <path d="M5 24 C5 18 9 15 14 15 C19 15 23 18 23 24"
+        fill="none" stroke={c} strokeWidth="2.4" strokeLinecap="round" />
+      {/* 盾牌小角标 */}
+      <path d="M21 4 L23.5 5 L23.5 8 C23.5 9.5 22.5 10.5 21 11 C19.5 10.5 18.5 9.5 18.5 8 L18.5 5 Z"
+        fill={c2} stroke={c} strokeWidth="0.8" strokeLinejoin="round" />
+      <path d="M20 7.5 L21 8.5 L22.5 6.5" stroke="#fff" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+};
 const NAV_ICON: Record<string, (p: any) => JSX.Element> = {
-  chart: IconNavChart, ai: IconNavAI, user: IconNavUser,
+  chart: IconNavChart, report: IconNavReport, ai: IconNavAI, user: IconNavUser,
 };
 
 // ===== 内联 SVG 图标（不依赖外部库，尺寸 20/20，stroke=currentColor）=====
@@ -63,6 +147,13 @@ const IconBack = (p: any) => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" {...p}>
     <path d="M15 18l-6-6 6-6" />
+  </svg>
+);
+const IconSearch = (p: any) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M21 21l-4.3-4.3" />
   </svg>
 );
 
@@ -294,6 +385,7 @@ export default function App() {
   const [now, setNow] = useState(() => new Date());
   // 行情首页当前 tab（桌面端用左侧栏控制，小屏仍用横滚 tab-bar 内部控制）
   const [homeTab, setHomeTab] = useState<TabId>('market_overview');
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30 * 1000);
@@ -402,7 +494,7 @@ export default function App() {
   }, [settings.remindSwitch, settings.stocksRemind, settings.voiceBroadcast, settings.voicePreset, settings.webhook, settings.pollIntervalMs, watchlist]);
 
   const inDetail = path.startsWith('/stock/') || path.startsWith('/settings/model');
-  const isHome = path === '/' || path.startsWith('/stock/');
+  const isHome = path === '/';
   const isAI = path === '/ai';
   const isSettings = path === '/settings' || path.startsWith('/settings/model');
   const isReport = path === '/report';
@@ -411,25 +503,40 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {/* 顶部栏（删去中间的"行情中心"大标题，紧凑化） */}
+      {/* 顶部栏 — 东财红底，紧凑：左 logo+时间 / 右 搜索+AI */}
       <div className="topbar topbar-compact">
         <div className="topbar-left">
           {showBack ? (
-            <button className="icon-btn" aria-label="返回" onClick={() => navigate('/')}>
+            <button className="icon-btn" aria-label="返回" onClick={() => navigate('/')} title="返回">
               <IconBack />
             </button>
           ) : (
-            <BrandLogo size={34} />
+            <BrandLogo size={32} />
           )}
           <div className="topbar-subline">
-            {path === '/' && <span className={'market-dot ' + marketStatus.dot} />}
+            {isHome && <span className={'market-dot ' + marketStatus.dot} />}
             <span className="t-date">{md(now)}</span>
             <span className="t-time">{hhmm(now)}</span>
-            {path === '/' && <span className="t-status">{marketStatus.label}</span>}
+            {isHome && <span className="t-status">{marketStatus.label}</span>}
+            {!isHome && !showBack && (
+              <span className="t-title">
+                {isAI ? 'AI 助手' : isReport ? '选股报告' : isSettings ? '我的' : ''}
+              </span>
+            )}
           </div>
         </div>
         <div className="topbar-right">
-          {(path === '/' || isReport) && (
+          {(isHome || isReport) && (
+            <button
+              className="icon-btn"
+              aria-label="搜索股票"
+              title="搜索股票 / 指数"
+              onClick={() => setShowSearch(true)}
+            >
+              <IconSearch />
+            </button>
+          )}
+          {isHome && (
             <button
               className="icon-btn"
               aria-label="AI 助手"
@@ -437,16 +544,6 @@ export default function App() {
               onClick={() => navigate('/ai')}
             >
               <IconSparkle />
-            </button>
-          )}
-          {(path === '/' || isReport) && (
-            <button
-              className="icon-btn"
-              aria-label="选股报告"
-              title="生成六维选股报告"
-              onClick={() => navigate('/report')}
-            >
-              📊
             </button>
           )}
         </div>
@@ -499,13 +596,16 @@ export default function App() {
         </div>
       </div>
 
-      {/* 底部 TabBar：详情页隐藏；其他一级页面（首页/AI/我的设置/报告）显示 */}
-      {inDetail && !isSettings ? null : (
+      {/* 底部 TabBar：详情页隐藏；其他一级页面（首页/选股/AI/我的）显示 */}
+      {inDetail ? null : (
         <div className="bottom-nav" role="tablist" aria-label="主导航">
           {BOTTOM_NAV.map((n) => {
             const Ic = NAV_ICON[n.icon];
             const active =
-              (n.to === '/' && isHome) || (n.to === '/ai' && isAI) || (n.to === '/settings' && isSettings);
+              (n.to === '/' && isHome) ||
+              (n.to === '/ai' && isAI) ||
+              (n.to === '/settings' && isSettings) ||
+              (n.to === '/report' && isReport);
             return (
               <button
                 key={n.to}
@@ -514,12 +614,19 @@ export default function App() {
                 aria-selected={active}
                 onClick={() => navigate(n.to)}
               >
-                <span className="nav-ic"><Ic /></span>
+                <span className="nav-ic"><Ic active={active} /></span>
                 <span>{n.label}</span>
               </button>
             );
           })}
         </div>
+      )}
+
+      {showSearch && (
+        <SearchDialog
+          onClose={() => setShowSearch(false)}
+          onPick={(code) => { setShowSearch(false); navigate(`/stock/${code}`); }}
+        />
       )}
     </div>
   );

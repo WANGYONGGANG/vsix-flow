@@ -772,7 +772,7 @@ export default function ReportPage() {
 
   return (
     <div className="page" style={{ background: '#f4f5f7' }}>
-      <div className="detail-actions" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+      <div className="detail-actions" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)', flexShrink: 0 }}>
         <button className="btn-back" onClick={() => navigate('/')}>← 返回行情</button>
         <button className="btn-back" onClick={run} disabled={loading}>
           {loading ? '生成中…' : '↻ 重新生成'}
@@ -782,7 +782,7 @@ export default function ReportPage() {
           {loading ? `扫描中… ${elapsed.toFixed(1)}s` : html ? `耗时 ${elapsed.toFixed(1)}s` : ''}
         </div>
       </div>
-      <div id="report-frame" style={{ minHeight: '100%' }}>
+      <div id="report-frame" style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(20px + var(--safe-bottom))' }}>
         {loading && (
           <div style={{ textAlign: 'center', padding: '120px 20px', color: 'var(--fg)' }}>
             <div style={{ display: 'inline-block', width: 22, height: 22, border: '2px solid #2a2d34', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'rp 1s linear infinite', verticalAlign: 'middle', marginRight: 10 }} />

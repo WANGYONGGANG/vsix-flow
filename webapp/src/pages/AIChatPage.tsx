@@ -12,7 +12,11 @@ import { fmtYi, upSign, mapEmDiffToStockItem, escapeHtml } from '../../local-sha
 const STORAGE_KEY = 'stockext.ai.history.v1';
 
 function loadHistory(): { id: string; messages: AIChatMessage[]; title: string }[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') as Session[];
+    // 清理空会话（无消息的），只保留有内容的
+    return raw.filter((s) => s.messages && s.messages.length > 0);
+  } catch { return []; }
 }
 function saveHistory(list: any[]) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch { /* empty */ }
@@ -24,19 +28,19 @@ export default function AIChatPage() {
   const { settings, activeAIModel, addWatch, getWatchCodes } = useSettings();
   const { navigate } = useRouter();
   const [sessions, setSessions] = useState<Session[]>(() => loadHistory());
-  const [sid, setSid] = useState<string>(() => loadHistory()[0]?.id || newSid());
+  const [sid, setSid] = useState<string>(() => {
+    const hist = loadHistory();
+    return hist[0]?.id || newSid();
+  });
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [assistantDraft, setAssistantDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef('');
 
-  useEffect(() => {
-    if (!sessions.find((s) => s.id === sid)) {
-      const s: Session = { id: sid, messages: [], title: '新对话' };
-      setSessions((list) => [...list, s]);
-    }
-  }, [sid, sessions]);
+  // 不再自动创建空会话 — 只有发消息时才创建
+  const session = sessions.find((s) => s.id === sid);
+  const currentMessages = session?.messages || [];
 
   // 支持从 HomePage AI 快捷入口传来的初始 prompt（hash 形式 #/ai?prompt=xxx）
   const initPromptRef = useRef(false);
@@ -60,11 +64,15 @@ export default function AIChatPage() {
     if (el) setTimeout(() => { el.scrollTop = el.scrollHeight; }, 20);
   }
 
-  const session: Session = sessions.find((s) => s.id === sid) || { id: sid, messages: [], title: '新对话' };
-
   function updateSessionMessages(messages: AIChatMessage[]) {
     const title = messages.find((m) => m.role === 'user')?.content.slice(0, 16) || '新对话';
-    setSessions((list) => list.map((s) => s.id === sid ? { ...s, messages, title } : s));
+    setSessions((list) => {
+      // 如果会话不存在，创建新会话
+      if (!list.find((s) => s.id === sid)) {
+        return [...list, { id: sid, messages, title }];
+      }
+      return list.map((s) => s.id === sid ? { ...s, messages, title } : s);
+    });
   }
 
   async function send() {
@@ -72,7 +80,7 @@ export default function AIChatPage() {
     if (!content) return;
     if (!activeAIModel) { alert('请先在【我的】→【AI 模型管理】中添加并启用一个模型'); navigate('/settings'); return; }
     setInput(''); setAssistantDraft(''); draftRef.current = '';
-    const msgs: AIChatMessage[] = [...session.messages, { role: 'user', content }];
+    const msgs: AIChatMessage[] = [...currentMessages, { role: 'user', content }];
     updateSessionMessages(msgs);
     setSending(true);
     try {
@@ -167,41 +175,49 @@ export default function AIChatPage() {
     setTimeout(scrollToBottom, 0);
   }
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const currentTitle = session?.title || '新对话';
+
   return (
-    <div className="page">
-      {/* 顶部会话切换（简单横向 chip） */}
-      <div className="ai-tools-row" style={{ borderTop: 0, borderBottom: '1px solid var(--border)' }}>
-        <button className="ai-chip" onClick={newChat}>🆕 新对话</button>
-        {sessions.slice(-6).reverse().map((s) => (
-          <button key={s.id} className={'ai-chip'} style={{ opacity: s.id === sid ? 1 : .65, fontWeight: s.id === sid ? 700 : 400 }}
-            onClick={() => setSid(s.id)}>
-            {escapeHtml(s.title).slice(0, 10) || '新对话'}
-          </button>
-        ))}
-        {sessions.length > 7 && (
-          <button className="ai-chip" onClick={() => {
-            if (confirm('清空所有 AI 对话记录？')) {
-              setSessions([]); newChat();
-            }
-          }}>🧹 清空</button>
-        )}
+    <div className="page ai-page">
+      {/* AI 顶栏：菜单 + 当前标题 + 新建 */}
+      <div className="ai-topbar">
+        <button className="ai-tb-btn" onClick={() => setDrawerOpen(true)} title="历史会话" aria-label="历史会话">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </svg>
+        </button>
+        <div className="ai-tb-title" title={currentTitle}>{escapeHtml(currentTitle)}</div>
+        <button className="ai-tb-btn" onClick={newChat} title="新对话" aria-label="新对话">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
       </div>
 
-      {/* 当前模型指示 */}
+      {/* 模型指示条 */}
       <div className="chat-hint">
         {activeAIModel
-          ? <>当前模型：<b className="text-accent">{activeAIModel.name || activeAIModel.provider}</b> · {activeAIModel.model}</>
+          ? <><span className="dot-online" /> {activeAIModel.name || activeAIModel.provider} · {activeAIModel.model}</>
           : <span className="text-up">⚠ 尚未配置 AI 模型，点击 我的 → AI 模型管理 添加</span>
         }
       </div>
 
       <div className="chat-container" ref={scrollRef}>
-        {session.messages.length === 0 && (
-          <div className="msg system">
-            你好！我是 StockAI。你可以直接提问，或者点下方的快捷工具注入上下文。
+        {currentMessages.length === 0 && (
+          <div className="ai-welcome">
+            <div className="ai-welcome-logo">✨</div>
+            <div className="ai-welcome-title">你好，我是 StockAI</div>
+            <div className="ai-welcome-sub">A 股行情分析助手，可注入自选/快讯/板块</div>
+            <div className="ai-welcome-tips">
+              <div className="ai-tip" onClick={chipInjectWatchlist}>📊 自选股点评</div>
+              <div className="ai-tip" onClick={chipInjectFlashnews}>⚡ 最新快讯解读</div>
+              <div className="ai-tip" onClick={chipInjectSectors}>🔥 板块热点解读</div>
+              <div className="ai-tip" onClick={chipInjectDeepAnalysis}>📈 深度技术分析</div>
+            </div>
           </div>
         )}
-        {session.messages.map((m, i) => (
+        {currentMessages.map((m, i) => (
           <div key={i} className={'msg ' + m.role}>{m.content}</div>
         ))}
         {sending && assistantDraft && (
@@ -233,6 +249,41 @@ export default function AIChatPage() {
           ↑
         </button>
       </div>
+
+      {/* 历史会话抽屉 */}
+      {drawerOpen && (
+        <div className="ai-drawer-overlay" onClick={() => setDrawerOpen(false)}>
+          <div className="ai-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="ai-drawer-head">
+              <b>历史会话</b>
+              <div className="ai-drawer-actions">
+                <button className="ai-drawer-act" onClick={newChat}>+ 新建</button>
+                {sessions.length > 0 && (
+                  <button className="ai-drawer-act danger" onClick={() => {
+                    if (confirm('清空所有 AI 对话记录？')) { setSessions([]); newChat(); setDrawerOpen(false); }
+                  }}>清空</button>
+                )}
+                <button className="ai-drawer-act" onClick={() => setDrawerOpen(false)}>✕</button>
+              </div>
+            </div>
+            <div className="ai-drawer-body">
+              {sessions.length === 0 && (
+                <div className="ai-drawer-empty">暂无历史会话<br />点击「+ 新建」开始对话</div>
+              )}
+              {[...sessions].reverse().map((s) => (
+                <button
+                  key={s.id}
+                  className={'ai-session-item' + (s.id === sid ? ' active' : '')}
+                  onClick={() => { setSid(s.id); setDrawerOpen(false); }}
+                >
+                  <div className="ai-si-title">{escapeHtml(s.title).slice(0, 24) || '新对话'}</div>
+                  <div className="ai-si-meta">{s.messages?.length || 0} 条消息</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
