@@ -272,7 +272,6 @@ export default function AIChatPage() {
             <div className="ai-drawer-head">
               <b>历史会话</b>
               <div className="ai-drawer-actions">
-                <button type="button" className="ai-drawer-act" onClick={newChat}>+ 新建</button>
                 {sessions.length > 0 && (
                   <button type="button" className="ai-drawer-act danger" onClick={() => {
                     if (confirm('清空所有 AI 对话记录？')) { setSessions([]); newChat(); setDrawerOpen(false); }
@@ -283,7 +282,7 @@ export default function AIChatPage() {
             </div>
             <div className="ai-drawer-body">
               {sessions.length === 0 && (
-                <div className="ai-drawer-empty">暂无历史会话<br />点击「+ 新建」开始对话</div>
+                <div className="ai-drawer-empty">暂无历史会话<br />点击右上角「+」开始对话</div>
               )}
               {[...sessions].reverse().map((s) => (
                 <button
