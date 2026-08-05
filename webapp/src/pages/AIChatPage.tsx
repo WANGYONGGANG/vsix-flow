@@ -275,7 +275,7 @@ export default function AIChatPage() {
           disabled={sending}
           rows={1}
         />
-        <button type="button" className="send-btn" onClick={send} disabled={sending || !input.trim() || !activeAIModel}>
+        <button type="button" className="send-btn" onClick={() => send()} disabled={sending || !input.trim() || !activeAIModel}>
           ↑
         </button>
       </div>

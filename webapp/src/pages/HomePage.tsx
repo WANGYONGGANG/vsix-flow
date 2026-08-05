@@ -159,7 +159,7 @@ export default function HomePage({
           d = { industry: hy?.data?.list || [], concept: gn?.data?.list || [] };
           break;
         }
-        case 'em_news': d = await api.emNewsSearch('A股 股市'); break;
+        case 'em_news': d = await api.emNewsSearch(); break;
         case 'realtime_news': d = await api.emNews(1, 60); break;
         case 'sector_limit': d = await api.sectorLimit(); break;
         case 'limit_leader':
