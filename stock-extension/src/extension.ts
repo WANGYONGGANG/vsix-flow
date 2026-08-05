@@ -8,13 +8,12 @@ import { registerCommands } from './registerCommand';
 import { registerAiParticipant } from './ai/participant';
 import { registerAiTools } from './ai/registerTools';
 import { setProxyPort } from './shared/proxyPort';
-import { EditorDisguiseProvider } from './editor/editorDisguiseProvider';
 import { checkReminders } from './shared/remindNotification';
+import { isAStockHours } from './shared/utils';
 
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel('Stock Center');
   output.appendLine('Stock Center activated');
-  const statusBarManager = new StatusBarManager();
 
   const proxyService = new ProxyService(19101);
   proxyService.start().then((port) => {
@@ -28,10 +27,9 @@ export function activate(context: vscode.ExtensionContext) {
   const newsPanelProvider = new NewsPanelViewProvider(context.extensionUri);
   const reportPanelProvider = new StockReportViewProvider(context.extensionUri);
 
-  const editorDisguiseProvider = new EditorDisguiseProvider();
-  context.subscriptions.push(
-    vscode.languages.registerCodeLensProvider({ pattern: '**/*' }, editorDisguiseProvider),
-  );
+  const statusBarManager = new StatusBarManager((code: string, name: string) => {
+    stockCenterProvider.openDetail(code, name);
+  });
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(StockCenterViewProvider.viewType, stockCenterProvider, { webviewOptions: { retainContextWhenHidden: true } }),
@@ -41,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   stockCenterProvider.setReportPanel(reportPanelProvider);
 
-  registerCommands(context, statusBarManager, proxyService, editorDisguiseProvider);
+  registerCommands(context, statusBarManager, proxyService, stockCenterProvider);
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
@@ -69,6 +67,9 @@ export function activate(context: vscode.ExtensionContext) {
         const hidden = vscode.workspace.getConfiguration('stock-ext').get<boolean>('hideStatusBar') || false;
         statusBarManager.setHidden(hidden);
       }
+      if (e.affectsConfiguration('stock-ext.statusBarStock')) {
+        statusBarManager.rebuild();
+      }
     })
   );
 
@@ -81,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const config = vscode.workspace.getConfiguration('stock-ext');
   if (!config.get<boolean>('hideStatusBar')) {
-    statusBarManager.start();
+    statusBarManager.start(context);
   }
 
   let refreshTimer: NodeJS.Timeout | undefined;
@@ -90,15 +91,8 @@ export function activate(context: vscode.ExtensionContext) {
     const cfg = vscode.workspace.getConfiguration('stock-ext');
     refreshTimer = setInterval(() => {
       const c = vscode.workspace.getConfiguration('stock-ext');
-      const onlyA = c.get<boolean>('pollOnlyDuringAStockHours') || true;
-      if (onlyA) {
-        const now = new Date();
-        const h = now.getUTCHours() + 8;
-        const m = now.getUTCMinutes();
-        const t = h * 100 + m;
-        if (t < 900 || t > 1505) return;
-      }
-      editorDisguiseProvider.refresh();
+      const onlyA = c.get<boolean>('pollOnlyDuringAStockHours') !== false;
+      if (onlyA && !isAStockHours()) return;
       checkReminders();
     }, Math.max(3000, cfg.get<number>('interval') || 5000));
   }
@@ -108,7 +102,6 @@ export function activate(context: vscode.ExtensionContext) {
     { dispose: () => { if (refreshTimer) clearInterval(refreshTimer); } },
     { dispose: () => statusBarManager.dispose() },
     { dispose: () => proxyService.stop() },
-    { dispose: () => editorDisguiseProvider.dispose() },
   );
 }
 

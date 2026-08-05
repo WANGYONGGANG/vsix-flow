@@ -31,6 +31,21 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     this._reportPanel = panel;
   }
 
+  private _pendingDetail?: { code: string; name?: string };
+
+  openDetail(code: string, name?: string) {
+    vscode.commands.executeCommand('stock-ext.openStockCenter');
+    if (this._view) {
+      this._view.show(true);
+      // 延迟发送，确保 webview 已可见并准备好接收消息
+      setTimeout(() => {
+        this._view?.webview.postMessage({ type: 'openDetail', code, name: name || '' });
+      }, 150);
+    } else {
+      this._pendingDetail = { code, name };
+    }
+  }
+
   private log(msg: string) {
     if (this._output) { this._output.appendLine(msg); } else { console.log(msg); }
   }
@@ -59,6 +74,10 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
       this.log(`[webview msg] ${JSON.stringify(msg)?.slice(0, 300)}`);
       if (msg.type === '__ready') {
         this.log('[WEBVIEW] script loaded OK');
+        if (this._pendingDetail) {
+          webviewView.webview.postMessage({ type: 'openDetail', code: this._pendingDetail.code, name: this._pendingDetail.name || '' });
+          this._pendingDetail = undefined;
+        }
       } else if (msg.type === '__error') {
         this.log(`[WEBVIEW ERROR] ${msg.message} at line ${msg.line}`);
       } else if (msg.type === 'switchTab') {
@@ -120,9 +139,6 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
       } else if (msg.type === 'toggleStatusBarStock' && msg.code) {
         await this.toggleStatusBarStock(String(msg.code));
-        webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
-      } else if (msg.type === 'toggleDisguiseStock' && msg.code) {
-        await this.toggleDisguiseStock(String(msg.code));
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
       } else if (msg.type === 'setConfig' && msg.key) {
         const config = vscode.workspace.getConfiguration('stock-ext');
@@ -257,7 +273,7 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
             alerts[key].push({ t, label, isUp, info: a.i || '' });
           }
         } catch {}
-        return { indices, alerts, statusBarCodes: cfg.get<string[]>('statusBarStock') || [], disguiseCodes: cfg.get<string[]>('editorDisguise.stocks') || [] };
+        return { indices, alerts, statusBarCodes: cfg.get<string[]>('statusBarStock') || [] };
       }
       case 'settings': {
         const config = vscode.workspace.getConfiguration('stock-ext');
@@ -354,18 +370,6 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     }
     if (!list.length) list.push('sh000001');
     await config.update('statusBarStock', list, vscode.ConfigurationTarget.Global);
-  }
-
-  private async toggleDisguiseStock(code: string): Promise<void> {
-    const config = vscode.workspace.getConfiguration('stock-ext');
-    const list: string[] = config.get('editorDisguise.stocks') || [];
-    const idx = list.indexOf(code);
-    if (idx >= 0) {
-      list.splice(idx, 1);
-    } else {
-      list.push(code);
-    }
-    await config.update('editorDisguise.stocks', list, vscode.ConfigurationTarget.Global);
   }
 
   updateOpacity(opacity: number) {

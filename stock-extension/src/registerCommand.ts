@@ -2,13 +2,13 @@ import * as vscode from 'vscode';
 import { COMMANDS } from './shared/constant';
 import { StatusBarManager } from './statusbar/statusBar';
 import { ProxyService } from './webview/proxyService';
-import { EditorDisguiseProvider } from './editor/editorDisguiseProvider';
+import { StockCenterViewProvider } from './webview/stockCenterProvider';
 
 export function registerCommands(
   context: vscode.ExtensionContext,
   statusBarManager: StatusBarManager,
   proxyService: ProxyService,
-  editorDisguise?: EditorDisguiseProvider,
+  stockCenterProvider?: StockCenterViewProvider,
 ) {
   context.subscriptions.push(
     vscode.commands.registerCommand(COMMANDS.OPEN_STOCK_CENTER, () => {
@@ -49,27 +49,19 @@ export function registerCommands(
 
     vscode.commands.registerCommand(COMMANDS.OPEN_STOCK_DETAIL, (quote: any) => {
       const code = typeof quote === 'string' ? quote : quote?.code || '';
-      if (code) {
-        vscode.window.showInformationMessage(`${quote?.name || code}: ${quote?.price || ''}`);
+      const name = typeof quote === 'string' ? '' : quote?.name || '';
+      if (code && stockCenterProvider) {
+        stockCenterProvider.openDetail(code, name);
       }
     }),
 
-    vscode.commands.registerCommand(COMMANDS.EDITOR_DISGUISE_TOGGLE, async () => {
-      const config = vscode.workspace.getConfiguration('stock-ext');
-      const current = config.get<boolean>('editorDisguise.enabled') || false;
-      await config.update('editorDisguise.enabled', !current, vscode.ConfigurationTarget.Global);
-      if (editorDisguise) {
-        if (!current) {
-          editorDisguise.refresh();
-        } else {
-          editorDisguise.refresh();
-        }
+    vscode.commands.registerCommand(COMMANDS.OPEN_STATUS_BAR_DETAIL, () => {
+      const quote = statusBarManager.getFirstQuote();
+      if (quote && stockCenterProvider) {
+        stockCenterProvider.openDetail(quote.code, quote.name);
+      } else {
+        vscode.commands.executeCommand('workbench.view.extension.stockExtMenu');
       }
-    }),
-    vscode.commands.registerCommand(COMMANDS.EDITOR_DISGUISE_DISABLE, async () => {
-      const config = vscode.workspace.getConfiguration('stock-ext');
-      await config.update('editorDisguise.enabled', false, vscode.ConfigurationTarget.Global);
-      if (editorDisguise) editorDisguise.refresh();
     }),
   );
 }

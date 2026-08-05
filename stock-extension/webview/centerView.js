@@ -38,11 +38,78 @@ var TABS=[
 ];
 var CHG_TYPES={4:'秒板',8:'封板',16:'打开涨停',32:'大笔买入',64:'大笔卖出',128:'大笔买入',8193:'火箭发射',8194:'快速反弹',8201:'加速上涨',8202:'高台跳水',8203:'加速下跌',8204:'大笔卖出',8207:'大幅上升',8208:'大幅下降',8209:'封涨停',8210:'封跌停',8211:'打开涨停',8212:'打开跌停',8213:'创历史新高',8214:'创历史新低',8215:'竞价上涨',8216:'竞价下跌'};
 var currentTab='market_overview';
-var voiceOn=false;var _lastNewsIds=[];var _lastAlertIds=[];
-function speakText(text){if(!text)return;if(!('speechSynthesis' in window))return;window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(text);u.lang='zh-CN';u.rate=1.1;u.pitch=1;window.speechSynthesis.speak(u)}
+var voiceOn=false;var _lastNewsIds=[];var _lastAlertIds=[];var _lastAlertData=[];
+var _selectedVoiceURI='';var _availableVoices=[];
+var _selectedVoicePreset='default';
+try{var _vstate=vscode.getState();if(_vstate&&_vstate.voiceURI){_selectedVoiceURI=_vstate.voiceURI;}if(_vstate&&_vstate.voicePreset){_selectedVoicePreset=_vstate.voicePreset;}}catch(_){}
+var VOICE_PRESETS=[
+  {id:'default',name:'默认语音',rate:1.1,pitch:1,gender:''},
+  {id:'gentle_female',name:'温柔女声',rate:0.95,pitch:1.15,gender:'female'},
+  {id:'magnetic_male',name:'磁性男声',rate:0.9,pitch:0.85,gender:'male'},
+  {id:'lively_girl',name:'活泼少女',rate:1.25,pitch:1.3,gender:'female'},
+  {id:'calm_anchor',name:'沉稳播音',rate:0.85,pitch:0.95,gender:'male'},
+  {id:'child_voice',name:'童声播报',rate:1.15,pitch:1.6,gender:'child'},
+  {id:'fast_news',name:'快速播报',rate:1.5,pitch:1,gender:''}
+];
+var _maleKeywords=['kangkang','david','george','ravi','mark','male','男','yunxi','yunyang','google 普通话（中国大陆）','google mandarin','pinyin'];
+var _femaleKeywords=['huihui','yaoyao','zira','susan','anna','female','女','xiaoxiao','xiaoyi','tingting','google 普通话','google粤','cantonese'];
+var _childKeywords=['child','kid','童','xiaoyou'];
+function matchVoiceForGender(gender){
+  if(!gender||!_availableVoices.length)return '';
+  var kws=gender==='male'?_maleKeywords:gender==='female'?_femaleKeywords:gender==='child'?_childKeywords:[];
+  if(!kws.length)return '';
+  var zhVoices=[];var otherVoices=[];
+  for(var i=0;i<_availableVoices.length;i++){
+    var v=_availableVoices[i];var vn=(v.name||'').toLowerCase();
+    var lang=(v.lang||'').toLowerCase();
+    if(lang.indexOf('zh')>=0||lang.indexOf('cmn')>=0||lang.indexOf('chinese')>=0)zhVoices.push(v);else otherVoices.push(v);
+  }
+  var searchList=zhVoices.length?zhVoices:_availableVoices;
+  for(var i=0;i<searchList.length;i++){
+    var vn=(searchList[i].name||'').toLowerCase();
+    for(var j=0;j<kws.length;j++){if(vn.indexOf(kws[j])>=0)return searchList[i].voiceURI;}
+  }
+  return '';
+}
+function getEffectiveVoiceURI(){
+  if(_selectedVoiceURI)return _selectedVoiceURI;
+  var preset=getVoicePreset(_selectedVoicePreset);
+  return matchVoiceForGender(preset.gender);
+}
+function getVoiceNameByURI(uri){
+  if(!uri)return '';
+  for(var i=0;i<_availableVoices.length;i++){
+    if(_availableVoices[i].voiceURI===uri)return _availableVoices[i].name||'';
+  }
+  return '';
+}
+function warmUpVoices(){
+  if(!('speechSynthesis' in window))return;
+  _availableVoices=window.speechSynthesis.getVoices()||[];
+  if(!_availableVoices.length){
+    var u=new SpeechSynthesisUtterance(' ');u.lang='zh-CN';u.volume=0;
+    window.speechSynthesis.speak(u);
+    setTimeout(function(){_availableVoices=window.speechSynthesis.getVoices()||[];},200);
+  }
+}
+function loadVoices(){
+  if(!('speechSynthesis' in window))return;
+  _availableVoices=window.speechSynthesis.getVoices()||[];
+  if(_availableVoices.length&&!_selectedVoiceURI){
+    var preset=getVoicePreset(_selectedVoicePreset);
+    var matched=matchVoiceForGender(preset.gender);
+    if(matched){
+      _selectedVoiceURI=matched;
+      try{var st=vscode.getState()||{};st.voiceURI=matched;vscode.setState(st);}catch(_){}
+    }
+  }
+}
+if('speechSynthesis' in window){loadVoices();warmUpVoices();window.speechSynthesis.onvoiceschanged=loadVoices;}
+function getVoicePreset(id){for(var i=0;i<VOICE_PRESETS.length;i++){if(VOICE_PRESETS[i].id===id)return VOICE_PRESETS[i];}return VOICE_PRESETS[0];}
+function speakText(text){if(!text)return;if(!('speechSynthesis' in window))return;window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(text);u.lang='zh-CN';var preset=getVoicePreset(_selectedVoicePreset);u.rate=preset.rate;u.pitch=preset.pitch;var uri=getEffectiveVoiceURI();if(uri){for(var i=0;i<_availableVoices.length;i++){if(_availableVoices[i].voiceURI===uri){u.voice=_availableVoices[i];break;}}}window.speechSynthesis.speak(u)}
 function toggleVoice(){voiceOn=!voiceOn;var btn=document.getElementById('voiceBtn');if(btn){btn.className='voice-toggle'+(voiceOn?' on':'');btn.querySelector('.voice-icon').textContent=voiceOn?'🔊':'🔇';btn.querySelector('.voice-label').textContent=voiceOn?'播报中':'播报'}if(voiceOn&&currentTab==='realtime_news')speakLatestNews();if(voiceOn&&currentTab==='alert')speakLatestAlert()}
 function speakLatestNews(){if(!voiceOn||currentTab!=='realtime_news')return;var items=document.querySelectorAll('#content .realtime-item .rt-title');if(items.length>0)speakText(items[0].textContent)}
-function speakLatestAlert(){if(!voiceOn||currentTab!=='alert')return;var rows=document.querySelectorAll('#content table tr');if(rows.length>1){var cells=rows[1].querySelectorAll('td');if(cells.length>=4)speakText((cells[1]?cells[1].textContent:'')+(cells[2]?cells[2].textContent:'')+(cells[3]?cells[3].textContent:''))}}
+function speakLatestAlert(){if(!voiceOn||currentTab!=='alert')return;if(!_lastAlertData||!_lastAlertData.length)return;var x=_lastAlertData[0];var lbl=CHG_TYPES[x.t]||'异动';speakText((x.n||'')+'，'+lbl+'，'+decodeAlertSpeech(x.t,x.i))}
 function renderTabs(){var bar=$('#tabBar');if(!bar)return;bar.innerHTML='';for(var i=0;i<TABS.length;i++){var t=TABS[i];var btn=document.createElement('button');btn.className='tab-btn'+(t.id===currentTab?' active':'');btn.setAttribute('data-tab',t.id);btn.textContent=t.label;bar.appendChild(btn)}var vb=document.createElement('button');vb.id='voiceBtn';vb.className='voice-toggle'+(voiceOn?' on':'');vb.onclick=toggleVoice;vb.innerHTML='<span class="voice-icon">'+(voiceOn?'🔊':'🔇')+'</span><span class="voice-label">'+(voiceOn?'播报中':'播报')+'</span>';var voiceTabs=['em_news','realtime_news','alert'];if(voiceTabs.indexOf(currentTab)>=0)bar.appendChild(vb)}
 function $(s){return document.querySelector(s)}
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
@@ -95,23 +162,23 @@ function decodeAlertSpeech(t,i){
   if(amt!=='')out.push('金额'+amt);
   return out.join('，');
 }
-function renderTabs(){var bar=$('#tabBar');if(!bar)return;bar.innerHTML='';for(var i=0;i<TABS.length;i++){var t=TABS[i];var btn=document.createElement('button');btn.className='tab-btn'+(t.id===currentTab?' active':'');btn.setAttribute('data-tab',t.id);btn.textContent=t.label;bar.appendChild(btn)}}
 var _refreshTimer=null;
 var _inDetail=false;
 var _tabCache={};
+try{var _savedState=vscode.getState();if(_savedState&&_savedState.tabCache){_tabCache=_savedState.tabCache;}}catch(_){}
 var _agentMsgs=[];
 var _agentLoading=false;
 var _settingsData=null;
 var _agentModels=[];
 var _activeModelId='';
 function agentAvatar(kind){
-  if(kind==='user')return '<div style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;background:linear-gradient(135deg,#f59f00,#ff6b6b);color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)">🧑</div>';
-  return '<div style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;background:linear-gradient(135deg,#7048e8,#5c7cfa);color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)">🤖</div>';
+  if(kind==='user')return '<div style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f59f00,#ff6b6b);box-shadow:0 1px 3px rgba(0,0,0,.3)"><svg width="16" height="16" viewBox="0 0 16 16" fill="#fff" opacity="0.95"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.5 15c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5"/></svg></div>';
+  return '<div style="width:28px;height:28px;flex-shrink:0;background:linear-gradient(135deg,#00d4ff,#7c3aed);clip-path:polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);display:flex;align-items:center;justify-content:center;box-shadow:0 0 6px rgba(0,212,255,.35)"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="6.5" cy="7.5" r="1.8" fill="#fff" opacity="0.95"/><circle cx="11.5" cy="7.5" r="1.8" fill="#fff" opacity="0.95"/><rect x="5" y="11.5" width="8" height="1.2" rx="0.6" fill="#fff" opacity="0.55"/><circle cx="9" cy="3.5" r="0.9" fill="#00ff88"/></svg></div>';
 }
 function renderAgentTab(){
   var ct=$('#content');if(!ct)return;
-  ct.style.cssText='display:flex;flex-direction:column;overflow:hidden;padding:0';
-  var html='<div style="display:flex;flex-direction:column;flex:1;min-height:0;padding:0">';
+  ct.style.cssText='flex:1 1 0;display:flex;flex-direction:column;overflow:hidden;padding:0;min-height:0';
+  var html='<div style="display:flex;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden">';
   html+='<div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0">';
   html+=agentAvatar('agent');
   html+='<span style="font-weight:600;font-size:13px;flex:1">StockAgent</span>';
@@ -130,12 +197,19 @@ function renderAgentTab(){
   html+='<button onclick="sendAgentQuick(\'explain\')" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--fg);cursor:pointer">🔍 解读标的</button>';
   html+='<button onclick="openStockReport()" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--fg);cursor:pointer">📈 选股报告</button>';
   html+='</div>';
-  html+='<div id="agentMsgs" style="flex:1;min-height:0;overflow-y:auto;padding:10px 12px">';
+  html+='<div id="agentMsgs" style="flex:1 1 0;min-height:0;overflow-y:auto;padding:10px 12px">';
   if(_agentMsgs.length===0){
-    html+='<div style="text-align:center;padding:40px 20px;opacity:.4">';
-    html+='<div style="width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 12px;background:linear-gradient(135deg,#7048e8,#5c7cfa);color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)">🤖</div>';
-    html+='<div style="font-size:13px;margin-bottom:6px">你好，我是 StockAgent</div>';
-    html+='<div style="font-size:11px;line-height:1.6">可以帮你分析行情、解读资讯、<br>整理自选信息（不提供投资建议）</div></div>';
+    html+='<div style="text-align:center;padding:40px 20px;opacity:.55">';
+    html+='<div style="width:56px;height:56px;margin:0 auto 14px;background:linear-gradient(135deg,#00d4ff,#7c3aed);clip-path:polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(0,212,255,.4)"><svg width="36" height="36" viewBox="0 0 18 18"><circle cx="6.5" cy="7.5" r="1.8" fill="#fff" opacity="0.95"/><circle cx="11.5" cy="7.5" r="1.8" fill="#fff" opacity="0.95"/><rect x="5" y="11.5" width="8" height="1.2" rx="0.6" fill="#fff" opacity="0.55"/><circle cx="9" cy="3.5" r="0.9" fill="#00ff88"/></svg></div>';
+    html+='<div style="font-size:13px;margin-bottom:6px;color:var(--fg)">你好，我是 StockAgent</div>';
+    html+='<div style="font-size:11px;line-height:1.6;opacity:.7">可以帮你分析行情、解读资讯、<br>整理自选信息（不提供投资建议）</div></div>';
+  }
+  if(noAgentModel()&&_agentMsgs.length===0){
+    html+='<div style="margin:0 12px 8px;padding:10px 12px;background:rgba(232,179,57,.1);border:1px solid rgba(232,179,57,.3);border-radius:8px;font-size:11px;line-height:1.5">';
+    html+='<div style="color:var(--accent);margin-bottom:6px">⚠️ 尚未接入 AI 模型</div>';
+    html+='<div style="opacity:.7;margin-bottom:6px">请先在设置中配置模型，或确认 VS Code 已安装 Copilot 等 AI 扩展</div>';
+    html+='<button onclick="vscode.postMessage({type:\'openModelConfig\'})" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px">前往配置 →</button>';
+    html+='</div>';
   }
   for(var i=0;i<_agentMsgs.length;i++){
     var m=_agentMsgs[i];
@@ -156,7 +230,7 @@ function renderAgentTab(){
   }
   html+='</div>';
   html+='<div style="display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0">';
-  html+='<input id="agentInput" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--fg);font-size:12px;outline:none" placeholder="输入消息..." onkeydown="if(event.key===\'Enter\')sendAgentMsg()">';
+  html+='<input id="agentInput" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--fg);font-size:12px;outline:none" placeholder="'+(noAgentModel()?'⚠️ 请先配置 AI 模型...':'输入消息...')+'" onkeydown="if(event.key===\'Enter\')sendAgentMsg()">';
   html+='<button id="agentSendBtn" onclick="sendAgentMsg()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:12px;white-space:nowrap">发送</button>';
   html+='</div></div>';
   ct.innerHTML=html;
@@ -166,23 +240,25 @@ function renderAgentTab(){
   if(msgsCt)msgsCt.scrollTop=msgsCt.scrollHeight;
 }
 function noAgentModel(){return !_agentModels.length&&!_activeModelId}
+var _noModelWarned=false;
 function promptNoModel(){
-  if(_agentMsgs.length===0||_agentMsgs[_agentMsgs.length-1].text!=='⚠️ 尚未接入 AI 模型，请先在设置中配置模型'){
-    _agentMsgs.push({role:'assistant',text:'⚠️ 尚未接入 AI 模型，请先在设置中配置模型'});
-  }
+  _agentMsgs.push({role:'assistant',text:'⚠️ 尚未接入 AI 模型，请点击右上角 ⚙ 或前往设置页配置模型。配置后即可使用 AI 对话功能。'});
+  _noModelWarned=true;
   renderAgentTab();
 }
 function sendAgentMsg(){
   var inp=$('#agentInput');if(!inp||!inp.value.trim()||_agentLoading)return;
   var text=inp.value.trim();inp.value='';
-  if(noAgentModel()){promptNoModel();return}
+  if(noAgentModel()&&!_noModelWarned){promptNoModel();_agentMsgs.push({role:'user',text:text});renderAgentTab();return}
+  if(noAgentModel()){_agentMsgs.push({role:'user',text:text});renderAgentTab();return}
   _agentMsgs.push({role:'user',text:text});
   _agentLoading=true;renderAgentTab();
   vscode.postMessage({type:'agentChat',text:text,modelId:_activeModelId});
 }
 function sendAgentQuick(action){
   if(_agentLoading)return;
-  if(noAgentModel()){promptNoModel();return}
+  if(noAgentModel()&&!_noModelWarned){promptNoModel();_agentMsgs.push({role:'user',text:'/'+action});renderAgentTab();return}
+  if(noAgentModel()){_agentMsgs.push({role:'user',text:'/'+action});renderAgentTab();return}
   _agentMsgs.push({role:'user',text:'/'+action});
   _agentLoading=true;renderAgentTab();
   vscode.postMessage({type:'agentChat',text:'/'+action,modelId:_activeModelId});
@@ -190,15 +266,74 @@ function sendAgentQuick(action){
 function openStockReport(){
   vscode.postMessage({type:'openReport'});
 }
+function detailAskAI(action){
+  var code=_detailCode||'';var name=_detailName||'';
+  var text='';
+  if(action==='analyze')text='请分析股票 '+name+'('+code+')的基本面情况，包括财务数据、行业地位、估值水平等';
+  else if(action==='trend')text='请解读股票 '+name+'('+code+')的技术走势，包括K线形态、支撑压力位、成交量变化等';
+  else if(action==='news')text='请总结股票 '+name+'('+code+')最近的新闻资讯和市场动态';
+  if(!text)return;
+  _agentMsgs.push({role:'user',text:text});
+  _agentLoading=true;
+  switchTab('agent');
+  vscode.postMessage({type:'agentChat',text:text,modelId:_activeModelId});
+}
+function detailSendAI(){
+  var inp=$('#detailAIInput');if(!inp||!inp.value.trim()||_agentLoading)return;
+  var text=inp.value.trim();
+  var name=_detailName||'';
+  var code=_detailCode||'';
+  var fullText='关于股票 '+name+'('+code+')：'+text;
+  inp.value='';
+  _agentMsgs.push({role:'user',text:fullText});
+  _agentLoading=true;
+  switchTab('agent');
+  vscode.postMessage({type:'agentChat',text:fullText,modelId:_activeModelId});
+}
+var _detailSearchResults=[];var _detailSearchIdx=-1;
+var _detailSearchDeb=null;
+function detailSearch(kw){
+  if(_detailSearchDeb)clearTimeout(_detailSearchDeb);
+  var rs=$('#detailSearchResults');
+  if(!kw||!kw.trim()){if(rs)rs.classList.remove('show');_detailSearchResults=[];return}
+  _detailSearchDeb=setTimeout(function(){
+    vscode.postMessage({type:'stockSearch',kw:kw.trim()});
+  },300);
+}
+function showDetailSearchResults(list){
+  _detailSearchResults=list;_detailSearchIdx=-1;
+  var rs=$('#detailSearchResults');if(!rs)return;
+  if(!list||!list.length){rs.classList.remove('show');return}
+  var html='';
+  for(var i=0;i<Math.min(10,list.length);i++){
+    var item=list[i];
+    var code=esc(item.f12||item.code||'');
+    var name=esc(item.f14||item.name||'');
+    html+='<div class="detail-search-item" data-idx="'+i+'" onclick="detailSearchSelect('+i+')"><span class="ds-name">'+name+'</span><span class="ds-code">'+code+'</span></div>';
+  }
+  rs.innerHTML=html;rs.classList.add('show');
+}
+function detailSearchSelect(idx){
+  var item=_detailSearchResults[idx];if(!item)return;
+  var code=item.f12||item.code||'';
+  var name=item.f14||item.name||'';
+  var rs=$('#detailSearchResults');if(rs)rs.classList.remove('show');
+  var inp=$('#detailSearchInput');if(inp)inp.value='';
+  openStockDetail(code,name);
+}
+function detailSearchConfirm(){
+  if(_detailSearchIdx>=0&&_detailSearchResults[_detailSearchIdx]){detailSearchSelect(_detailSearchIdx);return}
+  if(_detailSearchResults.length>0)detailSearchSelect(0);
+}
 function renderSettings(data){
   var ct=$('#content');if(!ct)return;
   if(!data){ct.innerHTML='<div style="text-align:center;padding:40px;opacity:.5">加载中...</div>';return}
   var cfg=data.config||{};
   var aiModels=data.aiModels||[];
   var activeModelId=data.activeModelId||'';
-  var html='<div style="padding:12px;max-width:600px">';
-  html+='<h2 style="font-size:14px;margin-bottom:12px;color:#fff">⚙ 常规设置</h2>';
-  html+='<div style="background:var(--card);border-radius:8px;padding:10px;margin-bottom:16px">';
+  var html='<div class="settings-wrap">';
+  html+='<div class="settings-section">';
+  html+='<div class="settings-section-title">⚙ 常规设置</div>';
   var S=[
     {key:'interval',label:'轮询间隔(ms)',type:'number',def:5000,min:3000},
     {key:'pollOnlyDuringAStockHours',label:'仅A股交易时段轮询',type:'checkbox',def:true},
@@ -211,37 +346,64 @@ function renderSettings(data){
   ];
   for(var i=0;i<S.length;i++){
     var s=S[i];var val=cfg[s.key]!==undefined?cfg[s.key]:s.def;
-    html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0';
-    if(i>0)html+=';border-top:1px solid var(--border)';html+='">';
-    html+='<label style="font-size:12px">'+s.label+'</label>';
+    html+='<div class="settings-row">';
+    html+='<span class="settings-label">'+s.label+'</span>';
     if(s.type==='checkbox'){
-      html+='<input type="checkbox"'+(val?' checked':'')+' data-key="'+s.key+'" onchange="settingsChange(this.dataset.key,this.checked)" style="cursor:pointer">';
+      html+='<button class="settings-toggle'+(val?' on':'')+'" data-key="'+s.key+'" onclick="settingsToggle(this,\''+s.key+'\')"></button>';
     }else if(s.type==='color'){
-      html+='<input type="color" value="'+val+'" data-key="'+s.key+'" onchange="settingsChange(this.dataset.key,this.value)" style="width:32px;height:24px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:none;padding:0">';
+      html+='<input type="color" class="settings-color" value="'+val+'" data-key="'+s.key+'" onchange="settingsChange(this.dataset.key,this.value)">';
     }else if(s.type==='range'){
-      html+='<div style="display:flex;align-items:center;gap:6px"><input type="range" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+val+'" data-key="'+s.key+'" oninput="this.nextElementSibling.textContent=this.value;settingsChange(this.dataset.key,Number(this.value))" style="width:100px"><span style="font-size:11px;min-width:24px;text-align:right">'+val+'</span></div>';
+      html+='<div class="settings-range-wrap"><input type="range" class="settings-range" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+val+'" data-key="'+s.key+'" oninput="this.nextElementSibling.textContent=this.value;settingsChange(this.dataset.key,Number(this.value))"><span class="settings-range-val">'+val+'</span></div>';
     }else{
-      html+='<input type="number" value="'+val+'" data-key="'+s.key+'"'+(s.min?' min="'+s.min+'"':'')+' onchange="settingsChange(this.dataset.key,Number(this.value))" style="width:80px;text-align:right;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--fg);font-size:12px">';
+      html+='<input type="number" class="settings-input" value="'+val+'" data-key="'+s.key+'"'+(s.min?' min="'+s.min+'"':'')+' onchange="settingsChange(this.dataset.key,Number(this.value))" style="width:90px;text-align:right">';
     }
     html+='</div>';
   }
   html+='</div>';
-  html+='<h2 style="font-size:14px;margin-bottom:12px;color:#fff">🎨 界面主题</h2>';
-  html+='<div style="background:var(--card);border-radius:8px;padding:10px;margin-bottom:16px">';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center">';
-  html+='<label style="font-size:12px">主题风格</label>';
+  html+='<div class="settings-section">';
+  html+='<div class="settings-section-title">🎨 界面主题</div>';
+  html+='<div class="settings-row">';
+  html+='<span class="settings-label">主题风格</span>';
   var themeVal=cfg.theme||'classic';
-  html+='<select id="settingsTheme" onchange="settingsChangeTheme(this.value)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--fg);font-size:12px;max-width:160px">';
+  html+='<select class="settings-select" id="settingsTheme" onchange="settingsChangeTheme(this.value)">';
   html+='<option value="classic"'+(themeVal==='classic'?' selected':'')+'>经典主题</option>';
   html+='<option value="dark"'+(themeVal==='dark'?' selected':'')+'>黑色主题</option>';
   html+='<option value="light"'+(themeVal==='light'?' selected':'')+'>白色主题</option>';
   html+='<option value="system"'+(themeVal==='system'?' selected':'')+'>跟随系统</option>';
-  html+='</select></div></div>';
-  html+='<h2 style="font-size:14px;margin-bottom:12px;color:#fff">🤖 AI 模型</h2>';
-  html+='<div style="background:var(--card);border-radius:8px;padding:10px;margin-bottom:8px">';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
-  html+='<label style="font-size:12px">当前模型</label>';
-  html+='<select id="settingsActiveModel" onchange="settingsChangeActiveModel(this.value)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--fg);font-size:12px;max-width:180px">';
+  html+='</select></div>';
+  html+='</div>';
+  html+='<div class="settings-section">';
+  html+='<div class="settings-section-title">🔊 语音播报</div>';
+  html+='<div class="settings-row">';
+  html+='<span class="settings-label">语音模型</span>';
+  html+='<div style="display:flex;gap:6px;align-items:center">';
+  html+='<select class="settings-select" id="settingsVoicePreset" onchange="settingsChangeVoicePreset(this.value)" style="max-width:130px">';
+  for(var pi=0;pi<VOICE_PRESETS.length;pi++){
+    var ps=VOICE_PRESETS[pi];
+    html+='<option value="'+esc(ps.id)+'"'+(ps.id===_selectedVoicePreset?' selected':'')+'>'+esc(ps.name)+'</option>';
+  }
+  html+='</select>';
+  html+='<button class="settings-btn" onclick="settingsPreviewVoice()">试听</button>';
+  html+='</div></div>';
+  html+='<div class="settings-row">';
+  html+='<span class="settings-label">系统语音引擎</span>';
+  html+='<select class="settings-select" id="settingsVoiceModel" onchange="settingsChangeVoice(this.value)" style="max-width:200px">';
+  html+='<option value="">跟随系统</option>';
+  for(var vi=0;vi<_availableVoices.length;vi++){
+    var v=_availableVoices[vi];
+    var vlabel=v.name+(v.lang?' ('+v.lang+')':'');
+    html+='<option value="'+esc(v.voiceURI)+'"'+(v.voiceURI===_selectedVoiceURI?' selected':'')+'>'+esc(vlabel)+'</option>';
+  }
+  html+='</select></div>';
+  if(_availableVoices.length===0){
+    html+='<div class="settings-hint" style="padding-top:4px">系统语音引擎列表为空时将使用浏览器默认引擎，语音模型仍可通过语速音调调节</div>';
+  }
+  html+='</div>';
+  html+='<div class="settings-section">';
+  html+='<div class="settings-section-title">🤖 AI 模型</div>';
+  html+='<div class="settings-row">';
+  html+='<span class="settings-label">当前模型</span>';
+  html+='<select class="settings-select" id="settingsActiveModel" onchange="settingsChangeActiveModel(this.value)">';
   html+='<option value="">默认</option>';
   for(var i=0;i<aiModels.length;i++){
     var ml=aiModels[i];
@@ -251,30 +413,69 @@ function renderSettings(data){
   html+='<div id="settingsModelList">';
   for(var i=0;i<aiModels.length;i++){
     var ml=aiModels[i];
-    html+='<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--border);font-size:12px">';
-    html+='<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(ml.name||ml.model||'')+' <span style="opacity:.4">'+esc(ml.provider||'')+'</span></span>';
-    html+='<button onclick="settingsDelModel(\'\'+esc(ml.id)+\'\')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px">删除</button></div>';
+    html+='<div class="settings-model-row">';
+    html+='<span class="settings-model-name">'+esc(ml.name||ml.model||'')+' <span style="opacity:.4">'+esc(ml.provider||'')+'</span></span>';
+    html+='<button class="settings-model-del" onclick="settingsDelModel(\''+esc(ml.id)+'\')">删除</button></div>';
   }
   html+='</div>';
   html+='<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">';
-  html+='<button onclick="settingsAddModel()" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px;width:100%">+ 添加模型</button>';
+  html+='<button class="settings-add-btn" onclick="settingsAddModel()">+ 添加模型</button>';
   html+='</div></div>';
-  html+='<div id="settingsModelForm" style="display:none;background:var(--card);border-radius:8px;padding:10px;margin-top:8px"></div>';
+  html+='<div id="settingsModelForm" class="settings-form" style="display:none"></div>';
   html+='</div>';
   ct.innerHTML=html;
 }
 var _settingsDeb={};
+var _settingsDirty=false;
+function settingsToggle(btn,key){
+  var on=btn.classList.toggle('on');
+  settingsChange(key,on);
+}
 function settingsChange(key,val){
+  if(_settingsData&&_settingsData.config){_settingsData.config[key]=val;}
+  _settingsDirty=true;
   if(key==='opacity')document.documentElement.style.setProperty('--panel-opacity',val);
   if(key==='riseColor')document.documentElement.style.setProperty('--up',val);
   if(key==='fallColor')document.documentElement.style.setProperty('--down',val);
   var delay=(key==='opacity'||key==='interval')?300:0;
   if(_settingsDeb[key])clearTimeout(_settingsDeb[key]);
-  _settingsDeb[key]=setTimeout(function(){vscode.postMessage({type:'setConfig',key:key,val:val});},delay);
+  _settingsDeb[key]=setTimeout(function(){
+    vscode.postMessage({type:'setConfig',key:key,val:val});
+    setTimeout(function(){_settingsDirty=false;},500);
+  },delay);
 }
 function settingsChangeTheme(theme){
   applyTheme(theme);
   vscode.postMessage({type:'setConfig',key:'theme',val:theme});
+}
+function settingsChangeVoice(uri){
+  _selectedVoiceURI=uri;
+  try{var st=vscode.getState()||{};st.voiceURI=uri;vscode.setState(st);}catch(_){}
+}
+function settingsChangeVoicePreset(id){
+  _selectedVoicePreset=id;
+  var preset=getVoicePreset(id);
+  var matched=matchVoiceForGender(preset.gender);
+  if(matched){_selectedVoiceURI=matched;}else{_selectedVoiceURI='';}
+  try{var st=vscode.getState()||{};st.voicePreset=id;st.voiceURI=_selectedVoiceURI;vscode.setState(st);}catch(_){}
+  var voiceSel=document.getElementById('settingsVoiceModel');
+  if(voiceSel)voiceSel.value=_selectedVoiceURI;
+}
+function settingsPreviewVoice(){
+  var presetSel=document.getElementById('settingsVoicePreset');
+  var pid=presetSel?presetSel.value:'default';
+  var preset=getVoicePreset(pid);
+  var voiceSel=document.getElementById('settingsVoiceModel');
+  var manualURI=voiceSel?voiceSel.value:'';
+  var uri=manualURI||matchVoiceForGender(preset.gender);
+  var u=new SpeechSynthesisUtterance('你好，这是'+preset.name+'试听。当前股票行情播报功能已就绪。');
+  u.lang='zh-CN';u.rate=preset.rate;u.pitch=preset.pitch;
+  if(uri){
+    for(var i=0;i<_availableVoices.length;i++){
+      if(_availableVoices[i].voiceURI===uri){u.voice=_availableVoices[i];break;}
+    }
+  }
+  if('speechSynthesis' in window){window.speechSynthesis.cancel();window.speechSynthesis.speak(u);}
 }
 function settingsChangeActiveModel(id){
   vscode.postMessage({type:'setActiveModel',id:id});
@@ -282,18 +483,16 @@ function settingsChangeActiveModel(id){
 function settingsAddModel(){
   var f=$('#settingsModelForm');if(!f)return;
   f.style.display='block';
-  f.innerHTML='<div style="font-size:12px;font-weight:600;margin-bottom:8px">添加模型</div>'
-    +'<div style="display:grid;gap:6px">'
-    +'<input id="mf_name" placeholder="名称 (如 GPT-4)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
-    +'<input id="mf_provider" placeholder="提供商 (如 openai)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
-    +'<input id="mf_baseURL" placeholder="Base URL (如 https://api.openai.com/v1)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
-    +'<input id="mf_apiKey" placeholder="API Key" type="password" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
-    +'<input id="mf_model" placeholder="模型ID (如 gpt-4o)" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
-    +'<input id="mf_temperature" placeholder="Temperature (0-1, 默认0.7)" type="number" min="0" max="1" step="0.1" value="0.7" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;color:var(--fg);font-size:12px">'
-    +'</div>'
-    +'<div style="display:flex;gap:6px;margin-top:8px">'
-    +'<button onclick="settingsSaveModel()" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:4px;padding:6px;cursor:pointer;font-size:12px">保存</button>'
-    +'<button onclick="$\'settingsModelForm\'.style.display=\'none\'" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:6px;cursor:pointer;font-size:12px;color:var(--fg)">取消</button>'
+  f.innerHTML='<div style="font-size:12px;font-weight:600;margin-bottom:8px;color:#fff">添加模型</div>'
+    +'<div class="settings-form-row"><input id="mf_name" placeholder="名称 (如 GPT-4)"></div>'
+    +'<div class="settings-form-row"><input id="mf_provider" placeholder="提供商 (如 openai)"></div>'
+    +'<div class="settings-form-row"><input id="mf_baseURL" placeholder="Base URL (如 https://api.openai.com/v1)"></div>'
+    +'<div class="settings-form-row"><input id="mf_apiKey" placeholder="API Key" type="password"></div>'
+    +'<div class="settings-form-row"><input id="mf_model" placeholder="模型ID (如 gpt-4o)"></div>'
+    +'<div class="settings-form-row"><input id="mf_temperature" placeholder="Temperature (0-1, 默认0.7)" type="number" min="0" max="1" step="0.1" value="0.7"></div>'
+    +'<div class="settings-form-btns">'
+    +'<button class="settings-btn" onclick="settingsSaveModel()" style="flex:1">保存</button>'
+    +'<button class="settings-btn-outline" onclick="document.getElementById(\'settingsModelForm\').style.display=\'none\'" style="flex:1">取消</button>'
     +'</div>';
 }
 function settingsSaveModel(){
@@ -590,6 +789,7 @@ function renderLhb(d){
 
 function renderAlert(d){
   var list=d&&d.data?d.data.list:(d&&d.list?d.list:[]);
+  _lastAlertData=list||[];
   if(!list||!list.length){
     $('#content').innerHTML='<div class="loading">暂无异动 <button id="alertRefreshBtn" style="margin-left:8px;padding:2px 10px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--fg);font-size:11px;cursor:pointer">↻ 刷新</button></div>';
     var rb=document.getElementById('alertRefreshBtn');
@@ -622,7 +822,6 @@ function renderHot(d){
 var _wlData=[];
 var _wlAlerts={};
 var _statusBarCodes=[];
-var _disguiseCodes=[];
 var _wlDragIdx=null;
 function prefixCode(code){
   var c=String(code||'').replace(/^(sh|sz|bj)/,'');
@@ -635,7 +834,6 @@ function renderWatchlist(d){
   var list=d&&d.indices?d.indices:(d&&d.data?d.data.diff:[]);
   _wlAlerts=d&&d.alerts?d.alerts:{};
   _statusBarCodes=(d&&d.statusBarCodes)||[];
-  _disguiseCodes=(d&&d.disguiseCodes)||[];
   _wlData=[];
   var html='';
   if(!list||!list.length){
@@ -655,9 +853,7 @@ function renderWatchlist(d){
       }
       var inSb=_statusBarCodes.indexOf(prefixCode(x.f12))>=0;
       var sbTag=inSb?'<span class="wl-alert-tag" style="background:rgba(53,150,240,.18);color:#5cabff">📌 状态栏</span>':'';
-      var inDg=_disguiseCodes.indexOf(prefixCode(x.f12))>=0;
-      var dgTag=inDg?'<span class="wl-alert-tag" style="background:rgba(139,110,250,.18);color:#a78bfa">🎭 伪装</span>':'';
-      html+='<div class="wl-card '+flash+'" draggable="true" data-code="'+code+'" data-idx="'+i+'"><div class="wl-row"><div class="wl-name"><div class="nm">'+name+(alertHtml?'<span>'+alertHtml+'</span>':'')+'</div><div class="cd">'+code+' · 右键更多操作</div></div><div class="wl-price"><div class="pr '+(up?'text-up':'text-down')+'">'+price+'</div></div><div class="wl-chg"><span class="tag '+(up?'tag-up':'tag-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span></div><div class="wl-acts"><button class="wl-code-act wl-sb-toggle" data-code="'+code+'" title="'+(inSb?'移出状态栏':'加入状态栏')+'">'+sbTag+'</button><button class="wl-code-act wl-dg-toggle" data-code="'+code+'" title="'+(inDg?'移出伪装':'加入伪装')+'">'+dgTag+'</button><button class="wl-code-act" data-code="'+code+'" data-dir="top" title="置顶">⤒ 置顶</button><button class="wl-code-act" data-code="'+code+'" data-dir="bottom" title="置底">⤓ 置底</button></div><button class="wl-del" data-code="'+code+'">删除</button></div></div>';
+      html+='<div class="wl-card '+flash+'" draggable="true" data-code="'+code+'" data-idx="'+i+'"><div class="wl-row"><div class="wl-name"><div class="nm">'+name+(alertHtml?'<span>'+alertHtml+'</span>':'')+'</div><div class="cd">'+code+' · 右键更多操作</div></div><div class="wl-price"><div class="pr '+(up?'text-up':'text-down')+'">'+price+'</div></div><div class="wl-chg"><span class="tag '+(up?'tag-up':'tag-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span></div><div class="wl-acts"><button class="wl-code-act wl-sb-toggle" data-code="'+code+'" title="'+(inSb?'移出状态栏':'加入状态栏')+'">'+sbTag+'</button><button class="wl-code-act" data-code="'+code+'" data-dir="top" title="置顶">⤒ 置顶</button><button class="wl-code-act" data-code="'+code+'" data-dir="bottom" title="置底">⤓ 置底</button></div><button class="wl-del" data-code="'+code+'">删除</button></div></div>';
     }
   }
   $('#content').innerHTML=html;
@@ -674,10 +870,6 @@ function renderWatchlist(d){
       e.stopPropagation();
       if(this.classList.contains('wl-sb-toggle')){
         vscode.postMessage({type:'toggleStatusBarStock',code:prefixCode(this.getAttribute('data-code'))});
-        return;
-      }
-      if(this.classList.contains('wl-dg-toggle')){
-        vscode.postMessage({type:'toggleDisguiseStock',code:prefixCode(this.getAttribute('data-code'))});
         return;
       }
       vscode.postMessage({type:'moveWatch',code:this.getAttribute('data-code'),dir:this.getAttribute('data-dir')});
@@ -700,7 +892,6 @@ function showWatchMenu(e,rawCode){
   hideWatchMenu();
   var code=prefixCode(rawCode);
   var inSb=_statusBarCodes.indexOf(code)>=0;
-  var inDg=_disguiseCodes.indexOf(code)>=0;
   var m=document.createElement('div');
   m.id='wlCtxMenu';
   m.style.position='fixed';
@@ -714,7 +905,6 @@ function showWatchMenu(e,rawCode){
   m.style.fontSize='12px';
   var items=[
     {label:inSb?'移除状态栏显示':'加入状态栏显示',type:'toggleStatusBarStock'},
-    {label:inDg?'移出 Blame 伪装':'加入 Blame 伪装',type:'toggleDisguiseStock'},
     {sep:true},
     {label:'置顶',type:'moveWatch',dir:'top'},
     {label:'置底',type:'moveWatch',dir:'bottom'},
@@ -745,7 +935,7 @@ function showWatchMenu(e,rawCode){
         }
         return;
       }
-      var msg={type:itm.type,code:(itm.type==='toggleStatusBarStock'||itm.type==='toggleDisguiseStock')?pre:raw};
+      var msg={type:itm.type,code:itm.type==='toggleStatusBarStock'?pre:raw};
       if(itm.dir)msg.dir=itm.dir;
       vscode.postMessage(msg);
     };})(it,rawCode,code);
@@ -865,7 +1055,7 @@ function renderStockDetail(s){
   html+='</div>';
   html+='</div>';
   html+='</div>';
-  html+='<div class="detail-actions"><button class="btn-del" id="detailWatchBtn" data-in="1">删除自选</button><button class="btn-back" id="detailBackBtn">返回列表</button></div>';
+  html+='<div class="detail-actions"><button class="btn-del" id="detailWatchBtn" data-in="0">加载中...</button><button class="btn-back" id="detailBackBtn">返回列表</button></div>';
   html+='<div class="detail-tabs" id="detailTabs">';
   html+='<button class="detail-tab active" data-dtab="news">资讯</button>';
   html+='<button class="detail-tab" data-dtab="notice">公告</button>';
@@ -873,6 +1063,25 @@ function renderStockDetail(s){
   html+='<button class="detail-tab" data-dtab="profile">资料</button>';
   html+='</div>';
   html+='<div class="detail-panel" id="detailPanel"><div class="loading" style="padding:10px">加载中...</div></div>';
+  html+='<div class="detail-ai">';
+  html+='<div class="detail-ai-title">🤖 AI 快捷提问</div>';
+  html+='<div class="detail-ai-quick">';
+  html+='<button onclick="detailAskAI(\'analyze\')">📊 分析基本面</button>';
+  html+='<button onclick="detailAskAI(\'trend\')">📈 解读走势</button>';
+  html+='<button onclick="detailAskAI(\'news\')">📰 最新资讯</button>';
+  html+='</div>';
+  html+='<div class="detail-ai-input">';
+  html+='<input id="detailAIInput" placeholder="问问AI关于'+name+'..." onkeydown="if(event.key===\'Enter\')detailSendAI()">';
+  html+='<button onclick="detailSendAI()">发送</button>';
+  html+='</div>';
+  html+='</div>';
+  html+='<div class="detail-search" id="detailSearchBox">';
+  html+='<div class="detail-search-results" id="detailSearchResults"></div>';
+  html+='<div class="detail-search-input">';
+  html+='<input id="detailSearchInput" placeholder="搜索股票名称/代码..." oninput="detailSearch(this.value)" onkeydown="if(event.key===\'Enter\')detailSearchConfirm()">';
+  html+='<button onclick="detailSearchConfirm()">→</button>';
+  html+='</div>';
+  html+='</div>';
   $('#content').innerHTML=html;
   _inDetail=true;
   _idView={s:0,e:240};
@@ -1889,6 +2098,7 @@ window.addEventListener('message',function(e){
   var msg=e.data;
   if(msg.type==='tabData'&&msg.tab===currentTab){
     _tabCache[msg.tab]=msg.data;
+    try{vscode.setState({tabCache:_tabCache});}catch(_){}
     renderTabData(msg.tab,msg.data);
   }else if(msg.type==='refreshTab'&&msg.tab==='watchlist'&&currentTab==='watchlist'&&!_inDetail){
     vscode.postMessage({type:'switchTab',tab:'watchlist'});
@@ -1913,12 +2123,13 @@ window.addEventListener('message',function(e){
     if(currentTab==='agent')renderAgentTab();
   }else if(msg.type==='settingsData'){
     _settingsData=msg.data;
-    if(msg.data){_agentModels=msg.data.aiModels||[];_activeModelId=msg.data.activeModelId||'';applySettingsColors(msg.data.config)}
-    if(currentTab==='settings')renderSettings(msg.data);
+    if(msg.data){_agentModels=msg.data.aiModels||[];_activeModelId=msg.data.activeModelId||'';applySettingsColors(msg.data.config);if(!noAgentModel())_noModelWarned=false;}
+    if(currentTab==='settings'&&!_settingsDirty)renderSettings(msg.data);
     if(currentTab==='agent')renderAgentTab();
   }else if(msg.type==='modelsUpdated'){
     _agentModels=msg.aiModels||[];
     _activeModelId=msg.activeModelId||'';
+    if(!noAgentModel())_noModelWarned=false;
     if(currentTab==='settings'&&_settingsData){
       _settingsData.aiModels=_agentModels;
       _settingsData.activeModelId=_activeModelId;
@@ -1939,6 +2150,17 @@ window.addEventListener('message',function(e){
     }
   }else if(msg.type==='quoteData'&&msg.code===_detailCode){
     updateDetailQuote(msg.data);
+  }else if(msg.type==='inWatchResult'&&msg.code){
+    var wbtn=document.getElementById('detailWatchBtn');
+    if(wbtn){
+      if(msg.inWatch){
+        wbtn.setAttribute('data-in','1');wbtn.textContent='删除自选';
+      }else{
+        wbtn.setAttribute('data-in','0');wbtn.textContent='添加自选';
+      }
+    }
+  }else if(msg.type==='stockSearchResult'){
+    showDetailSearchResults(msg.list||[]);
   }else if(msg.type==='setOpacity'){
     document.documentElement.style.setProperty('--panel-opacity',msg.opacity);
   }else if(msg.type==='setTheme'){
@@ -1949,5 +2171,13 @@ window.addEventListener('message',function(e){
     voiceOn=!!msg.on;renderTabs();
   }else if(msg.type==='switchToTab'){
     switchTab(msg.tab);
+  }else if(msg.type==='openDetail'&&msg.code){
+    if(currentTab!=='watchlist'){
+      currentTab='watchlist';renderTabs();
+      if(_refreshTimer){clearInterval(_refreshTimer);_refreshTimer=null}
+      _refreshTimer=setInterval(function(){if(!_inDetail)vscode.postMessage({type:'switchTab',tab:'watchlist'})},5000);
+    }
+    resetContentStyle();
+    openStockDetail(msg.code,msg.name||'');
   }
 });

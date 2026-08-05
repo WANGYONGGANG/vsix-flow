@@ -30,8 +30,12 @@ export async function sleep(ms: number): Promise<void> {
 
 export function isAStockHours(): boolean {
   const now = new Date();
-  const h = now.getUTCHours() + 8;
-  const m = now.getUTCMinutes();
+  // 转换为北京时间 (UTC+8)
+  const beijing = new Date(now.getTime() + 8 * 3600 * 1000);
+  const day = beijing.getUTCDay();
+  if (day === 0 || day === 6) return false; // 周末休市
+  const h = beijing.getUTCHours();
+  const m = beijing.getUTCMinutes();
   const time = h * 100 + m;
   return time >= 900 && time <= 1505;
 }

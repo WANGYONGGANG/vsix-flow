@@ -286,16 +286,16 @@
         "icon": "$(search)"
       },
       {
-        "command": "stock-ext.editorDisguise.toggle",
-        "title": "StockExt: 切换编辑器 Blame 伪装"
-      },
-      {
         "command": "stock-ext.toggleStatusBarIconVisibility",
         "title": "StockExt: 切换状态栏图标可见性"
       },
       {
         "command": "stock-ext.openStockDetail",
         "title": "股票详情"
+      },
+      {
+        "command": "stock-ext.openStatusBarDetail",
+        "title": "打开状态栏股票详情"
       }
     ],
     "keybindings": [
@@ -432,15 +432,10 @@
           },
           "description": "预警 Webhook"
         },
-        "stock-ext.editorDisguise.enabled": {
+        "stock-ext.hideStatusBarIcon": {
           "type": "boolean",
           "default": false,
-          "description": "编辑器 Blame 伪装"
-        },
-        "stock-ext.editorDisguise.stocks": {
-          "type": "array",
-          "default": [],
-          "description": "Blame 伪装显示的股票（不配置时回退使用持仓账本）"
+          "description": "是否隐藏状态栏图标"
         },
         "stock-ext.stockAgent.maxVisibleTurns": {
           "type": "number",

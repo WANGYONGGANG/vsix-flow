@@ -14,9 +14,8 @@ export const COMMANDS = {
   PROXY_STATUS: 'stock-ext.proxyStatus',
   TOGGLE_STATUS_BAR: 'stock-ext.toggleStatusBarVisibility',
   LOCATE_WATCHLIST: 'stock-ext.locateWatchlist',
-  EDITOR_DISGUISE_TOGGLE: 'stock-ext.editorDisguise.toggle',
-  EDITOR_DISGUISE_DISABLE: 'stock-ext.editorDisguise.disable',
   OPEN_STOCK_DETAIL: 'stock-ext.openStockDetail',
+  OPEN_STATUS_BAR_DETAIL: 'stock-ext.openStatusBarDetail',
   TOGGLE_STATUS_BAR_ICON: 'stock-ext.toggleStatusBarIconVisibility',
 } as const;
 

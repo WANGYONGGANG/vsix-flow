@@ -13,7 +13,7 @@ body{display:flex;flex-direction:column}
 .tab-bar{display:flex;gap:2px;padding:6px 8px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
 .tab-btn{padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;border:none;background:transparent;color:var(--fg);opacity:.6;white-space:nowrap;flex-shrink:0}
 .tab-btn.active{background:var(--up);color:#fff;opacity:1}
-.content{flex:1;overflow-y:auto;padding:10px}
+.content{flex:1;min-height:0;overflow-y:auto;padding:10px}
 .loading{padding:40px;text-align:center;opacity:.5;font-size:12px}
 .card{background:var(--card);border-radius:6px;padding:10px;margin-bottom:8px;font-size:12px}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -145,11 +145,66 @@ td:first-child,th:first-child{text-align:left}
 .stock-row{cursor:pointer}
 .stock-row:hover{background:var(--card)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.detail-ai{margin-top:10px;background:var(--card);border-radius:8px;padding:10px}
+.detail-ai-title{font-size:11px;opacity:.6;margin-bottom:6px;display:flex;align-items:center;gap:4px}
+.detail-ai-quick{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.detail-ai-quick button{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:10px;color:var(--fg);cursor:pointer;white-space:nowrap}
+.detail-ai-quick button:hover{border-color:var(--accent);color:var(--accent)}
+.detail-ai-input{display:flex;gap:6px}
+.detail-ai-input input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--fg);font-size:12px;outline:none}
+.detail-ai-input input:focus{border-color:var(--accent)}
+.detail-ai-input button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;white-space:nowrap}
+.settings-wrap{padding:12px 14px;max-width:none;width:100%}
+.settings-section{background:var(--card);border-radius:10px;padding:14px 16px;margin-bottom:14px;border:1px solid var(--border)}
+.settings-section-title{font-size:13px;font-weight:600;color:#fff;margin-bottom:10px;display:flex;align-items:center;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.settings-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0}
+.settings-row+.settings-row{border-top:1px solid var(--border)}
+.settings-label{font-size:12px;color:var(--fg);opacity:.9}
+.settings-hint{font-size:10px;opacity:.4;margin-top:2px}
+.settings-input{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--fg);font-size:12px;outline:none;transition:border-color .2s}
+.settings-input:focus{border-color:var(--accent)}
+.settings-select{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--fg);font-size:12px;outline:none;cursor:pointer;transition:border-color .2s;max-width:200px}
+.settings-select:focus,.settings-select:hover{border-color:var(--accent)}
+.settings-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:12px;white-space:nowrap;transition:opacity .2s}
+.settings-btn:hover{opacity:.85}
+.settings-btn-outline{background:transparent;border:1px solid var(--border);border-radius:6px;padding:5px 14px;color:var(--fg);cursor:pointer;font-size:12px;transition:border-color .2s}
+.settings-btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.settings-toggle{position:relative;width:36px;height:20px;background:var(--border);border-radius:10px;cursor:pointer;transition:background .2s;border:none}
+.settings-toggle.on{background:var(--accent)}
+.settings-toggle::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
+.settings-toggle.on::after{transform:translateX(16px)}
+.settings-color{width:36px;height:24px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:none;padding:0}
+.settings-range-wrap{display:flex;align-items:center;gap:8px}
+.settings-range{width:120px;cursor:pointer}
+.settings-range-val{font-size:11px;min-width:28px;text-align:right;opacity:.7}
+.settings-model-row{display:flex;align-items:center;gap:8px;padding:7px 0;font-size:12px}
+.settings-model-row+.settings-model-row{border-top:1px solid var(--border)}
+.settings-model-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-model-del{background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;padding:2px 8px}
+.settings-add-btn{background:transparent;border:1px dashed var(--border);border-radius:6px;padding:6px;cursor:pointer;font-size:12px;width:100%;color:var(--fg);transition:border-color .2s}
+.settings-add-btn:hover{border-color:var(--accent);color:var(--accent)}
+.settings-form{background:var(--bg);border-radius:8px;padding:12px;margin-top:8px;border:1px solid var(--border)}
+.settings-form-row{margin-bottom:6px}
+.settings-form input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--fg);font-size:12px;outline:none}
+.settings-form input:focus{border-color:var(--accent)}
+.settings-form-btns{display:flex;gap:8px;margin-top:8px}
+.detail-search{position:fixed;bottom:12px;right:12px;width:240px;z-index:50}
+.detail-search-input{display:flex;gap:4px}
+.detail-search-input input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--fg);font-size:12px;outline:none}
+.detail-search-input input:focus{border-color:var(--accent)}
+.detail-search-input button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px}
+.detail-search-results{position:absolute;bottom:100%;left:0;right:0;background:#1b1f26;border:1px solid var(--border);border-radius:6px;max-height:200px;overflow-y:auto;margin-bottom:4px;display:none}
+.detail-search-results.show{display:block}
+.detail-search-item{padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between;align-items:center}
+.detail-search-item:last-child{border-bottom:none}
+.detail-search-item:hover{background:#2a2f3a}
+.detail-search-item .ds-name{color:#ddd}
+.detail-search-item .ds-code{font-size:10px;opacity:.5}
 </style>
 </head>
 <body>
 <div class="tab-bar" id="tabBar"></div>
-<div class="content" id="content"><div class="loading">loading...</div></div>
+<div class="content" id="content"><div class="loading">加载中...</div></div>
 <script src="${scriptUri}"></script>
 </body>
 </html>`;
