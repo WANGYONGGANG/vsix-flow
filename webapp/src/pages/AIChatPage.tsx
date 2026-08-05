@@ -7,7 +7,7 @@ import { useSettings } from '../store/useSettings';
 import { useRouter } from '../router/useRouter';
 import { api } from '../api/client';
 import { AIChatMessage } from '../../local-shared/types';
-import { fmtYi, upSign, mapEmDiffToStockItem, escapeHtml } from '../../local-shared/utils';
+import { escapeHtml } from '../../local-shared/utils';
 
 const STORAGE_KEY = 'stockext.ai.history.v1';
 
@@ -25,7 +25,7 @@ function saveHistory(list: any[]) {
 type Session = { id: string; messages: AIChatMessage[]; title: string };
 
 export default function AIChatPage() {
-  const { settings, activeAIModel, addWatch, getWatchCodes } = useSettings();
+  const { settings, activeAIModel } = useSettings();
   const { navigate } = useRouter();
   const [sessions, setSessions] = useState<Session[]>(() => loadHistory());
   const [sid, setSid] = useState<string>(() => {
@@ -119,59 +119,9 @@ export default function AIChatPage() {
     setSid(id);
   }
 
-  // ========= 快捷 Chips：注入自选/行情/快讯 给 AI =========
-  async function chipInjectWatchlist() {
-    const codes = getWatchCodes();
-    if (!codes.length) { setInput('我的自选股有哪些？'); return; }
-    const r = await api.quote(codes);
-    const diff = r?.data?.diff || [];
-    const lines = diff.map((d: any) => {
-      const s = mapEmDiffToStockItem(d);
-      return `- ${s.name}(${s.code})：${s.price} ${upSign(s.changeRate)}${s.changeRate.toFixed(2)}%`;
-    }).join('\n');
-    setInput(
-      `这是我当前的自选股行情（${new Date().toLocaleTimeString('zh-CN', { hour12: false })}）：\n${lines}\n\n请给出点评与近期关注点。`
-    );
-    setTimeout(scrollToBottom, 0);
-  }
-
-  async function chipInjectFlashnews() {
-    const r = await api.emNews(1, 10);
-    const list = r?.data?.list || [];
-    const lines = list.slice(0, 10).map((n: any, i: number) => `${i + 1}. [${n.showtime || n.time || ''}] ${n.title || ''}`).join('\n');
-    setInput(`最近 10 条市场快讯：\n${lines}\n\n请提炼关键信息，帮我解读今日市场情绪。`);
-  }
-
-  async function chipInjectSectors() {
-    const [hy, gn] = await Promise.all([api.sinaBkzj(0), api.sinaBkzj(1)]);
-    const list = [
-      ...((hy?.data?.list || []).slice(0, 3)),
-      ...((gn?.data?.list || []).slice(0, 3)),
-    ].sort((a: any, b: any) => Number(b.netamount) - Number(a.netamount));
-    const lines = list.slice(0, 6).map((x: any) =>
-      `- ${x.name}：净流入 ${fmtYi(x.netamount)}，领涨 ${x.ts_name || ''} ${upSign(Number(x.ts_changeratio) * 100)}${(Number(x.ts_changeratio) * 100).toFixed(2)}%`
-    ).join('\n');
-    setInput(`今日板块资金流入 TOP：\n${lines}\n\n解读一下盘面主线。`);
-  }
-
-  // 深度分析自选股：注入 K 线历史（受 aiStockHistoryRange 控制）
-  async function chipInjectDeepAnalysis() {
-    const codes = getWatchCodes();
-    if (!codes.length) { setInput('我的自选股有哪些？'); return; }
-    const range = settings.aiStockHistoryRange ?? '3m';
-    const lmt = range === '1w' ? 5 : range === '1m' ? 22 : range === '3m' ? 66 : range === '6m' ? 132 : 250;
-    const top = codes.slice(0, 3);
-    const parts: string[] = [];
-    for (const code of top) {
-      try {
-        const r = await api.kline(code, 'day', lmt, 'qfq');
-        const kls = r?.data?.klines || [];
-        if (!kls.length) continue;
-        const last = kls[kls.length - 1].split(',');
-        parts.push(`- ${code}：最新 ${last[2]}，近 ${kls.length} 日 ${(Number(last[2]) >= Number(kls[0].split(',')[2]) ? '+' : '')}${((Number(last[2]) / Number(kls[0].split(',')[2]) - 1) * 100).toFixed(2)}%`);
-      } catch { /* skip */ }
-    }
-    setInput(`自选股近 ${range} 走势摘要：\n${parts.join('\n')}\n\n请做深度技术面分析，给出支撑/压力位和趋势判断。`);
+  // ========= 快捷 Chips：预设问题直接填入输入框 =========
+  function fillPrompt(text: string) {
+    setInput(text);
     setTimeout(scrollToBottom, 0);
   }
 
@@ -208,12 +158,12 @@ export default function AIChatPage() {
           <div className="ai-welcome">
             <div className="ai-welcome-logo">✨</div>
             <div className="ai-welcome-title">你好，我是 StockAI</div>
-            <div className="ai-welcome-sub">A 股行情分析助手，可注入自选/快讯/板块</div>
+            <div className="ai-welcome-sub">A 股行情分析助手，可解答选股、概念、走势等问题</div>
             <div className="ai-welcome-tips">
-              <div className="ai-tip" onClick={chipInjectWatchlist}>📊 自选股点评</div>
-              <div className="ai-tip" onClick={chipInjectFlashnews}>⚡ 最新快讯解读</div>
-              <div className="ai-tip" onClick={chipInjectSectors}>🔥 板块热点解读</div>
-              <div className="ai-tip" onClick={chipInjectDeepAnalysis}>📈 深度技术分析</div>
+              <div className="ai-tip" onClick={() => fillPrompt('结合当前市场环境，给我一份稳健的选股策略和重点关注方向。')}>🎯 选股策略</div>
+              <div className="ai-tip" onClick={() => fillPrompt('用通俗的语言解释 A 股常用术语：换手率、市盈率、主力资金、龙虎榜。')}>📚 概念科普</div>
+              <div className="ai-tip" onClick={() => fillPrompt('根据今日盘面特征，预判明日大盘走势和需要关注的关键信号。')}>🔮 明日预判</div>
+              <div className="ai-tip" onClick={() => fillPrompt('如何判断我的持仓是否健康？给出诊断维度和优化建议。')}>💼 持仓诊断</div>
             </div>
           </div>
         )}
@@ -227,10 +177,10 @@ export default function AIChatPage() {
 
       {/* AI 快捷 Chips */}
       <div className="ai-tools-row">
-        <button className="ai-chip" onClick={chipInjectWatchlist}>📊 自选点评</button>
-        <button className="ai-chip" onClick={chipInjectFlashnews}>⚡ 快讯解读</button>
-        <button className="ai-chip" onClick={chipInjectSectors}>🔥 板块热点</button>
-        <button className="ai-chip" onClick={chipInjectDeepAnalysis}>📈 深度分析</button>
+        <button className="ai-chip" onClick={() => fillPrompt('结合当前市场环境，给我一份稳健的选股策略和重点关注方向。')}>🎯 选股策略</button>
+        <button className="ai-chip" onClick={() => fillPrompt('用通俗的语言解释 A 股常用术语：换手率、市盈率、主力资金、龙虎榜。')}>📚 概念科普</button>
+        <button className="ai-chip" onClick={() => fillPrompt('根据今日盘面特征，预判明日大盘走势和需要关注的关键信号。')}>🔮 明日预判</button>
+        <button className="ai-chip" onClick={() => fillPrompt('如何判断我的持仓是否健康？给出诊断维度和优化建议。')}>💼 持仓诊断</button>
       </div>
 
       {/* 输入栏 */}

@@ -38,14 +38,10 @@ export interface AppSettings {
   stocksRemind: Record<string, any>;
   remindSwitch: number;
   opacity: number;
-  hideStatusBar: boolean;
-  hideStatusBarIcon: boolean;
   hideSidebarIcon?: boolean;
   hideActivityIcon?: boolean;
   // ===== 扩展适配 - WebApp 专属 =====
   theme: 'dark' | 'light' | 'system';
-  statusBarStock: boolean;   // 迷你行情条是否显示自选股
-  tickerMs: number;          // 迷你行情条轮询周期（ms）
   watchlist?: WatchEntry[];  // 兼容用（股票搜索/自选显示，与 stockPortfolio 同步）
   // ===== 从扩展补齐 =====
   webhook?: WebhookSettings;          // 预警 Webhook 推送（企业微信/钉钉/飞书）

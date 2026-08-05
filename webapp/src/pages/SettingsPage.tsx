@@ -48,21 +48,6 @@ export default function SettingsPage() {
           </div>
         </div>
         <div className="form-item">
-          <div className="lbl">迷你行情条·显示自选股</div>
-          <div className="val flex jcsb items-center">
-            <div className={'switch' + (settings.statusBarStock ? ' on' : '')}
-              onClick={() => update({ statusBarStock: !settings.statusBarStock })} />
-          </div>
-        </div>
-        <div className="form-item">
-          <div className="lbl">迷你行情条·轮询(秒)</div>
-          <div className="val">
-            <input type="number" min={3} max={120}
-              value={Math.round((settings.tickerMs ?? 5000) / 1000)}
-              onChange={(e) => update({ tickerMs: Math.max(3000, Number(e.target.value || 5) * 1000) })} />
-          </div>
-        </div>
-        <div className="form-item">
           <div className="lbl">上涨颜色</div>
           <div className="val">
             <div className="flex items-center gap-2">
@@ -145,20 +130,6 @@ export default function SettingsPage() {
                 style={{ flex: 1 }} />
               <span style={{ fontSize: 13, opacity: .7, minWidth: 36, textAlign: 'right' }}>{((settings as any).opacity ?? 1).toFixed(1)}</span>
             </div>
-          </div>
-        </div>
-        <div className="form-item">
-          <div className="lbl">隐藏状态栏</div>
-          <div className="val flex jcsb items-center">
-            <div className={'switch' + ((settings as any).hideStatusBar ? ' on' : '')}
-              onClick={() => update({ hideStatusBar: !(settings as any).hideStatusBar } as any)} />
-          </div>
-        </div>
-        <div className="form-item">
-          <div className="lbl">隐藏状态栏图标</div>
-          <div className="val flex jcsb items-center">
-            <div className={'switch' + ((settings as any).hideStatusBarIcon ? ' on' : '')}
-              onClick={() => update({ hideStatusBarIcon: !(settings as any).hideStatusBarIcon } as any)} />
           </div>
         </div>
 
