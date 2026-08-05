@@ -23,8 +23,6 @@
   "activationEvents": [
     "onStartupFinished",
     "onView:stockExtView.home",
-    "onView:stockExtView.agent",
-    "onCommand:stock-ext.openStockAgent",
     "onCommand:stock-ext.toggleStatusBarIconVisibility",
     "onCommand:stock-ext.locateWatchlist"
   ],
@@ -219,29 +217,28 @@
           "id": "stockExtNewsPanel",
           "title": "StockExt News",
           "icon": "resources/icon.svg"
-        }
-      ],
-      "secondarySidebar": [
+        },
         {
-          "id": "stockExtAgent",
-          "title": "StockAgent",
+          "id": "stockExtReportPanel",
+          "title": "StockExt Report",
           "icon": "resources/icon.svg"
         }
-      ]
+      ],
+      "secondarySidebar": []
     },
     "views": {
-      "stockExtAgent": [
-        {
-          "id": "stockExtView.agent",
-          "type": "webview",
-          "name": "StockAgent"
-        }
-      ],
       "stockExtNewsPanel": [
         {
           "id": "stockExtView.news",
           "type": "webview",
           "name": "StockExt News"
+        }
+      ],
+      "stockExtReportPanel": [
+        {
+          "id": "stockExtView.report",
+          "type": "webview",
+          "name": "选股报告"
         }
       ],
       "stockExtMenu": [
@@ -254,19 +251,9 @@
     },
     "commands": [
       {
-        "command": "stock-ext.openSettings",
-        "title": "StockExt: 设置",
-        "icon": "$(settings-gear)"
-      },
-      {
         "command": "stock-ext.openStockCenter",
         "title": "StockExt: 行情中心",
         "icon": "$(home)"
-      },
-      {
-        "command": "stock-ext.openStockAgent",
-        "title": "StockExt: 打开 StockAgent",
-        "icon": "$(sparkle)"
       },
       {
         "command": "stock-ext.openSectorBoards",
@@ -341,9 +328,6 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "stock-ext.openSettings"
-        },
-        {
           "command": "stock-ext.locateWatchlist"
         },
         {
@@ -397,7 +381,7 @@
         },
         "stock-ext.pollOnlyDuringAStockHours": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "A股闭市期间停止轮询"
         },
         "stock-ext.riseColor": {
@@ -453,6 +437,11 @@
           "default": false,
           "description": "编辑器 Blame 伪装"
         },
+        "stock-ext.editorDisguise.stocks": {
+          "type": "array",
+          "default": [],
+          "description": "Blame 伪装显示的股票（不配置时回退使用持仓账本）"
+        },
         "stock-ext.stockAgent.maxVisibleTurns": {
           "type": "number",
           "default": 30,
@@ -476,6 +465,13 @@
           "minimum": 0.1,
           "maximum": 1,
           "description": "面板透明度 (0.1-1)"
+        },
+        "stock-ext.theme": {
+          "type": "string",
+          "default": "classic",
+          "enum": ["classic", "dark", "light", "system"],
+          "enumDescriptions": ["经典主题", "黑色主题", "白色主题", "跟随系统"],
+          "description": "界面主题"
         },
         "stock-ext.voiceBroadcast": {
           "type": "boolean",

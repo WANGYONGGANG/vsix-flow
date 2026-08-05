@@ -15,19 +15,11 @@ function proxyGet(path: string): Promise<any> {
   });
 }
 
-function getNonce(): string {
-  let t = '';
-  const p = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 64; i++) t += p.charAt(Math.floor(Math.random() * p.length));
-  return t;
-}
-
-function getNewsHtml(cspSource: string): string {
-  const nonce = getNonce();
+function getNewsHtml(cspSource: string, scriptUri: string): string {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src https: data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src ${cspSource} 'unsafe-inline'; img-src https: data:;">
 <title>StockExt News</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -47,17 +39,9 @@ body{display:flex;flex-direction:column}
 </style>
 </head>
 <body>
-<div class="header"><h1>实时快讯</h1><button onclick="refresh()">刷新</button></div>
+<div class="header"><h1>实时快讯</h1><button id="refreshBtn">刷新</button></div>
 <div class="news-list" id="newsList"><div class="loading">加载中...</div></div>
-<script nonce="${nonce}">
-const vscode=acquireVsCodeApi();
-function refresh(){vscode.postMessage({type:'refresh'})}
-function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
-function fmtTime(t){return String(t).slice(5,16)}
-function render(items){var el=document.getElementById('newsList');if(!items||!items.length){el.innerHTML='<div class="loading">暂无新闻</div>';return}el.innerHTML=items.slice(0,100).map(function(n){return '<div class="news-item" onclick="vscode.postMessage({type:\'openUrl\',url:\''+esc(n.url||'')+'\'})"><div class="time">'+fmtTime(n.time)+'</div><div class="title">'+esc(n.title)+'</div></div>'}).join('')}
-window.addEventListener('message',function(e){var msg=e.data;if(msg.type==='news')render(msg.items);else if(msg.type==='setOpacity')document.documentElement.style.setProperty('--panel-opacity',msg.opacity)});
-vscode.postMessage({type:'ready'});
-</script>
+<script src="${scriptUri}"></script>
 </body></html>`;
 }
 
@@ -65,10 +49,13 @@ export class NewsPanelViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'stockExtView.news';
   private _view?: vscode.WebviewView;
 
+  constructor(private readonly _extensionUri: vscode.Uri) {}
+
   resolveWebviewView(webviewView: vscode.WebviewView) {
     this._view = webviewView;
-    webviewView.webview.options = { enableScripts: true };
-    webviewView.webview.html = getNewsHtml(webviewView.webview.cspSource);
+    webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
+    const scriptUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'newsPanel.js'));
+    webviewView.webview.html = getNewsHtml(webviewView.webview.cspSource, scriptUri.toString());
     const opacity = vscode.workspace.getConfiguration('stock-ext').get<number>('opacity') || 1;
     webviewView.webview.postMessage({ type: 'setOpacity', opacity });
 

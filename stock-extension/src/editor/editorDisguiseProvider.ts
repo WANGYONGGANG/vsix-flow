@@ -17,8 +17,10 @@ export class EditorDisguiseProvider implements vscode.CodeLensProvider, vscode.D
           this._enabled = vscode.workspace.getConfiguration('stock-ext').get<boolean>('editorDisguise.enabled') || false;
           if (!this._enabled) {
             this._heldStocks = [];
+            this._onDidChangeCodeLenses.fire();
+          } else {
+            this.refresh();
           }
-          this._onDidChangeCodeLenses.fire();
         }
       })
     );

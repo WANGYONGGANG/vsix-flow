@@ -15,8 +15,14 @@ export interface HeldStockDisplay {
 
 export async function getHeldStocks(): Promise<HeldStockDisplay[]> {
   const config = vscode.workspace.getConfiguration('stock-ext');
+  const disguiseStocks: string[] = config.get('editorDisguise.stocks') || [];
   const ledger: Record<string, { cost: number; amount: number }> = config.get('holdingsLedger') || {};
-  const codes = Object.keys(ledger);
+  let codes: string[] = [];
+  if (disguiseStocks.length) {
+    codes = disguiseStocks;
+  } else {
+    codes = Object.keys(ledger);
+  }
   if (!codes.length) return [];
 
   const quotes = await fetchStockQuotes(codes);

@@ -1,14 +1,12 @@
 export const EXTENSION_ID = 'stock-ext';
 export const VIEWS = {
   HOME: 'stockExtView.home',
-  AGENT: 'stockExtView.agent',
   NEWS: 'stockExtView.news',
+  REPORT: 'stockExtView.report',
 } as const;
 
 export const COMMANDS = {
-  OPEN_SETTINGS: 'stock-ext.openSettings',
   OPEN_STOCK_CENTER: 'stock-ext.openStockCenter',
-  OPEN_STOCK_AGENT: 'stock-ext.openStockAgent',
   OPEN_SECTOR_BOARDS: 'stock-ext.openSectorBoards',
   OPEN_HOLDINGS_CENTER: 'stock-ext.openHoldingsCenter',
   START_PROXY: 'stock-ext.startProxy',

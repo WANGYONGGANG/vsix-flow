@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as http from 'http';
 import { getStockCenterHtml } from './stockCenterHtml';
 import { getProxyPort } from '../shared/proxyPort';
+import { StockReportViewProvider } from './stockReportProvider';
 
 function proxyGet(path: string, timeoutMs = 10000): Promise<any> {
   return new Promise((resolve) => {
@@ -19,8 +20,20 @@ function proxyGet(path: string, timeoutMs = 10000): Promise<any> {
 export class StockCenterViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'stockExtView.home';
   private _view?: vscode.WebviewView;
+  private _reportPanel?: StockReportViewProvider;
 
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+    private readonly _output?: vscode.OutputChannel
+  ) {}
+
+  setReportPanel(panel: StockReportViewProvider) {
+    this._reportPanel = panel;
+  }
+
+  private log(msg: string) {
+    if (this._output) { this._output.appendLine(msg); } else { console.log(msg); }
+  }
 
   resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -29,27 +42,40 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
   ) {
     this._view = webviewView;
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
-    webviewView.webview.html = getStockCenterHtml(webviewView.webview.cspSource);
+    const scriptUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'centerView.js'));
+    const html = getStockCenterHtml(webviewView.webview.cspSource, scriptUri.toString());
+    this.log(`[resolve] html length=${html.length}`);
+    webviewView.webview.html = html;
 
     const opacity = vscode.workspace.getConfiguration('stock-ext').get<number>('opacity') || 1;
     webviewView.webview.postMessage({ type: 'setOpacity', opacity });
     const voiceBroadcast = vscode.workspace.getConfiguration('stock-ext').get<boolean>('voiceBroadcast') || false;
     webviewView.webview.postMessage({ type: 'setVoice', on: voiceBroadcast });
+    const theme = vscode.workspace.getConfiguration('stock-ext').get<string>('theme') || 'classic';
+    webviewView.webview.postMessage({ type: 'setTheme', theme });
+    this.updateColors();
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
-      console.log(`[StockExt] webview msg: ${JSON.stringify(msg)}`);
-      if (msg.type === 'switchTab') {
+      this.log(`[webview msg] ${JSON.stringify(msg)?.slice(0, 300)}`);
+      if (msg.type === '__ready') {
+        this.log('[WEBVIEW] script loaded OK');
+      } else if (msg.type === '__error') {
+        this.log(`[WEBVIEW ERROR] ${msg.message} at line ${msg.line}`);
+      } else if (msg.type === 'switchTab') {
         const data = await this.fetchTabData(msg.tab);
-        console.log(`[StockExt] tabData ${msg.tab}: ${JSON.stringify(data)?.slice(0, 200)}`);
+        this.log(`[tabData ${msg.tab}] keys=${data ? Object.keys(data).join(',') : 'null'}`);
         webviewView.webview.postMessage({ type: 'tabData', tab: msg.tab, data });
       } else if (msg.type === 'openUrl' && msg.url) {
         vscode.env.openExternal(vscode.Uri.parse(msg.url));
-      } else if (msg.type === 'addWatch') {
-        const code = await vscode.window.showInputBox({ prompt: '输入股票代码 (如 600519 或 sh000001)', placeHolder: '600519' });
-        if (code) {
-          await this.addWatch(code.trim());
-          webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
-        }
+      } else if (msg.type === 'addWatch' && msg.code) {
+        await this.addWatch(msg.code);
+        webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
+      } else if (msg.type === 'isInWatch' && msg.code) {
+        const inWatch = await this.isInWatch(String(msg.code));
+        webviewView.webview.postMessage({ type: 'inWatchResult', code: String(msg.code), inWatch });
+      } else if (msg.type === 'stockSearch' && msg.kw) {
+        const r = await proxyGet(`/api/search?kw=${encodeURIComponent(String(msg.kw))}`);
+        webviewView.webview.postMessage({ type: 'stockSearchResult', list: r?.data?.list || [] });
       } else if (msg.type === 'delWatch' && msg.code) {
         await this.delWatch(msg.code);
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
@@ -92,10 +118,16 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
       } else if (msg.type === 'reorderWatch' && Array.isArray(msg.codes)) {
         await this.reorderWatch(msg.codes);
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
+      } else if (msg.type === 'toggleStatusBarStock' && msg.code) {
+        await this.toggleStatusBarStock(String(msg.code));
+        webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
+      } else if (msg.type === 'toggleDisguiseStock' && msg.code) {
+        await this.toggleDisguiseStock(String(msg.code));
+        webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
       } else if (msg.type === 'setConfig' && msg.key) {
         const config = vscode.workspace.getConfiguration('stock-ext');
         await config.update(msg.key, msg.val, vscode.ConfigurationTarget.Global);
-        const keys = ['interval', 'pollOnlyDuringAStockHours', 'riseColor', 'fallColor', 'hideStatusBar', 'hideStatusBarIcon', 'opacity', 'voiceBroadcast'];
+        const keys = ['interval', 'pollOnlyDuringAStockHours', 'riseColor', 'fallColor', 'hideStatusBar', 'hideStatusBarIcon', 'opacity', 'voiceBroadcast', 'theme', 'statusBarStock'];
         const configValues: Record<string, any> = {};
         keys.forEach(k => { configValues[k] = config.get(k); });
         const aiModels = config.get<any[]>('aiModels') || [];
@@ -103,6 +135,8 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ type: 'settingsData', data: { config: configValues, aiModels, activeModelId } });
         if (msg.key === 'opacity') this.updateOpacity(Number(msg.val));
         if (msg.key === 'voiceBroadcast') this.updateVoice(!!msg.val);
+        if (msg.key === 'theme') this.updateTheme(String(msg.val));
+        if (msg.key === 'riseColor' || msg.key === 'fallColor') this.updateColors();
       } else if (msg.type === 'addModel' && msg.model) {
         const config = vscode.workspace.getConfiguration('stock-ext');
         const models = config.get<any[]>('aiModels') || [];
@@ -122,6 +156,13 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         await config.update('activeAIModelId', msg.id || '', vscode.ConfigurationTarget.Global);
       } else if (msg.type === 'openModelConfig') {
         webviewView.webview.postMessage({ type: 'switchToTab', tab: 'settings' });
+      } else if (msg.type === 'openReport') {
+        try {
+          await vscode.commands.executeCommand(`${StockReportViewProvider.viewType}.focus`);
+        } catch (err: any) {
+          this.log(`[openReport] focus failed: ${err?.message || err}`);
+        }
+        this._reportPanel?.refresh();
       } else if (msg.type === 'agentChat' && msg.text) {
         try {
           const lm = vscode.lm as any;
@@ -199,7 +240,7 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         const portfolio: any = cfg.get('stockPortfolio') || {};
         const groups: { codes?: string[] }[] = portfolio.groups && portfolio.groups.length ? portfolio.groups : [{ codes: ['sh000001', 'sh601899'] }];
         const codes = groups.flatMap((g) => g.codes || []);
-        if (!codes.length) return { indices: [] };
+        if (!codes.length) return { indices: [], statusBarCodes: [] };
         const indices = (await proxyGet(`/api/quote?codes=${codes.join(',')}`))?.data?.diff || [];
         const alerts: any = {};
         try {
@@ -216,11 +257,11 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
             alerts[key].push({ t, label, isUp, info: a.i || '' });
           }
         } catch {}
-        return { indices, alerts };
+        return { indices, alerts, statusBarCodes: cfg.get<string[]>('statusBarStock') || [], disguiseCodes: cfg.get<string[]>('editorDisguise.stocks') || [] };
       }
       case 'settings': {
         const config = vscode.workspace.getConfiguration('stock-ext');
-        const keys = ['interval', 'pollOnlyDuringAStockHours', 'riseColor', 'fallColor', 'hideStatusBar', 'hideStatusBarIcon', 'opacity', 'voiceBroadcast'];
+        const keys = ['interval', 'pollOnlyDuringAStockHours', 'riseColor', 'fallColor', 'hideStatusBar', 'hideStatusBarIcon', 'opacity', 'voiceBroadcast', 'theme'];
         const configValues: Record<string, any> = {};
         keys.forEach(k => { configValues[k] = config.get(k); });
         const aiModels = config.get<any[]>('aiModels') || [];
@@ -232,14 +273,31 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private normCode(code: string): string {
+    const c = String(code || '').trim().toLowerCase().replace(/^(sh|sz|bj)/, '');
+    if (/^(60|68|90|11|13|50|56|51|58)/.test(c)) return `sh${c}`;
+    if (/^(00|30|20|12|15|16|18|159)/.test(c)) return `sz${c}`;
+    if (/^(43|83|87|92|88)/.test(c)) return `bj${c}`;
+    return `sh${c}`;
+  }
+
   private async addWatch(code: string): Promise<void> {
     const config = vscode.workspace.getConfiguration('stock-ext');
     const portfolio: any = config.get('stockPortfolio') || {};
     const groups = portfolio.groups && portfolio.groups.length ? portfolio.groups : [{ name: '默认分组', codes: ['sh000001', 'sh601899'] }];
-    if (groups[0].codes.indexOf(code) === -1) {
-      groups[0].codes.push(code);
+    const norm = this.normCode(code);
+    if (groups[0].codes.map((c: string) => this.normCode(c)).indexOf(norm) === -1) {
+      groups[0].codes.push(code.trim());
       await config.update('stockPortfolio', { ...portfolio, groups }, vscode.ConfigurationTarget.Global);
     }
+  }
+
+  private async isInWatch(code: string): Promise<boolean> {
+    const config = vscode.workspace.getConfiguration('stock-ext');
+    const portfolio: any = config.get('stockPortfolio') || {};
+    const groups = portfolio.groups && portfolio.groups.length ? portfolio.groups : [];
+    const norm = this.normCode(code);
+    return groups.some((g: any) => (g.codes || []).some((c: string) => this.normCode(c) === norm));
   }
 
   private async delWatch(code: string): Promise<void> {
@@ -248,8 +306,9 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     const groups = portfolio.groups && portfolio.groups.length
       ? portfolio.groups
       : [{ name: '默认分组', codes: ['sh000001', 'sh601899'] }];
+    const norm = this.normCode(code);
     for (const g of groups) {
-      g.codes = g.codes.filter((c: string) => c !== code);
+      g.codes = g.codes.filter((c: string) => this.normCode(c) !== norm);
     }
     await config.update('stockPortfolio', { ...portfolio, groups }, vscode.ConfigurationTarget.Global);
   }
@@ -284,11 +343,49 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     await config.update('stockPortfolio', { ...portfolio, groups }, vscode.ConfigurationTarget.Global);
   }
 
+  private async toggleStatusBarStock(code: string): Promise<void> {
+    const config = vscode.workspace.getConfiguration('stock-ext');
+    const list: string[] = config.get('statusBarStock') || ['sh000001'];
+    const idx = list.indexOf(code);
+    if (idx >= 0) {
+      list.splice(idx, 1);
+    } else {
+      list.push(code);
+    }
+    if (!list.length) list.push('sh000001');
+    await config.update('statusBarStock', list, vscode.ConfigurationTarget.Global);
+  }
+
+  private async toggleDisguiseStock(code: string): Promise<void> {
+    const config = vscode.workspace.getConfiguration('stock-ext');
+    const list: string[] = config.get('editorDisguise.stocks') || [];
+    const idx = list.indexOf(code);
+    if (idx >= 0) {
+      list.splice(idx, 1);
+    } else {
+      list.push(code);
+    }
+    await config.update('editorDisguise.stocks', list, vscode.ConfigurationTarget.Global);
+  }
+
   updateOpacity(opacity: number) {
     this._view?.webview.postMessage({ type: 'setOpacity', opacity });
   }
 
   updateVoice(on: boolean) {
     this._view?.webview.postMessage({ type: 'setVoice', on });
+  }
+
+  updateTheme(theme: string) {
+    this._view?.webview.postMessage({ type: 'setTheme', theme });
+  }
+
+  updateColors(riseColor?: string, fallColor?: string) {
+    const config = vscode.workspace.getConfiguration('stock-ext');
+    this._view?.webview.postMessage({
+      type: 'setColors',
+      riseColor: riseColor ?? config.get<string>('riseColor') ?? '',
+      fallColor: fallColor ?? config.get<string>('fallColor') ?? '',
+    });
   }
 }

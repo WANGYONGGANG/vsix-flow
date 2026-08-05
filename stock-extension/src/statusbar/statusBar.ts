@@ -15,6 +15,12 @@ export class StatusBarManager {
     this._disposable = this._statusBarItem;
     this.loadConfig();
     this.start();
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('stock-ext.statusBarStock')) {
+        this._codes = vscode.workspace.getConfiguration('stock-ext').get<string[]>('statusBarStock') || ['sh000001'];
+        this.update();
+      }
+    });
   }
 
   private loadConfig() {
@@ -63,6 +69,14 @@ export class StatusBarManager {
     const current = config.get<boolean>('hideStatusBar') || false;
     config.update('hideStatusBar', !current, vscode.ConfigurationTarget.Global);
     if (!current) {
+      this._statusBarItem.hide();
+    } else {
+      this._statusBarItem.show();
+    }
+  }
+
+  setHidden(hidden: boolean) {
+    if (hidden) {
       this._statusBarItem.hide();
     } else {
       this._statusBarItem.show();

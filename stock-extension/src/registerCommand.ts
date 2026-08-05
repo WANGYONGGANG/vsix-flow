@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { COMMANDS } from './shared/constant';
 import { StatusBarManager } from './statusbar/statusBar';
 import { ProxyService } from './webview/proxyService';
-import { SettingsViewProvider } from './webview/settingsView';
 import { EditorDisguiseProvider } from './editor/editorDisguiseProvider';
 
 export function registerCommands(
@@ -12,7 +11,6 @@ export function registerCommands(
   editorDisguise?: EditorDisguiseProvider,
 ) {
   context.subscriptions.push(
-    vscode.commands.registerCommand(COMMANDS.OPEN_SETTINGS, () => SettingsViewProvider.open(context)),
     vscode.commands.registerCommand(COMMANDS.OPEN_STOCK_CENTER, () => {
       vscode.commands.executeCommand('workbench.view.extension.stockExtMenu');
     }),
@@ -21,9 +19,6 @@ export function registerCommands(
     }),
     vscode.commands.registerCommand(COMMANDS.OPEN_HOLDINGS_CENTER, () => {
       vscode.window.showInformationMessage('资产管理功能即将上线');
-    }),
-    vscode.commands.registerCommand(COMMANDS.OPEN_STOCK_AGENT, () => {
-      vscode.commands.executeCommand('workbench.view.extension.stockExtAgent');
     }),
 
     vscode.commands.registerCommand(COMMANDS.START_PROXY, async () => {

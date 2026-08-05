@@ -407,6 +407,20 @@ export class ProxyService {
         return;
       }
 
+      if (targetUrl.startsWith('/api/search')) {
+        const kw = String(parsed.query.kw || '').trim();
+        if (!kw) { this.json(res, 200, { data: { list: [] } }); return; }
+        const sug = await httpsGetText(`https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=14&token=D43BF722C8E33BDC906FB84D85E326E8&count=10`, 'https://quote.eastmoney.com/', 'utf8');
+        let sugJson: any = null;
+        try { sugJson = JSON.parse(sug); } catch {}
+        const raw = sugJson?.QuotationCodeTable?.Data || [];
+        const list = raw
+          .filter((x: any) => x.SecurityTypeName === '沪A' || x.SecurityTypeName === '深A' || x.SecurityTypeName === '京A' || x.SecurityTypeName === '北A' || x.SecurityTypeName === '沪深A股')
+          .map((x: any) => ({ code: String(x.Code || ''), name: x.Name || '', marketType: x.MarketType }));
+        this.json(res, 200, { data: { list } });
+        return;
+      }
+
       if (targetUrl.startsWith('/api/em-news')) {
         const page = parsed.query.page || 1;
         const pageSize = parsed.query.pageSize || 50;
@@ -521,6 +535,76 @@ export class ProxyService {
           const list = JSON.parse(txt);
           this.json(res, 200, { data: { list } });
         } catch { this.json(res, 200, { data: { list: [] } }); }
+        return;
+      }
+
+      // 全市场主力净流入排行（选股报告用）- clist fid=f62, pz 默认100
+      if (targetUrl.startsWith('/api/stock-flow-rank')) {
+        const pz = (parsed.query.pz as string) || '100';
+        const fid = (parsed.query.fid as string) || 'f62';
+        const fs = (parsed.query.fs as string) || 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048';
+        const fields = 'f12,f14,f2,f3,f6,f9,f20,f23,f8,f62,f66,f72,f100,f124';
+        const r = await httpGetJson(`https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=${fid}&fs=${encodeURIComponent(fs)}&fields=${fields}`, 'https://quote.eastmoney.com/center/gridlist.html');
+        const diff = r?.data?.diff || [];
+        this.json(res, 200, { data: { diff, total: r?.data?.total } });
+        return;
+      }
+
+      // 板块资金流排行（选股报告用）- t=2行业 / t=3概念, 含涨跌家数与领涨股
+      if (targetUrl.startsWith('/api/sector-flow-rank')) {
+        const t = (parsed.query.t as string) || '2';
+        const pz = (parsed.query.pz as string) || '20';
+        const fs = t === '3'
+          ? 'm:90+t:3+f:!50'
+          : 'm:90+t:2+f:!50';
+        const fields = 'f12,f14,f3,f62,f104,f105,f100,f204,f205';
+        const r = await httpGetJson(`https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=f62&fs=${fs}&fields=${fields}`, 'https://quote.eastmoney.com/center/boardlist.html');
+        const diff = r?.data?.diff || [];
+        this.json(res, 200, { data: { diff } });
+        return;
+      }
+
+      // 个股日线资金流历史（选股报告用）- 近N日主力净流入
+      if (targetUrl.startsWith('/api/stock-fflow-day')) {
+        const code = toCleanCode(toSinaCode((parsed.query.code as string) || ''));
+        const lmt = (parsed.query.lmt as string) || '30';
+        const secid = (/^(60|68|90|11|13|50|56|51|58)/.test(code) ? '1.' : '0.') + code;
+        const fields = 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65';
+        const r = await httpGetJson(`https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=${lmt}&klt=101&secid=${secid}&fields1=f1,f2,f3,f7&fields2=${fields}`, 'https://quote.eastmoney.com/');
+        const klines: string[] = r?.data?.klines || [];
+        const list = klines.map((line: string) => {
+          const p = line.split(',');
+          // date,主力,小单,中单,大单,超大单,主力净占比,小单净占比,中单净占比,大单净占比,超大单净占比,收盘,涨跌幅
+          return {
+            date: p[0],
+            main: parseFloat(p[1]) || 0,
+            small: parseFloat(p[2]) || 0,
+            mid: parseFloat(p[3]) || 0,
+            big: parseFloat(p[4]) || 0,
+            super: parseFloat(p[5]) || 0,
+            mainRatio: parseFloat(p[6]) || 0,
+            close: parseFloat(p[11]) || 0,
+            pct: parseFloat(p[12]) || 0,
+          };
+        });
+        this.json(res, 200, { data: { list } });
+        return;
+      }
+
+      // 股东户数（选股报告用）- RPT_HOLDERNUMLATEST
+      if (targetUrl.startsWith('/api/stock-holder')) {
+        const code = toCleanCode(toSinaCode((parsed.query.code as string) || ''));
+        const r = await httpGetJson(`https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_HOLDERNUMLATEST&columns=ALL&filter=(SECURITY_CODE=%22${code}%22)&pageNumber=1&pageSize=5&sortColumns=END_DATE&sortTypes=-1&source=WEB&client=WEB`, 'https://data.eastmoney.com/gdhs/');
+        const arr = r?.result?.data || [];
+        const list = arr.map((d: any) => ({
+          endDate: d.END_DATE || '',
+          holderNum: d.HOLDER_NUM,
+          preHolderNum: d.PRE_HOLDER_NUM,
+          holderNumChange: d.HOLDER_NUM_CHANGE,
+          holderNumRatio: d.HOLDER_NUM_RATIO,
+          closePrice: d.CLOSE_PRICE,
+        }));
+        this.json(res, 200, { data: { list } });
         return;
       }
 
