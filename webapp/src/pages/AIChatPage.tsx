@@ -117,6 +117,15 @@ export default function AIChatPage() {
   function newChat() {
     const id = newSid();
     setSid(id);
+    setInput('');
+    setAssistantDraft('');
+    draftRef.current = '';
+    // 关闭抽屉（若开着）并滚动到顶部，露出欢迎页
+    setDrawerOpen(false);
+    setTimeout(() => {
+      const el = scrollRef.current;
+      if (el) el.scrollTop = 0;
+    }, 20);
   }
 
   // ========= 欢迎页快捷卡片：注入自选/快讯/板块 给 AI =========
@@ -188,13 +197,13 @@ export default function AIChatPage() {
     <div className="page ai-page">
       {/* AI 顶栏：菜单 + 当前标题 + 新建 */}
       <div className="ai-topbar">
-        <button className="ai-tb-btn" onClick={() => setDrawerOpen(true)} title="历史会话" aria-label="历史会话">
+        <button type="button" className="ai-tb-btn" onClick={() => setDrawerOpen(true)} title="历史会话" aria-label="历史会话">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M3 6h18M3 12h18M3 18h18" />
           </svg>
         </button>
         <div className="ai-tb-title" title={currentTitle}>{escapeHtml(currentTitle)}</div>
-        <button className="ai-tb-btn" onClick={newChat} title="新对话" aria-label="新对话">
+        <button type="button" className="ai-tb-btn" onClick={newChat} title="新对话" aria-label="新对话">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14M5 12h14" />
           </svg>
@@ -233,10 +242,10 @@ export default function AIChatPage() {
 
       {/* AI 快捷 Chips */}
       <div className="ai-tools-row">
-        <button className="ai-chip" onClick={() => fillPrompt('结合当前市场环境，给我一份稳健的选股策略和重点关注方向。')}>🎯 选股策略</button>
-        <button className="ai-chip" onClick={() => fillPrompt('用通俗的语言解释 A 股常用术语：换手率、市盈率、主力资金、龙虎榜。')}>📚 概念科普</button>
-        <button className="ai-chip" onClick={() => fillPrompt('根据今日盘面特征，预判明日大盘走势和需要关注的关键信号。')}>🔮 明日预判</button>
-        <button className="ai-chip" onClick={() => fillPrompt('如何判断我的持仓是否健康？给出诊断维度和优化建议。')}>💼 持仓诊断</button>
+        <button type="button" className="ai-chip" onClick={() => fillPrompt('结合当前市场环境，给我一份稳健的选股策略和重点关注方向。')}>🎯 选股策略</button>
+        <button type="button" className="ai-chip" onClick={() => fillPrompt('用通俗的语言解释 A 股常用术语：换手率、市盈率、主力资金、龙虎榜。')}>📚 概念科普</button>
+        <button type="button" className="ai-chip" onClick={() => fillPrompt('根据今日盘面特征，预判明日大盘走势和需要关注的关键信号。')}>🔮 明日预判</button>
+        <button type="button" className="ai-chip" onClick={() => fillPrompt('如何判断我的持仓是否健康？给出诊断维度和优化建议。')}>💼 持仓诊断</button>
       </div>
 
       {/* 输入栏 */}
@@ -251,7 +260,7 @@ export default function AIChatPage() {
           disabled={sending}
           rows={1}
         />
-        <button className="send-btn" onClick={send} disabled={sending || !input.trim() || !activeAIModel}>
+        <button type="button" className="send-btn" onClick={send} disabled={sending || !input.trim() || !activeAIModel}>
           ↑
         </button>
       </div>
@@ -263,13 +272,13 @@ export default function AIChatPage() {
             <div className="ai-drawer-head">
               <b>历史会话</b>
               <div className="ai-drawer-actions">
-                <button className="ai-drawer-act" onClick={newChat}>+ 新建</button>
+                <button type="button" className="ai-drawer-act" onClick={newChat}>+ 新建</button>
                 {sessions.length > 0 && (
-                  <button className="ai-drawer-act danger" onClick={() => {
+                  <button type="button" className="ai-drawer-act danger" onClick={() => {
                     if (confirm('清空所有 AI 对话记录？')) { setSessions([]); newChat(); setDrawerOpen(false); }
                   }}>清空</button>
                 )}
-                <button className="ai-drawer-act" onClick={() => setDrawerOpen(false)}>✕</button>
+                <button type="button" className="ai-drawer-act" onClick={() => setDrawerOpen(false)}>✕</button>
               </div>
             </div>
             <div className="ai-drawer-body">
@@ -278,6 +287,7 @@ export default function AIChatPage() {
               )}
               {[...sessions].reverse().map((s) => (
                 <button
+                  type="button"
                   key={s.id}
                   className={'ai-session-item' + (s.id === sid ? ' active' : '')}
                   onClick={() => { setSid(s.id); setDrawerOpen(false); }}
