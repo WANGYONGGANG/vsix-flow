@@ -511,7 +511,7 @@ function buildReportHtml(opts: {
   return `<style>
 *{box-sizing:border-box}
 body{margin:0;background:#f4f5f7;color:#212529;font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif}
-.wrap{max-width:100%;margin:0 auto;padding:18px 14px 60px;overflow-x:hidden}
+.wrap{max-width:100%;margin:0 auto;padding:18px 14px 60px;overflow-x:auto;background:#f4f5f7}
 .up{color:#e03131} .down{color:#0f9960} .flat{color:#868e96}
 .mono{font-family:ui-monospace,Consolas,monospace}
 h1{margin:0 0 6px;font-size:22px;letter-spacing:.5px}
@@ -522,7 +522,7 @@ h4{margin:0 0 8px;font-size:14px;color:#495057}
 .idxbar{margin-top:12px;display:flex;flex-wrap:wrap;gap:14px}
 .idx{font-size:12.5px} .idx b{color:#495057;font-weight:600} .idx em{font-style:normal;font-weight:700}
 a{color:inherit;text-decoration:none} a:hover{text-decoration:underline;color:#e03131} a[data-em]{cursor:pointer}
-section{background:#fff;border:1px solid #e9ecef;border-radius:12px;padding:16px 14px;margin-bottom:14px;overflow-x:hidden}
+section{background:#fff;border:1px solid #e9ecef;border-radius:12px;padding:16px 14px;margin-bottom:14px;overflow-x:auto}
 .funnel{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .fstep{flex:1;min-width:120px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:10px;padding:12px 8px;text-align:center}
 .fnum{font-size:22px;font-weight:700;color:#e03131;line-height:1.1}
@@ -533,7 +533,7 @@ section{background:#fff;border:1px solid #e9ecef;border-radius:12px;padding:16px
 .tbl-wrap::-webkit-scrollbar{height:4px}
 .tbl-wrap::-webkit-scrollbar-thumb{background:rgba(230,57,70,.3);border-radius:4px}
 .tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:520px}
-.tbl th{background:#f8f9fa;color:#868e96;font-weight:600;font-size:11.5px;padding:8px 6px;text-align:left;border-bottom:2px solid #e9ecef;white-space:nowrap}
+.tbl th{background:#f8f9fa;color:#495057;font-weight:600;font-size:11.5px;padding:8px 6px;text-align:left;border-bottom:2px solid #e9ecef;white-space:nowrap}
 .tbl th i{font-style:normal;color:#ced4da;font-size:10px}
 .tbl td{padding:7px 6px;border-bottom:1px solid #f1f3f5;white-space:nowrap}
 .tbl tbody tr:hover{background:#fff9f9}
@@ -785,7 +785,7 @@ export default function ReportPage() {
           {loading ? `扫描中… ${elapsed.toFixed(1)}s` : html ? `耗时 ${elapsed.toFixed(1)}s` : ''}
         </div>
       </div>
-      <div id="report-frame" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(20px + var(--safe-bottom))' }}>
+      <div id="report-frame" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', background: '#f4f5f7', paddingBottom: 'calc(20px + var(--safe-bottom))' }}>
         {loading && (
           <div style={{ textAlign: 'center', padding: '120px 20px', color: 'var(--fg)' }}>
             <div style={{ display: 'inline-block', width: 22, height: 22, border: '2px solid #2a2d34', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'rp 1s linear infinite', verticalAlign: 'middle', marginRight: 10 }} />

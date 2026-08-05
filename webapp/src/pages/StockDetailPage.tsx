@@ -38,6 +38,7 @@ export default function StockDetailPage({ code }: { code: string }) {
   const [mobileSideOpen, setMobileSideOpen] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth < 480 : false);
   const tickRef = useRef<any>(null);
+  const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 480);
@@ -281,10 +282,18 @@ export default function StockDetailPage({ code }: { code: string }) {
   );
 
   return (
-    <div className="page">
-      {/* 顶部：返回 + 价格 */}
+    <div
+      className="page"
+      onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+      onTouchEnd={(e) => {
+        if (touchStartX.current === null) return;
+        const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+        if (deltaX > 50) navigate('/');
+        touchStartX.current = null;
+      }}
+    >
+      {/* 顶部：价格 */}
       <div className="detail-top">
-        <button className="back-btn" onClick={() => navigate('/')}>← 返回</button>
         <div className="detail-hdr">
           <span className="nm">{escapeHtml(nm)}</span>
           <span className="cd">{codeN}</span>

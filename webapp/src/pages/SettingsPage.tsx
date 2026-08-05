@@ -6,6 +6,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useSettings } from '../store/useSettings';
 import { useRouter } from '../router/useRouter';
 
+const VOICE_OPTIONS: { value: string; name: string; desc: string }[] = [
+  { value: 'system', name: '跟随系统', desc: '使用系统默认语音' },
+  { value: 'zh-CN-XiaoxiaoNeural', name: '晓晓', desc: '女 · 温婉' },
+  { value: 'zh-CN-YunxiNeural', name: '云希', desc: '男 · 沉稳' },
+  { value: 'zh-CN-YunyangNeural', name: '云扬', desc: '男 · 新闻' },
+  { value: 'zh-CN-XiaoyiNeural', name: '晓伊', desc: '女 · 活泼' },
+  { value: 'zh-CN-YunjianNeural', name: '云健', desc: '男 · 浑厚' },
+];
+
 export default function SettingsPage() {
   const s = useSettings();
   const { settings, update, addWatch, delWatch, getWatchCodes,
@@ -14,6 +23,7 @@ export default function SettingsPage() {
   const { navigate } = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
+  const [voicePickerOpen, setVoicePickerOpen] = useState(false);
 
   useEffect(() => {
     const opacity = (settings as any).opacity ?? 1;
@@ -94,15 +104,12 @@ export default function SettingsPage() {
         <div className="form-item">
           <div className="lbl">语音音色</div>
           <div className="val flex items-center gap-2">
-            <select value={settings.voicePreset ?? 'system'}
-              onChange={(e) => update({ voicePreset: e.target.value })}>
-              <option value="system">跟随系统</option>
-              <option value="zh-CN-XiaoxiaoNeural">晓晓（女·温婉）</option>
-              <option value="zh-CN-YunxiNeural">云希（男·沉稳）</option>
-              <option value="zh-CN-YunyangNeural">云扬（男·新闻）</option>
-              <option value="zh-CN-XiaoyiNeural">晓伊（女·活泼）</option>
-              <option value="zh-CN-YunjianNeural">云健（男·浑厚）</option>
-            </select>
+            <button className="ghost-btn"
+              style={{ width: 'auto', margin: 0, padding: '8px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => setVoicePickerOpen(true)}>
+              <span>{(VOICE_OPTIONS.find((v) => v.value === (settings.voicePreset ?? 'system')) || VOICE_OPTIONS[0]).name}</span>
+              <span style={{ fontSize: 10, opacity: .5 }}>▾</span>
+            </button>
             <button className="ghost-btn" style={{ width: 'auto', margin: 0, padding: '6px 14px', fontSize: 12 }}
               onClick={() => {
                 try {
@@ -322,7 +329,33 @@ export default function SettingsPage() {
         数据由东方财富/新浪/腾讯公开接口提供 · 仅供学习，不构成投资建议<br/>
       </div>
     </div>
-  </div>
+
+    {voicePickerOpen && (
+      <div className="modal-mask" onClick={() => setVoicePickerOpen(false)}>
+        <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="vp-head">
+            <span>选择语音音色</span>
+            <button className="modal-close" onClick={() => setVoicePickerOpen(false)}>×</button>
+          </div>
+          <div className="vp-list">
+            {VOICE_OPTIONS.map((v) => {
+              const on = v.value === (settings.voicePreset ?? 'system');
+              return (
+                <button key={v.value} className={'vp-item' + (on ? ' on' : '')}
+                  onClick={() => { update({ voicePreset: v.value }); setVoicePickerOpen(false); }}>
+                  <div className="vp-info">
+                    <div className="vp-name">{v.name}</div>
+                    <div className="vp-desc">{v.desc}</div>
+                  </div>
+                  {on && <span className="vp-check">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    )}
+    </div>
   );
 }
 

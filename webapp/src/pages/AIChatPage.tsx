@@ -44,6 +44,7 @@ export default function AIChatPage() {
 
   // 支持从 HomePage AI 快捷入口传来的初始 prompt（hash 形式 #/ai?prompt=xxx）
   const initPromptRef = useRef(false);
+  const pendingSendRef = useRef<string | null>(null);
   useEffect(() => {
     if (initPromptRef.current) return;
     initPromptRef.current = true;
@@ -51,9 +52,23 @@ export default function AIChatPage() {
       const h = window.location.hash || '';
       const qs = h.includes('?') ? h.split('?')[1] : '';
       const p = new URLSearchParams(qs).get('prompt');
-      if (p) setInput(decodeURIComponent(p));
+      if (p) {
+        const decoded = decodeURIComponent(p);
+        setInput(decoded);
+        pendingSendRef.current = decoded;
+      }
     } catch { /* empty */ }
   }, []);
+
+  // 当 pending prompt 存在且 AI 模型就绪时，自动发送
+  useEffect(() => {
+    if (pendingSendRef.current && activeAIModel && !sending) {
+      const text = pendingSendRef.current;
+      pendingSendRef.current = null;
+      const t = setTimeout(() => send(text), 300);
+      return () => clearTimeout(t);
+    }
+  }, [activeAIModel, sending]);
 
   useEffect(() => { saveHistory(sessions); }, [sessions]);
 
@@ -75,8 +90,8 @@ export default function AIChatPage() {
     });
   }
 
-  async function send() {
-    const content = input.trim();
+  async function send(overrideText?: string) {
+    const content = (overrideText ?? input).trim();
     if (!content) return;
     if (!activeAIModel) { alert('请先在【我的】→【AI 模型管理】中添加并启用一个模型'); navigate('/settings'); return; }
     setInput(''); setAssistantDraft(''); draftRef.current = '';

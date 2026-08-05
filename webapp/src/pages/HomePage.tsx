@@ -196,19 +196,18 @@ export default function HomePage({
             <span>{t.label}</span>
           </button>
         ))}
+      </div>
+
+      <div className="content-scroll" style={{ position: 'relative' }}>
         {showVoiceBtn && (
           <button
-            className={'voice-toggle' + (voiceOn ? ' on' : '')}
+            className={'voice-fab' + (voiceOn ? ' on' : '')}
             onClick={toggleVoice}
             title="语音播报最新一条"
           >
-            <span className="tb-ic">{voiceOn ? '🔊' : '🔇'}</span>
-            <span>{voiceOn ? '播报中' : '播报'}</span>
+            {voiceOn ? '🔊' : '🔇'}
           </button>
         )}
-      </div>
-
-      <div className="content-scroll">
         {loading && !data && <div className="loading">加载中…</div>}
 
         {tab === 'market_overview' && <MarketOverview data={data} onNavigate={navigate} />}
@@ -254,6 +253,7 @@ function MarketOverview({ data, onNavigate }: any) {
   const counts: any = d.counts || {};
   const trade: any = d.trade || {};
   const yzt: any = d.yesterdayZt || {};
+  const dist: any = d.distribution || null;
   if (!diff.length) return <div className="loading">暂无指数数据</div>;
   const open = (code: string, name: string) => onNavigate(`/stock/${code}?name=${encodeURIComponent(name)}`);
 
@@ -305,18 +305,59 @@ function MarketOverview({ data, onNavigate }: any) {
               <span className="lr-item down">跌停 <b>{dtCount}</b></span>
             </div>
           )}
+          {/* 涨跌分布柱状图 */}
+          {dist && (dist.zt + dist.g5 + dist.g1 + dist.g0 + dist.flat + dist.d0 + dist.d1 + dist.d5 + dist.dt) > 0 && (
+            <div className="dist-chart">
+              {[
+                { label: '涨停', val: dist.zt || 0, color: 'var(--up)' },
+                { label: '>5%', val: dist.g5 || 0, color: '#f56565' },
+                { label: '>1%', val: dist.g1 || 0, color: '#fc8181' },
+                { label: '>0%', val: dist.g0 || 0, color: '#feb2b2' },
+                { label: '平盘', val: dist.flat || 0, color: '#718096' },
+                { label: '0~1%', val: dist.d0 || 0, color: '#9ae6b4' },
+                { label: '1~5%', val: dist.d1 || 0, color: '#68d391' },
+                { label: '>5%', val: dist.d5 || 0, color: '#48bb78' },
+                { label: '跌停', val: dist.dt || 0, color: 'var(--down)' },
+              ].map((b, i) => {
+                const maxVal = Math.max(1, dist.zt, dist.g5, dist.g1, dist.g0, dist.flat, dist.d0, dist.d1, dist.d5, dist.dt);
+                const h = Math.max(2, Math.round((b.val / maxVal) * 60));
+                return (
+                  <div key={i} className="dist-bar-col">
+                    <div className="dist-bar-val">{b.val || ''}</div>
+                    <div className="dist-bar" style={{ height: h, background: b.color }} />
+                    <div className="dist-bar-lbl">{b.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {/* 三市成交 + 昨日涨停 — 东财统计行 */}
       <div className="stat-row">
-        {trade.total > 0 && (
-          <div className="stat-card">
-            <div className="stat-lbl">三市成交</div>
-            <div className="stat-val text-accent">{fmtYi(trade.total || 0)}</div>
-            <div className="stat-sub">沪 {fmtYi(trade.sh || 0)} · 深 {fmtYi(trade.sz || 0)}</div>
-          </div>
-        )}
+        {trade.total > 0 && (() => {
+          // 缩量/放量：参考扩展 centerView.js 逻辑
+          const vr = Number(trade.volumeRatio || 0);
+          const diff = Number(trade.total || 0) - Number(trade.yesterdayTotal || 0);
+          let isUp = diff > 1;
+          let isDown = diff < -1;
+          if (Math.abs(diff) <= 1 && vr > 0) { isUp = vr > 1.001; isDown = vr < 0.999; }
+          const vrLabel = isUp ? '放量' : (isDown ? '缩量' : '');
+          const vrIcon = isUp ? '🔺' : (isDown ? '🔻' : '');
+          return (
+            <div className="stat-card">
+              <div className="stat-lbl">三市成交</div>
+              <div className="stat-val text-accent">{fmtYi(trade.total || 0)}</div>
+              <div className="stat-sub">沪 {fmtYi(trade.sh || 0)} · 深 {fmtYi(trade.sz || 0)}</div>
+              {vrLabel && (
+                <div className={isUp ? 'stat-sub text-up' : 'stat-sub text-down'}>
+                  {vrIcon} {vrLabel} {fmtYi(Math.abs(diff))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
         {yzt && yzt.count > 0 && (
           <div className="stat-card">
             <div className="stat-lbl">昨涨停表现</div>
@@ -418,8 +459,10 @@ function FundFlow({ data, onNavigate }: any) {
 const sortNet = (a: any, b: any) => (Number(b.netamount || 0) - Number(a.netamount || 0));
 
 function SectionFlow({ title, list, up, onNavigate }: any) {
-  const items = up ? list.slice(0, 10).filter((x: any) => Number(x.netamount || 0) > 0)
-    : list.slice(-10).reverse().filter((x: any) => Number(x.netamount || 0) < 0);
+  // 流入：降序取前10，过滤>0；流出：升序取前10，过滤<0
+  const items = up
+    ? list.slice(0, 10).filter((x: any) => Number(x.netamount || 0) > 0)
+    : list.slice(0, 10).filter((x: any) => Number(x.netamount || 0) < 0);
   if (!items.length) return null;
   return (
     <div className="card">
@@ -485,7 +528,7 @@ function YesterdayLimit({ data, onNavigate }: any) {
   return (
     <div className="card">
       <table>
-        <thead><tr><th>名称/代码</th><th>连板</th><th>原因</th><th>封板</th><th>炸板</th></tr></thead>
+        <thead><tr><th>名称/代码</th><th>连板</th><th>板块</th><th>封板</th><th>炸板</th></tr></thead>
         <tbody>
           {sorted.map((x) => (
             <tr key={x.c} className="stock-row" onClick={() => open(x.c, x.n)}>
@@ -559,7 +602,7 @@ function LHBList({ data, onNavigate }: any) {
   const open = (c: string, n: string) => onNavigate(`/stock/${c}?name=${encodeURIComponent(n)}`);
   return (
     <div className="card">
-      <table>
+      <table className="tbl-nowrap">
         <thead><tr><th>名称/代码</th><th>涨跌幅</th><th>净买额</th><th>原因</th></tr></thead>
         <tbody>
           {list.slice(0, 50).map((x) => {
@@ -568,12 +611,12 @@ function LHBList({ data, onNavigate }: any) {
             return (
               <tr key={x.SECURITY_CODE} className="stock-row"
                 onClick={() => open(x.SECURITY_CODE, x.SECURITY_NAME_ABBR)}>
-                <td>
+                <td style={{ whiteSpace: 'nowrap' }}>
                   {escapeHtml(x.SECURITY_NAME_ABBR || '')}
                   <div className="text-muted" style={{ fontSize: 10 }}>{x.SECURITY_CODE || ''}</div>
                 </td>
-                <td className={change >= 0 ? 'text-up' : 'text-down'}>{upSign(change)}{change.toFixed(2)}%</td>
-                <td className={net >= 0 ? 'text-up' : 'text-down'}>{upSign(net)}{fmtYi(net)}</td>
+                <td className={change >= 0 ? 'text-up' : 'text-down'} style={{ whiteSpace: 'nowrap' }}>{upSign(change)}{change.toFixed(2)}%</td>
+                <td className={net >= 0 ? 'text-up' : 'text-down'} style={{ whiteSpace: 'nowrap' }}>{upSign(net)}{fmtYi(net)}</td>
                 <td className="text-muted">{escapeHtml(x.EXPLANATION || x.EXPLAIN || '')}</td>
               </tr>
             );
@@ -584,13 +627,32 @@ function LHBList({ data, onNavigate }: any) {
   );
 }
 
+// 异动信息解码（参考扩展 centerView.js decodeAlertInfo）
+function decodeAlertInfo(x: any): string {
+  const t = x.t;
+  const parts = String(x.i || '').split(',');
+  const pct = (v: any) => { const n = parseFloat(v) || 0; return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'; };
+  const fmtV = (v: number) => { const n = Number(v) || 0; return n >= 10000 ? (n / 10000).toFixed(1) + '万手' : n + '手'; };
+  const fmtAmt = (v: number) => { const n = Number(v) || 0; return (n / 1e8).toFixed(2) + '亿'; };
+  if (t === 4 || t === 8) {
+    return `价${parts[0] || '-'} · 封单${fmtV(parseInt(parts[1]) || 0)} · ${pct(parts[3])}`;
+  }
+  if (t === 16 || t === 8211 || t === 8212) {
+    return `价${parts[0] || '-'} · ${pct(parts[1])}`;
+  }
+  if (t === 32 || t === 64 || t === 128 || t === 8193 || t === 8194) {
+    return `${fmtV(parseInt(parts[0]) || 0)} · 价${parts[1] || '-'} · ${pct(parts[2])} · 额${fmtAmt(parseFloat(parts[3]) || 0)}`;
+  }
+  return `${pct(parts[0])} · 价${parts[1] || '-'} · ${pct(parts[2])}`;
+}
+
 function AlertList({ data, onNavigate }: any) {
   const list: any[] = data?.data?.list || data?.data?.allstock || [];
   if (!list.length) return <div className="loading">暂无异动</div>;
   const open = (c: string, n: string) => onNavigate(`/stock/${c}?name=${encodeURIComponent(n)}`);
   return (
     <div className="card">
-      <table>
+      <table className="tbl-nowrap">
         <thead><tr><th>时间</th><th>名称</th><th>异动</th><th>信息</th></tr></thead>
         <tbody>
           {list.slice(0, 80).map((x, i) => {
@@ -598,13 +660,13 @@ function AlertList({ data, onNavigate }: any) {
             const isUp = [4, 8, 32, 128, 8193, 8194, 8201, 8207, 8209, 8211, 8213, 8215].includes(x.t);
             return (
               <tr key={i} className="stock-row" onClick={() => open(x.c, x.n)}>
-                <td className="text-muted">{fmtTime(x.tm)}</td>
-                <td>
+                <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>{fmtTime(x.tm)}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>
                   {escapeHtml(x.n || '')}
                   <div className="text-muted" style={{ fontSize: 10 }}>{x.c || ''}</div>
                 </td>
-                <td><span className={'tag ' + (isUp ? 'tag-up' : 'tag-down')}>{label}</span></td>
-                <td className="text-muted">{escapeHtml(x.i || '')}</td>
+                <td style={{ whiteSpace: 'nowrap' }}><span className={'tag ' + (isUp ? 'tag-up' : 'tag-down')}>{label}</span></td>
+                <td className="text-muted">{escapeHtml(decodeAlertInfo(x))}</td>
               </tr>
             );
           })}
@@ -642,6 +704,11 @@ function HotStocks({ data, onNavigate }: any) {
 function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: any) {
   const diff: any[] = data?.data?.diff || [];
   const dragElRef = useRef<any>(null);
+  const [swipedCode, setSwipedCode] = useState<string | null>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const longPressTimer = useRef<any>(null);
+  const [menuCode, setMenuCode] = useState<string | null>(null);
 
   function getDragAfter(container: HTMLElement, y: number) {
     const list = Array.from(container.querySelectorAll<HTMLElement>('.wl-card:not(.dragging)'));
@@ -659,6 +726,36 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
     reorderWatch(codes);
   }
 
+  function handleTouchStart(e: React.TouchEvent, code: string) {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    // 长按显示菜单
+    longPressTimer.current = setTimeout(() => {
+      setMenuCode(code);
+      setSwipedCode(null);
+    }, 600);
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    const deltaX = e.touches[0].clientX - touchStartX.current;
+    const deltaY = e.touches[0].clientY - touchStartY.current;
+    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    }
+  }
+
+  function handleTouchEnd(e: React.TouchEvent, code: string) {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(deltaX) > Math.abs(deltaY) && deltaX < -50) {
+      setSwipedCode(code);
+      setMenuCode(null);
+    } else if (deltaX > 30) {
+      setSwipedCode(null);
+    }
+  }
+
   if (!diff.length) {
     return (
       <>
@@ -671,9 +768,10 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
     <>
       {diff.map((x) => {
         const s = mapEmDiffToStockItem(x); const up = s.changeRate >= 0;
+        const isSwiped = swipedCode === s.code;
         return (
           <div
-            className="wl-card"
+            className="wl-card-wrap"
             key={s.code}
             data-code={s.code}
             draggable
@@ -701,47 +799,52 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
             }}
             style={{ cursor: 'grab' }}
           >
-            <div className="wl-row" onClick={() => onNavigate(`/stock/${s.code}?name=${encodeURIComponent(s.name)}`)}>
-              <div className="wl-name">
-                <div className="nm">{escapeHtml(s.name)}</div>
-                <div className="cd">{s.code}</div>
+            {/* 左滑露出的删除按钮 */}
+            <button
+              className="wl-swipe-del"
+              onClick={(e) => { e.stopPropagation(); onDel(s.code); setSwipedCode(null); }}
+            >删除</button>
+            <div
+              className={'wl-card' + (isSwiped ? ' swiped' : '')}
+              onTouchStart={(e) => handleTouchStart(e, s.code)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={(e) => handleTouchEnd(e, s.code)}
+              onClick={() => {
+                if (isSwiped) { setSwipedCode(null); return; }
+                onNavigate(`/stock/${s.code}?name=${encodeURIComponent(s.name)}`);
+              }}
+            >
+              <div className="wl-row">
+                <div className="wl-name">
+                  <div className="nm">{escapeHtml(s.name)}</div>
+                  <div className="cd">{s.code}</div>
+                </div>
+                <div className="wl-price">
+                  <div className={'pr ' + (up ? 'text-up' : 'text-down')}>{Number(s.price || 0).toFixed(2)}</div>
+                </div>
+                <div className="wl-chg">
+                  <span className={'tag ' + (up ? 'tag-up' : 'tag-down')}>
+                    {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
+                  </span>
+                </div>
               </div>
-              <div className="wl-price">
-                <div className={'pr ' + (up ? 'text-up' : 'text-down')}>{Number(s.price || 0).toFixed(2)}</div>
-              </div>
-              <div className="wl-chg">
-                <span className={'tag ' + (up ? 'tag-up' : 'tag-down')}>
-                  {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
-                </span>
-              </div>
-              <div className="wl-acts" style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                <button
-                  className="wl-code-act"
-                  title="置顶"
-                  onClick={() => moveWatch(s.code, 'top')}
-                  style={{
-                    border: '1px solid var(--border)', background: 'transparent',
-                    color: 'var(--fg)', fontSize: 10, lineHeight: 1, padding: '4px 7px',
-                    borderRadius: 4, cursor: 'pointer', opacity: 0.85,
-                  }}
-                >⤒ 置顶</button>
-                <button
-                  className="wl-code-act"
-                  title="置底"
-                  onClick={() => moveWatch(s.code, 'bottom')}
-                  style={{
-                    border: '1px solid var(--border)', background: 'transparent',
-                    color: 'var(--fg)', fontSize: 10, lineHeight: 1, padding: '4px 7px',
-                    borderRadius: 4, cursor: 'pointer', opacity: 0.85,
-                  }}
-                >⤓ 置底</button>
-              </div>
-              <button className="wl-del" onClick={(e) => { e.stopPropagation(); onDel(s.code); }}>删除</button>
             </div>
           </div>
         );
       })}
       <button className="wl-add-btn" onClick={onAdd}>+ 添加自选股</button>
+
+      {/* 长按菜单 */}
+      {menuCode && (
+        <div className="modal-mask" onClick={() => setMenuCode(null)}>
+          <div className="wl-menu" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => { moveWatch(menuCode, 'top'); setMenuCode(null); }}>⤒ 置顶</button>
+            <button onClick={() => { moveWatch(menuCode, 'bottom'); setMenuCode(null); }}>⤓ 置底</button>
+            <button className="danger" onClick={() => { onDel(menuCode); setMenuCode(null); }}>🗑 删除</button>
+            <button className="cancel" onClick={() => setMenuCode(null)}>取消</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -775,6 +878,9 @@ function AddWatchDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (c: st
 
 function fmtTime(t: string | number): string {
   const s = String(t || '');
-  if (s.length >= 6) return s.slice(0, 2) + ':' + s.slice(2, 4);
+  if (s.length >= 6) return s.slice(0, 2) + ':' + s.slice(2, 4) + ':' + s.slice(4, 6);
+  if (s.length >= 5) return '0' + s.slice(0, 1) + ':' + s.slice(1, 3) + ':' + s.slice(3, 5);
+  if (s.length === 4) return s.slice(0, 2) + ':' + s.slice(2, 4);
+  if (s.length === 3) return '0' + s.slice(0, 1) + ':' + s.slice(1, 3);
   return s;
 }
