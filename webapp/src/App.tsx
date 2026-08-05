@@ -445,8 +445,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* 底部导航 - 详情页不显示；设置（我的）放在底部导航 */}
-      {!inDetail || isSettings ? null : (
+      {/* 底部 TabBar：详情页隐藏；其他一级页面（首页/AI/我的设置/报告）显示 */}
+      {inDetail && !isSettings ? null : (
         <div className="bottom-nav">
           {BOTTOM_NAV.map((n) => (
             <button
