@@ -40,7 +40,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
   let diff: any[] = r?.data?.diff || [];
 
-  // ===== Fallback：新浪 ssl_bkzj_bk（push2 在当前环境偶发网络不通时启用） =====
+  // ===== Fallback：新浪 ssl_bkzj_bk（push2 在当前环境偶发网络不通时启用）=====
+  // 仅使用新浪实际返回的字段；任何缺失字段统一填 null，不做估算
   if (!diff.length) {
     const fenlei = t === 1 ? 1 : 0;
     const sina = await httpGetJson(
@@ -48,34 +49,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       'https://finance.sina.com.cn/'
     );
     const arr: any[] = Array.isArray(sina) ? sina : [];
-    const picked = arr.slice(0, pz);
-    for (const b of picked) {
-      const name = friendlyName(String(b.name || ''), String(b.category || ''));
-      const avgChg = Number(b.avg_changeratio || 0); // 小数：0.03=3%
+    for (const b of arr) {
+      const key = String(b.category || '');
+      const name = friendlyName(String(b.name || ''), key);
+      const avgChg = Number(b.avg_changeratio || 0); // 小数：0.03 = 3%
       const net = Number(b.netamount || 0);
-      const turnover = Number(b.turnover || 0);
       const tsName = String(b.ts_name || '');
-      const tsRatio = Number(b.ts_changeratio || 0) * 100; // 小数转百分比
-      // 上涨家数/下跌家数：用龙头股涨跌方向近似，或给一个合理估算
-      const isUp = avgChg >= 0;
-      const upRatio = 0.5 + (isUp ? Math.min(0.45, Math.abs(avgChg) * 10) : -Math.min(0.45, Math.abs(avgChg) * 10));
-      const upN = Math.round(30 * Math.max(0.1, upRatio));
-      const downN = 30 - upN;
+      const tsRatio = Number(b.ts_changeratio || 0) * 100;
       diff.push({
-        f12: String(b.category || name),
+        f12: key || name,
         f14: name,
-        f3: Number((avgChg * 100).toFixed(2)),            // 涨跌幅(%)
-        f20: Math.max(1e9, turnover * 1e8),              // 成交额（估算 亿元 转 元）
-        f62: net,                                         // 主力净流入 (元，新浪是元)
-        f66: Number(b.inamount || 0) * 0.7,               // 超大单(估)
-        f104: upN,
-        f105: downN,
-        f204: tsName ? `${tsName}${Number(b.ts_trade || 0) > 0 ? ' 涨停' : (tsRatio >= 9.9 ? ' 涨停' : ` 领涨 ${tsRatio.toFixed(1)}%`)}` : '',
-        f205: '',
+        f3: Number((avgChg * 100).toFixed(2)), // 涨跌幅(%)
+        // 以下字段新浪没有提供，一律 null，不做任何估算
+        f2: b.avg_trade != null ? Number(b.avg_trade) : null,
+        f4: null,
+        f20: b.turnover != null ? Number(b.turnover) * 1e8 : null,  // 新浪 turnover 单位是亿，真实换算
+        f62: net,
+        f66: null,
+        f104: null, f105: null,
+        f204: tsName && tsRatio
+          ? `${tsName}${tsRatio >= 9.9 ? ' 涨停' : ` 领涨 ${tsRatio.toFixed(1)}%`}`
+          : '',
+        f205: null,
       });
     }
-    // 按 netamount 排序（新浪原本就是排序的，但再确认一次）
     diff.sort((a, b) => (Number(b.f62) || 0) - (Number(a.f62) || 0));
+    diff = diff.slice(0, pz);
   }
 
   json(res, 200, { data: { diff } });
