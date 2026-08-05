@@ -511,64 +511,68 @@ function buildReportHtml(opts: {
   return `<style>
 *{box-sizing:border-box}
 body{margin:0;background:#f4f5f7;color:#212529;font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif}
-.wrap{max-width:1180px;margin:0 auto;padding:26px 18px 70px}
+.wrap{max-width:100%;margin:0 auto;padding:18px 14px 60px;overflow-x:hidden}
 .up{color:#e03131} .down{color:#0f9960} .flat{color:#868e96}
 .mono{font-family:ui-monospace,Consolas,monospace}
-h1{margin:0 0 6px;font-size:26px;letter-spacing:.5px}
-h2{font-size:17px;margin:0 0 14px;padding-left:11px;border-left:4px solid #e03131}
+h1{margin:0 0 6px;font-size:22px;letter-spacing:.5px}
+h2{font-size:16px;margin:0 0 12px;padding-left:10px;border-left:4px solid #e03131}
 h4{margin:0 0 8px;font-size:14px;color:#495057}
-.hero{background:linear-gradient(135deg,#fff 0%,#fff5f5 100%);border:1px solid #ffe3e3;border-radius:14px;padding:22px 24px;margin-bottom:20px}
-.sub{color:#868e96;font-size:13px}
-.idxbar{margin-top:14px;display:flex;flex-wrap:wrap;gap:20px}
-.idx{font-size:13px} .idx b{color:#495057;font-weight:600} .idx em{font-style:normal;font-weight:700}
+.hero{background:linear-gradient(135deg,#fff 0%,#fff5f5 100%);border:1px solid #ffe3e3;border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.sub{color:#868e96;font-size:12.5px}
+.idxbar{margin-top:12px;display:flex;flex-wrap:wrap;gap:14px}
+.idx{font-size:12.5px} .idx b{color:#495057;font-weight:600} .idx em{font-style:normal;font-weight:700}
 a{color:inherit;text-decoration:none} a:hover{text-decoration:underline;color:#e03131} a[data-em]{cursor:pointer}
-section{background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:20px 22px;margin-bottom:20px}
+section{background:#fff;border:1px solid #e9ecef;border-radius:12px;padding:16px 14px;margin-bottom:14px;overflow-x:hidden}
 .funnel{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.fstep{flex:1;min-width:130px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:10px;padding:14px 10px;text-align:center}
-.fnum{font-size:26px;font-weight:700;color:#e03131;line-height:1.1}
-.ftitle{font-size:13px;font-weight:600;margin-top:4px}
+.fstep{flex:1;min-width:120px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:10px;padding:12px 8px;text-align:center}
+.fnum{font-size:22px;font-weight:700;color:#e03131;line-height:1.1}
+.ftitle{font-size:12px;font-weight:600;margin-top:4px}
 .fdesc{font-size:11px;color:#adb5bd;margin-top:2px}
-.farrow{color:#ced4da;font-size:24px;font-weight:700}
-.tbl{width:100%;border-collapse:collapse;font-size:13px}
-.tbl th{background:#f8f9fa;color:#868e96;font-weight:600;font-size:12px;padding:9px 8px;text-align:left;border-bottom:2px solid #e9ecef;white-space:nowrap}
+.farrow{color:#ced4da;font-size:20px;font-weight:700}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+.tbl-wrap::-webkit-scrollbar{height:4px}
+.tbl-wrap::-webkit-scrollbar-thumb{background:rgba(230,57,70,.3);border-radius:4px}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:520px}
+.tbl th{background:#f8f9fa;color:#868e96;font-weight:600;font-size:11.5px;padding:8px 6px;text-align:left;border-bottom:2px solid #e9ecef;white-space:nowrap}
 .tbl th i{font-style:normal;color:#ced4da;font-size:10px}
-.tbl td{padding:8px;border-bottom:1px solid #f1f3f5;white-space:nowrap}
+.tbl td{padding:7px 6px;border-bottom:1px solid #f1f3f5;white-space:nowrap}
 .tbl tbody tr:hover{background:#fff9f9}
 .tbl .rk{color:#adb5bd;font-weight:700;width:30px}
 .tbl .nm{font-weight:600}
 .tbl .num{text-align:right;font-family:ui-monospace,Consolas,monospace}
-.pool .tot{font-weight:700;font-size:14px}
+.pool{min-width:680px}
+.pool .tot{font-weight:700;font-size:13px}
 .pool tr.hit{background:#fff5f5} .pool tr.hit .nm::after{content:"★";color:#e03131;margin-left:4px}
 .ibars{display:flex;flex-direction:column;gap:7px}
-.ibar{display:grid;grid-template-columns:96px 1fr 78px 62px 132px;align-items:center;gap:10px;font-size:12.5px}
+.ibar{display:grid;grid-template-columns:80px 1fr 64px 54px 110px;align-items:center;gap:8px;font-size:12px}
 .iname{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .itrack{background:#f1f3f5;height:16px;border-radius:8px;overflow:hidden}
 .itrack i{display:block;height:100%;border-radius:8px}
 .ival{text-align:right;font-family:ui-monospace,monospace;font-weight:600}
 .ichg{text-align:right;font-family:ui-monospace,monospace}
-.ibreadth{color:#868e96;font-size:11.5px;text-align:right}
+.ibreadth{color:#868e96;font-size:11px;text-align:right}
 .ibreadth b{color:#e03131}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-.chip{background:#f8f9fa;border:1px solid #e9ecef;border-radius:16px;padding:5px 12px;font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{background:#f8f9fa;border:1px solid #e9ecef;border-radius:16px;padding:4px 10px;font-size:11.5px}
 .chip b{font-weight:600} .chip em{font-style:normal;margin-left:6px;font-weight:600}
 .chip i{font-style:normal;margin-left:6px;color:#868e96}
-.card{background:#fff;border:1px solid #e9ecef;border-left:4px solid #e03131;border-radius:14px;padding:20px 22px;margin-bottom:20px}
-.chead{display:flex;align-items:center;gap:16px;padding-bottom:14px;border-bottom:1px solid #f1f3f5}
-.crank{width:42px;height:42px;border-radius:50%;background:#e03131;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex:0 0 auto}
-.cname{flex:1} .cname h3{margin:0;font-size:19px}
-.ccode{font-family:ui-monospace,monospace;color:#adb5bd;font-size:14px;font-weight:400;margin-left:6px}
+.card{background:#fff;border:1px solid #e9ecef;border-left:4px solid #e03131;border-radius:12px;padding:16px 14px;margin-bottom:14px}
+.chead{display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid #f1f3f5}
+.crank{width:38px;height:38px;border-radius:50%;background:#e03131;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex:0 0 auto}
+.cname{flex:1;min-width:0} .cname h3{margin:0;font-size:17px}
+.ccode{font-family:ui-monospace,monospace;color:#adb5bd;font-size:13px;font-weight:400;margin-left:6px}
 .cmeta{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px}
-.badge{background:#e03131;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600}
-.tag{background:#f1f3f5;color:#868e96;border-radius:4px;padding:2px 7px;font-size:11px}
-.ctotal{text-align:center} .tval{font-size:32px;font-weight:700;line-height:1}
+.badge{background:#e03131;color:#fff;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600}
+.tag{background:#f1f3f5;color:#868e96;border-radius:4px;padding:2px 6px;font-size:11px}
+.ctotal{text-align:center} .tval{font-size:28px;font-weight:700;line-height:1}
 .tlbl{font-size:11px;color:#adb5bd;margin-top:2px}
-.theme{margin-top:12px;background:#fff9db;border:1px solid #ffec99;border-radius:8px;padding:8px 12px;font-size:12.5px;color:#856404}
-.metrics{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;background:#f1f3f5;border:1px solid #f1f3f5;border-radius:8px;overflow:hidden;margin:14px 0}
-.metric{background:#fff;padding:9px 6px;text-align:center}
+.theme{margin-top:12px;background:#fff9db;border:1px solid #ffec99;border-radius:8px;padding:8px 12px;font-size:12px;color:#856404}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#f1f3f5;border:1px solid #f1f3f5;border-radius:8px;overflow:hidden;margin:12px 0}
+.metric{background:#fff;padding:8px 4px;text-align:center}
 .metric span{display:block;font-size:11px;color:#adb5bd}
-.metric b{display:block;font-size:14px;margin-top:2px;font-family:ui-monospace,monospace}
-.cbody{display:grid;grid-template-columns:262px 1fr;gap:20px;margin-top:4px}
-.radar{width:230px;height:230px;display:block;margin:0 auto}
+.metric b{display:block;font-size:13px;margin-top:2px;font-family:ui-monospace,monospace}
+.cbody{display:grid;grid-template-columns:1fr;gap:14px;margin-top:4px}
+.radar{width:200px;height:200px;display:block;margin:0 auto}
 .radar-lbl{font-size:10.5px;fill:#495057;font-weight:600}
 .radar-val{font-size:10px;fill:#e03131;font-weight:700}
 .dims{margin-top:6px;display:flex;flex-direction:column;gap:5px}
@@ -585,22 +589,21 @@ section{background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:20px
 .mini{font-size:9px;fill:#adb5bd}
 .nodata{color:#adb5bd;font-size:12px;padding:16px;text-align:center;background:#f8f9fa;border-radius:8px}
 .plan{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#f1f3f5;border:1px solid #f1f3f5;border-radius:8px;overflow:hidden}
-.pitem{background:#fff;padding:8px 10px}
+.pitem{background:#fff;padding:8px 8px}
 .pitem span{display:block;font-size:11px;color:#adb5bd}
 .pitem b{font-size:14px;font-family:ui-monospace,monospace}
-.hl{margin-top:16px;background:#fff5f5;border:1px solid #ffe3e3;border-radius:10px;padding:12px 16px}
-.hl ul,.risk ul{margin:0;padding-left:18px} .hl li{margin:3px 0;font-size:13px}
-.reasons{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
-.rblock{background:#f8f9fa;border:1px solid #f1f3f5;border-radius:10px;padding:11px 13px}
-.rhead{font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.hl{margin-top:14px;background:#fff5f5;border:1px solid #ffe3e3;border-radius:10px;padding:12px 14px}
+.hl ul,.risk ul{margin:0;padding-left:18px} .hl li{margin:3px 0;font-size:12.5px}
+.reasons{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
+.rblock{background:#f8f9fa;border:1px solid #f1f3f5;border-radius:10px;padding:10px 12px}
+.rhead{font-weight:600;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .rscore{color:#fff;border-radius:10px;padding:1px 9px;font-size:11px;font-family:ui-monospace,monospace}
 .rblock ul{margin:0;padding-left:16px}
-.rblock li{font-size:12px;color:#495057;margin:3px 0}
-.risk{margin-top:14px;background:#fff9db;border:1px solid #ffec99;border-radius:10px;padding:12px 16px}
-.risk h4{color:#856404} .risk li{font-size:12.5px;color:#856404;margin:3px 0}
-.divnote{background:#e7f5ff;border:1px solid #a5d8ff;border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#1864ab}
-.disc{background:#f8f9fa;border:1px dashed #ced4da;border-radius:10px;padding:14px 18px;color:#868e96;font-size:12.5px;line-height:1.8}
-@media(max-width:900px){.cbody{grid-template-columns:1fr}.reasons{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(4,1fr)}}
+.rblock li{font-size:11.5px;color:#495057;margin:3px 0}
+.risk{margin-top:12px;background:#fff9db;border:1px solid #ffec99;border-radius:10px;padding:12px 14px}
+.risk h4{color:#856404} .risk li{font-size:12px;color:#856404;margin:3px 0}
+.divnote{background:#e7f5ff;border:1px solid #a5d8ff;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#1864ab}
+.disc{background:#f8f9fa;border:1px dashed #ced4da;border-radius:10px;padding:12px 14px;color:#868e96;font-size:12px;line-height:1.8}
 </style>
 <div class="wrap">
 <div class="hero">
@@ -614,7 +617,7 @@ section{background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:20px
 
 <section><h2>阶段一 · 全市场主力资金净流入 TOP 20</h2>
   <p class="sub" style="margin-top:-6px;margin-bottom:12px">资金是行情的先行指标。以东财实时资金流为口径，按当日主力（大单+超大单）净流入金额排序，并剔除 ST 股、一字板封死股、市值低于 25 亿的微盘股。</p>
-  <table class="tbl"><thead><tr><th>#</th><th>代码</th><th>名称</th><th>涨跌幅</th><th>主力净流入(亿)</th><th>净占比</th><th>超大单(亿)</th><th>所属行业</th><th>换手率</th><th>市值(亿)</th></tr></thead><tbody>${top20Rows}</tbody></table>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th>代码</th><th>名称</th><th>涨跌幅</th><th>主力净流入(亿)</th><th>净占比</th><th>超大单(亿)</th><th>所属行业</th><th>换手率</th><th>市值(亿)</th></tr></thead><tbody>${top20Rows}</tbody></table></div>
 </section>
 
 <section><h2>阶段二 · 行业板块异动</h2>
@@ -631,18 +634,18 @@ section{background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:20px
 
 <section><h2>候选池完整评分（${pool.length} 只）</h2>
   <p class="sub" style="margin-top:-6px;margin-bottom:12px">带 ★ 者为最终入选标的。各维度分数经权重加权后得到综合分，可据此复核模型的每一步判断。</p>
-  <table class="tbl pool"><thead><tr><th>#</th><th>代码</th><th>名称</th><th>行业</th><th>涨跌幅</th><th>资金面<br><i>25%</i></th><th>行业异动<br><i>15%</i></th><th>走势分析<br><i>25%</i></th><th>财务分析<br><i>13%</i></th><th>基本面<br><i>12%</i></th><th>股东分析<br><i>10%</i></th><th>综合</th></tr></thead><tbody>${poolRows}</tbody></table>
+  <div class="tbl-wrap"><table class="tbl pool"><thead><tr><th>#</th><th>代码</th><th>名称</th><th>行业</th><th>涨跌幅</th><th>资金面<br><i>25%</i></th><th>行业异动<br><i>15%</i></th><th>走势分析<br><i>25%</i></th><th>财务分析<br><i>13%</i></th><th>基本面<br><i>12%</i></th><th>股东分析<br><i>10%</i></th><th>综合</th></tr></thead><tbody>${poolRows}</tbody></table></div>
 </section>
 
-<section><h2>方法论说明</h2><div style={{}} className="method">
+<section><h2>方法论说明</h2><div class="method">
 <p>本报告采用<b>六维加权评分模型</b>，每一维度均由分段阈值函数映射到 0~100 分，避免单一极端值主导排序；数据缺失的维度按中性 50 分处理，不奖励也不惩罚。</p>
-<table className="tbl"><tbody><tr><th>维度</th><th>权重</th><th>核心指标</th><th>逻辑</th></tr>
+<div class="tbl-wrap"><table class="tbl"><thead><tr><th>维度</th><th>权重</th><th>核心指标</th><th>逻辑</th></tr></thead><tbody>
 <tr><td>资金面</td><td>25%</td><td>主力净流入额、净占成交比、超大单结构、近5/20日持续性</td><td>资金是短期行情的直接驱动力，且要求「持续」而非单日脉冲</td></tr>
 <tr><td>走势分析</td><td>25%</td><td>均线多头排列、20日区间位置、量能比、RSI、MACD</td><td>趋势向上且未过度透支的标的，惯性延续概率更高</td></tr>
 <tr><td>行业异动</td><td>15%</td><td>板块涨幅、板块主力净流入、上涨家数占比</td><td>板块效应决定了个股上涨的持续性与容错空间</td></tr>
 <tr><td>财务分析</td><td>13%</td><td>ROE、销售净利率、营收与净利同比、资产负债率</td><td>业绩是股价上涨的地基，规避纯炒作标的</td></tr>
 <tr><td>基本面</td><td>12%</td><td>PE(TTM)、PB、总市值、换手率</td><td>估值决定安全边际与后续空间</td></tr>
-<tr><td>股东分析</td><td>10%</td><td>股东户数环比、连续下降期数、户均持股</td><td>户数下降=筹码集中=主力吸筹，是中线上涨的前置条件</td></tr></tbody></table>
+<tr><td>股东分析</td><td>10%</td><td>股东户数环比、连续下降期数、户均持股</td><td>户数下降=筹码集中=主力吸筹，是中线上涨的前置条件</td></tr></tbody></table></div>
 <p><b>数据来源：</b>东方财富（资金流 / 行业板块 / 股东户数）、腾讯财经（实时行情 / 前复权日K）、新浪财经（利润表）、通达信（财务快照）。全部为公开接口直连。</p>
 </div></section>
 
@@ -782,7 +785,7 @@ export default function ReportPage() {
           {loading ? `扫描中… ${elapsed.toFixed(1)}s` : html ? `耗时 ${elapsed.toFixed(1)}s` : ''}
         </div>
       </div>
-      <div id="report-frame" style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(20px + var(--safe-bottom))' }}>
+      <div id="report-frame" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(20px + var(--safe-bottom))' }}>
         {loading && (
           <div style={{ textAlign: 'center', padding: '120px 20px', color: 'var(--fg)' }}>
             <div style={{ display: 'inline-block', width: 22, height: 22, border: '2px solid #2a2d34', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'rp 1s linear infinite', verticalAlign: 'middle', marginRight: 10 }} />

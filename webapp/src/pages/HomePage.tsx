@@ -18,20 +18,57 @@ type TabId = 'market_overview' | 'fundFlow' | 'em_news' | 'realtime_news' |
 export type { TabId };
 
 const TABS: { id: TabId; label: string; icon: string; tip?: string }[] = [
-  { id: 'market_overview', label: '概况', icon: '📊', tip: '指数涨跌家数/三市成交' },
-  { id: 'fundFlow',       label: '资金', icon: '💰', tip: '板块资金流入流出 TOP10' },
-  { id: 'em_news',        label: '新闻', icon: '📰', tip: '财经新闻搜索' },
-  { id: 'realtime_news',  label: '快讯', icon: '⚡', tip: '实时财经快讯（可播报）' },
-  { id: 'sector_limit',   label: '板块', icon: '🧩', tip: '板块涨幅/流入/涨跌家数' },
-  { id: 'limit_leader',   label: '龙头', icon: '👑', tip: '今日连板龙头 ≥2 连板' },
-  { id: 'strong_sector',  label: '强板', icon: '🔥', tip: '涨停股所属板块统计' },
-  { id: 'dragon_tiger',   label: '龙虎', icon: '🐯', tip: '龙虎榜上榜个股/游资' },
-  { id: 'yesterday_limit',label: '涨停', icon: '📈', tip: '今日涨停全池/封板时间' },
-  { id: 'alert',          label: '异动', icon: '🚨', tip: '盘中异动实时提醒（可播报）' },
-  { id: 'hot_stocks',     label: '热股', icon: '🌶️', tip: '热门/热门股票排行' },
-  { id: 'watchlist',      label: '自选', icon: '⭐', tip: '我的自选股，支持拖拽排序' },
+  { id: 'market_overview', label: '概况', icon: 'overview', tip: '指数涨跌家数/三市成交' },
+  { id: 'fundFlow',       label: '资金', icon: 'fund', tip: '板块资金流入流出 TOP10' },
+  { id: 'em_news',        label: '新闻', icon: 'news', tip: '财经新闻搜索' },
+  { id: 'realtime_news',  label: '快讯', icon: 'flash', tip: '实时财经快讯（可播报）' },
+  { id: 'sector_limit',   label: '板块', icon: 'sector', tip: '板块涨幅/流入/涨跌家数' },
+  { id: 'limit_leader',   label: '龙头', icon: 'leader', tip: '今日连板龙头 ≥2 连板' },
+  { id: 'strong_sector',  label: '强板', icon: 'strong', tip: '涨停股所属板块统计' },
+  { id: 'dragon_tiger',   label: '龙虎', icon: 'tiger', tip: '龙虎榜上榜个股/游资' },
+  { id: 'yesterday_limit',label: '涨停', icon: 'limit', tip: '今日涨停全池/封板时间' },
+  { id: 'alert',          label: '异动', icon: 'alert', tip: '盘中异动实时提醒（可播报）' },
+  { id: 'hot_stocks',     label: '热股', icon: 'hot', tip: '热门/热门股票排行' },
+  { id: 'watchlist',      label: '自选', icon: 'watch', tip: '我的自选股，支持拖拽排序' },
 ];
 export { TABS };
+
+// 东财风格统一线性图标（16x16，stroke=currentColor）
+export const TabIcon = ({ name, active }: { name: string; active?: boolean }) => {
+  const sw = 1.6;
+  const common = {
+    width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none',
+    stroke: 'currentColor', strokeWidth: sw, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+  };
+  switch (name) {
+    case 'overview': // 柱状图
+      return (<svg {...common}><rect x="3" y="13" width="4" height="8" rx="0.5"/><rect x="10" y="8" width="4" height="13" rx="0.5"/><rect x="17" y="4" width="4" height="17" rx="0.5"/></svg>);
+    case 'fund': // 圆圈中带 ¥
+      return (<svg {...common}><circle cx="12" cy="12" r="9"/><path d="M9 8l3 3 3-3M9 11h6M9 14h6M12 11v6"/></svg>);
+    case 'news': // 文档
+      return (<svg {...common}><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>);
+    case 'flash': // 闪电
+      return (<svg {...common}><path d="M13 2L4 14h7l-2 8 10-13h-7l1-7z"/></svg>);
+    case 'sector': // 四方格
+      return (<svg {...common}><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>);
+    case 'leader': // 皇冠
+      return (<svg {...common}><path d="M3 8l4 5 5-8 5 8 4-5-2 11H5L3 8z"/><path d="M5 19h14"/></svg>);
+    case 'strong': // 火焰
+      return (<svg {...common}><path d="M12 3c1 4 4 5 4 9a4 4 0 11-8 0c0-2 1-3 2-4-1 0-2 1-2 2 0-3 2-5 4-7z"/><path d="M12 21a5 5 0 005-5c0-2-1-3-2-4"/></svg>);
+    case 'tiger': // 爪印
+      return (<svg {...common}><circle cx="12" cy="14" r="3.5"/><circle cx="6" cy="9" r="1.8"/><circle cx="18" cy="9" r="1.8"/><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/></svg>);
+    case 'limit': // 上升箭头
+      return (<svg {...common}><path d="M3 17l6-6 4 4 8-9"/><path d="M21 6v5h-5"/></svg>);
+    case 'alert': // 铃铛
+      return (<svg {...common}><path d="M6 8a6 6 0 0112 0c0 7 3 8 3 8H3s3-1 3-8z"/><path d="M10 21h4"/></svg>);
+    case 'hot': // 温度计/热力
+      return (<svg {...common}><path d="M14 14V5a2 2 0 10-4 0v9a4 4 0 104 0z"/><path d="M12 9v5"/></svg>);
+    case 'watch': // 星
+      return (<svg {...common}><path d="M12 3l2.6 6.3 6.8.5-5.2 4.4 1.6 6.6L12 17.3 6.2 20.8l1.6-6.6L2.6 9.8l6.8-.5L12 3z"/></svg>);
+    default:
+      return null;
+  }
+};
 
 export default function HomePage({
     initialTab = 'market_overview' as TabId,
@@ -155,7 +192,7 @@ export default function HomePage({
             className={'tab-btn' + (tab === t.id ? ' active' : '')}
             onClick={() => setTab(t.id)}
           >
-            <span className="tb-ic">{t.icon}</span>
+            <span className="tb-ic"><TabIcon name={t.icon} active={tab === t.id} /></span>
             <span>{t.label}</span>
           </button>
         ))}

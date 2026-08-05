@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSettings } from './store/useSettings';
 import { useRouter } from './router/useRouter';
-import HomePage, { TABS, TabId } from './pages/HomePage';
+import HomePage, { TABS, TabId, TabIcon } from './pages/HomePage';
 import StockDetailPage from './pages/StockDetailPage';
 import AIChatPage from './pages/AIChatPage';
 import SettingsPage from './pages/SettingsPage';
@@ -561,7 +561,7 @@ export default function App() {
                   className={'sb-item' + (homeTab === t.id ? ' active' : '')}
                   onClick={() => setHomeTab(t.id)}
                 >
-                  <span className="sb-ic">{t.icon}</span>
+                  <span className="sb-ic"><TabIcon name={t.icon} active={homeTab === t.id} /></span>
                   <span className="sb-lb">{t.label}</span>
                 </button>
               ))}
@@ -572,7 +572,7 @@ export default function App() {
                 title="前往我的设置（AI 模型配置 / 主题 / 轮询）"
                 onClick={() => navigate('/settings')}
               >
-                <span className="sb-ic">👤</span>
+                <span className="sb-ic"><IconNavUser active={false} /></span>
                 <span className="sb-lb">我的 / 设置</span>
                 <span className="sb-chevron">›</span>
               </button>
