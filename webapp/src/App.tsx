@@ -420,34 +420,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* 品牌副标题栏：替代原来 mini-ticker 里直接暴露快捷按钮的布局，让层级更像 App */}
-      {(isHome || isReport || isAI || isSettings) && (
-        <div className="brand-bar">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {isHome && <span className="section-hd">行情中心</span>}
-            {isAI && <span className="section-hd">AI 助手</span>}
-            {isReport && <span className="section-hd">选股报告</span>}
-            {isSettings && <span className="section-hd">我的 / 设置</span>}
-          </div>
-          {(isHome || isReport) && (
-            <>
-              <button className="fab-float" aria-label="AI 助手" onClick={() => navigate('/ai')}>
-                ✨<span>AI</span>
-              </button>
-              <button
-                className="fab-float"
-                aria-label="选股报告"
-                title="生成六维选股报告"
-                onClick={() => navigate('/report')}
-                style={{ background: 'linear-gradient(135deg,#e8590c,#d6336c)' }}
-              >
-                📊<span>报告</span>
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
       {/* 主体：首页 = 左侧导航 + 主内容；其他页面 = 只有主内容 */}
       <div className={'main-area' + (showSidebar ? ' with-sidebar' : '')}>
         {showSidebar && (
