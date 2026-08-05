@@ -448,9 +448,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 迷你行情条（替代 VS Code StatusBar）：仅在首页 / 报告页展示 */}
-      {(isHome || isReport) && <MiniTickerBar navigate={navigate} onAskAI={() => navigate('/ai')} />}
-
       {/* 主体：首页 = 左侧导航 + 主内容；其他页面 = 只有主内容 */}
       <div className={'main-area' + (showSidebar ? ' with-sidebar' : '')}>
         {showSidebar && (
