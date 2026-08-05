@@ -208,6 +208,16 @@ export default function HomePage({
 }
 
 // =============== 各 Tab 渲染函数 ===============
+const AI_QUICK_PROMPTS = [
+  { ic: '🎯', q: '简单说说今天 A 股整体盘面' },
+  { ic: '💡', q: '最近哪些板块 / 概念持续有资金流入？' },
+  { ic: '📈', q: '如何判断主力资金是真流入还是诱多？' },
+  { ic: '🧠', q: '给我一份适合上班族的选股 checklist' },
+  { ic: '📊', q: '六维评分模型里，哪几个维度对短期走势影响更大？' },
+];
+function aiNavigate(prompt: string, onNavigate: (t: string) => void) {
+  onNavigate('/ai?prompt=' + encodeURIComponent(prompt));
+}
 function MarketOverview({ data, onNavigate }: any) {
   const diff: any[] = data?.data?.diff || data?.diff || [];
   const d = data?.data || data || {};
@@ -218,6 +228,24 @@ function MarketOverview({ data, onNavigate }: any) {
   const open = (code: string, name: string) => onNavigate(`/stock/${code}?name=${encodeURIComponent(name)}`);
   return (
     <>
+      <div className="card" style={{ borderLeft: '4px solid var(--accent)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div className="section-title" style={{ margin: 0 }}>📣 快捷问 AI · 对应扩展「股票中心」</div>
+          <button className="pill on" style={{ fontSize: 12, padding: '4px 10px', border: 'none', cursor: 'pointer' }}
+            onClick={() => onNavigate('/ai')}>打开 AI 助手 →</button>
+        </div>
+        <div style={{ fontSize: 12, opacity: .75, marginBottom: 8 }}>
+          把你的市场疑问、投资方法论或具体股票扔给 AI，注意 AI 回答不构成投资建议。
+        </div>
+        <div className="ai-quick-row">
+          {AI_QUICK_PROMPTS.map((p, i) => (
+            <button key={i} className="ai-quick-chip" onClick={() => aiNavigate(p.q, onNavigate)}>
+              <span style={{ marginRight: 4 }}>{p.ic}</span>{p.q}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid-3">
         {diff.slice(0, 3).map((it) => {
           const s = mapEmDiffToStockItem(it); const up = s.changeRate >= 0;

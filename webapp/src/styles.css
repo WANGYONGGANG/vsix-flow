@@ -426,3 +426,139 @@ td:first-child, th:first-child { text-align: left; }
   .detail-cell:nth-last-child(-n+4) { border-bottom: 1px solid var(--border); }
   .detail-cell:nth-last-child(-n+2) { border-bottom: none; }
 }
+
+/* ===== 扩展适配：新增样式 ===== */
+.pill { padding: 6px 14px; border-radius: 999px; background: var(--card); border: 1px solid var(--border); color: var(--fg); font-size: 13px; }
+.pill.on { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+
+/* 亮色主题 */
+html[data-theme="light"], html.theme-light {
+  --bg: #f5f6f8 !important;
+  --fg: #1f2329 !important;
+  --card: #ffffff !important;
+  --border: #e5e7eb !important;
+  --accent: #d48806 !important;
+  color-scheme: light;
+}
+html[data-theme="light"] .topbar,
+html.theme-light .topbar { background: #ffffff; border-bottom: 1px solid #e5e7eb; }
+html[data-theme="light"] .sb-item:hover, html.theme-light .sb-item:hover { background: #eef0f3; }
+html[data-theme="light"] .msg.assistant, html.theme-light .msg.assistant { color: #1f2329 !important; }
+html[data-theme="light"] .chat-inputbar textarea, html.theme-light .chat-inputbar textarea,
+html[data-theme="light"] .form-item input, html.theme-light .form-item input,
+html[data-theme="light"] .form-item textarea, html.theme-light .form-item textarea,
+html[data-theme="light"] .form-item select, html.theme-light .form-item select {
+  color: #1f2329 !important;
+}
+
+/* 迷你行情条 */
+.mini-ticker {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 14px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(232,179,57,.06) 0%, transparent 100%);
+  font-size: 12px;
+}
+.mini-ticker > div { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+.mini-ticker .mt-title {
+  flex-shrink: 0; padding: 3px 8px; border-radius: 4px;
+  background: var(--card); border: 1px solid var(--border);
+  font-size: 11px; opacity: .75; font-weight: 600;
+}
+.mini-ticker .mt-row {
+  display: flex; gap: 14px; overflow-x: auto; scrollbar-width: none;
+  max-width: min(62vw, 960px);
+}
+.mini-ticker .mt-row::-webkit-scrollbar { display: none; }
+.mini-ticker .mt-item {
+  display: inline-flex; gap: 6px; align-items: baseline; padding: 2px 4px;
+  white-space: nowrap; border: none; background: transparent;
+  color: var(--fg); cursor: pointer; font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mini-ticker .mt-item b { font-weight: 600; color: var(--fg); }
+.mini-ticker .mt-item span { opacity: .8; font-family: ui-monospace,Consolas,monospace; }
+.mini-ticker .mt-item em { font-style: normal; font-weight: 700; font-family: ui-monospace,Consolas,monospace; }
+.mini-ticker .mt-item i { font-style: normal; opacity: .8; font-size: 11px; }
+.mini-ticker .mt-item.up em, .mini-ticker .mt-item.up i { color: var(--up); }
+.mini-ticker .mt-item.down em, .mini-ticker .mt-item.down i { color: var(--down); }
+.mini-ticker .mt-item.hint { opacity: .6; font-style: italic; }
+.mini-ticker .mt-actions { margin-left: auto; }
+.mini-ticker .mt-btn {
+  padding: 4px 10px; border-radius: 6px;
+  background: var(--card); border: 1px solid var(--border); color: var(--fg);
+  font-size: 12px; cursor: pointer;
+}
+.mini-ticker .mt-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* 遮罩/对话框（搜索等） */
+.overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.55); display: flex;
+  align-items: flex-start; justify-content: center;
+  padding-top: 8vh;
+}
+.dialog {
+  width: min(520px, 94vw);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,.35);
+}
+.dialog-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+}
+.dialog-head b { font-size: 15px; color: var(--fg); }
+.dialog-body { padding: 14px 16px; max-height: 70vh; overflow-y: auto; }
+
+.search-input-wrap { position: relative; }
+.search-input {
+  width: 100%; padding: 10px 40px 10px 14px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--fg); font-size: 14px; outline: none;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-loading {
+  position: absolute; right: 12px; top: 50%;
+  width: 16px; height: 16px; margin-top: -8px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: rp 0.8s linear infinite;
+}
+@keyframes rp { to { transform: rotate(360deg); } }
+.search-list { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.search-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer;
+}
+.search-row:hover { background: var(--card); }
+.search-row .cc { font-family: ui-monospace,Consolas,monospace; opacity: .6; margin-left: 2px; font-size: 12px; }
+.search-row .tag { display: inline-block; margin-left: 8px; padding: 1px 6px; font-size: 10px; border-radius: 4px; background: var(--card); border: 1px solid var(--border); opacity: .8; }
+.search-actions .mt-btn { font-size: 11px; }
+.nodata { padding: 24px 10px; text-align: center; opacity: .4; font-size: 13px; }
+
+/* HomePage：AI 对话内嵌快捷入口 */
+.ai-quick-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ai-quick-chip {
+  padding: 6px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--border);
+  font-size: 12px; color: var(--fg); cursor: pointer;
+}
+.ai-quick-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ReportPage：详情页顶部操作栏细节修正 */
+.detail-actions .btn-back:disabled { opacity: .4; cursor: not-allowed; }
+
+/* 顶部按钮（报告快捷入口） */
+.fab-float + .fab-float { margin-left: 8px; }
+
+/* 提醒通知配置卡片 */
+.remind-row {
+  display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 6px;
+}
+.remind-row .rk-name { font-weight: 600; }
+.remind-row .rk-sub { font-size: 11px; opacity: .6; }
+.remind-row select, .remind-row input {
+  background: var(--card); border: 1px solid var(--border); color: var(--fg);
+  padding: 4px 8px; border-radius: 6px; font-size: 12px;
+}
+.remind-del { padding: 4px 10px; font-size: 12px; background: transparent; color: var(--fg); opacity: .6; border: none; cursor: pointer; }
+.remind-del:hover { color: var(--down); opacity: 1; }

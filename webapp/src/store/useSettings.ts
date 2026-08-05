@@ -2,9 +2,9 @@
 // 全局设置 + 自选/AI 模型配置 Hook (localStorage 持久化)
 // ============================================
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_SETTINGS } from '../../local-shared/constants';
-import { AppSettings, AIModelConfig } from '../../local-shared/types';
+import { AppSettings, AIModelConfig, WatchEntry } from '../../local-shared/types';
 import { normalizeCode, uid } from '../../local-shared/utils';
 
 const STORAGE_KEY = 'stockext.settings.v1';
@@ -29,7 +29,9 @@ export function useSettings() {
     const root = document.documentElement;
     root.style.setProperty('--up', settings.riseColor);
     root.style.setProperty('--down', settings.fallColor);
-  }, [settings.riseColor, settings.fallColor]);
+    root.setAttribute('data-theme', settings.theme || 'dark');
+    if (settings.theme === 'light') root.classList.add('theme-light'); else root.classList.remove('theme-light');
+  }, [settings.riseColor, settings.fallColor, settings.theme]);
 
   const save = useCallback((next: AppSettings) => {
     setSettingsState(next);
@@ -41,14 +43,18 @@ export function useSettings() {
   }, [settings, save]);
 
   // ======== 自选 ========
-  const addWatch = useCallback((rawCode: string) => {
-    const code = normalizeCode(rawCode);
+  const addWatch = useCallback((raw: string | WatchEntry) => {
+    const codeStr: string = typeof raw === 'string' ? raw : (raw?.code || '');
+    const name: string | undefined = typeof raw === 'string' ? undefined : raw?.name;
+    const code = normalizeCode(codeStr);
     const groups = settings.stockPortfolio.groups.length
       ? settings.stockPortfolio.groups
       : [{ name: '默认分组', codes: [] as string[] }];
     if (groups[0].codes.includes(code)) return;
     groups[0].codes.push(code);
-    update({ stockPortfolio: { ...settings.stockPortfolio, groups } });
+    const oldWatch: WatchEntry[] = Array.isArray(settings.watchlist) ? settings.watchlist.slice() : [];
+    if (name && !oldWatch.find((w) => w.code === code)) oldWatch.push({ code, name });
+    update({ stockPortfolio: { ...settings.stockPortfolio, groups }, watchlist: oldWatch });
   }, [settings, update]);
 
   const delWatch = useCallback((rawCode: string) => {
@@ -115,6 +121,23 @@ export function useSettings() {
   const activeAIModel: AIModelConfig | null =
     settings.aiModels.find((m) => m.id === settings.activeAIModelId) ?? settings.aiModels[0] ?? null;
 
+  // 兼容 watchlist 字段：优先使用 stockPortfolio.groups 的 codes；name 从 settings.watchlist 或 fallback 里拿
+  const watchlist = useMemo<WatchEntry[]>(() => {
+    const byCode = new Map<string, WatchEntry>();
+    for (const w of Array.isArray(settings.watchlist) ? settings.watchlist : []) {
+      if (w && w.code) byCode.set(normalizeCode(w.code), { code: normalizeCode(w.code), name: w.name });
+    }
+    const out: WatchEntry[] = [];
+    for (const g of settings.stockPortfolio.groups || []) {
+      for (const raw of g.codes || []) {
+        const code = normalizeCode(raw);
+        if (out.find((x) => x.code === code)) continue;
+        out.push(byCode.get(code) || { code });
+      }
+    }
+    return out;
+  }, [settings]);
+
   const exportJSON = () => {
     const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -139,5 +162,6 @@ export function useSettings() {
     addWatch, delWatch, moveWatch, reorderWatch, getWatchCodes,
     saveAIModel, deleteAIModel, setActiveAIModel, activeAIModel,
     exportJSON, importJSON,
+    watchlist,
   };
 }

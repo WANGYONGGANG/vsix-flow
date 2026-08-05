@@ -38,6 +38,19 @@ export default function AIChatPage() {
     }
   }, [sid, sessions]);
 
+  // 支持从 HomePage AI 快捷入口传来的初始 prompt（hash 形式 #/ai?prompt=xxx）
+  const initPromptRef = useRef(false);
+  useEffect(() => {
+    if (initPromptRef.current) return;
+    initPromptRef.current = true;
+    try {
+      const h = window.location.hash || '';
+      const qs = h.includes('?') ? h.split('?')[1] : '';
+      const p = new URLSearchParams(qs).get('prompt');
+      if (p) setInput(decodeURIComponent(p));
+    } catch { /* empty */ }
+  }, []);
+
   useEffect(() => { saveHistory(sessions); }, [sessions]);
 
   useEffect(() => { scrollToBottom(); }, [sessions, assistantDraft, sid]);

@@ -48,6 +48,14 @@ export const api = {
   stockEssential: (code: string) => request<any>(`/api/stock-essential?code=${code}`),
   stockProfile: (code: string, sub = 'essential') => request<any>(`/api/stock-profile?code=${code}&sub=${sub}`),
 
+  // ===== 扩展适配 - 新增接口 =====
+  marketRealtimeBatch: (codes: string[]) => request<any>(`/api/quote?codes=${codes.join(',')}`),
+  search: (kw: string) => request<any>(`/api/search?kw=${encodeURIComponent(kw)}`),
+  stockFlowRank: (pz = 100) => request<any>(`/api/stock-flow-rank?pz=${pz}`),
+  sectorFlowRank: (t: 1 | 2 = 2, pz = 30) => request<any>(`/api/sector-flow-rank?t=${t}&pz=${pz}`),
+  stockFflowDay: (code: string, lmt = 30) => request<any>(`/api/stock-fflow-day?code=${encodeURIComponent(code)}&lmt=${lmt}`),
+  stockHolder: (code: string) => request<any>(`/api/stock-holder?code=${encodeURIComponent(code)}`),
+
   // AI Chat - 支持 SSE 流式响应
   async chatStream(params: {
     baseURL: string; apiKey: string; model: string; temperature?: number;

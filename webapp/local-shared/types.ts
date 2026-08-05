@@ -14,6 +14,7 @@ export interface AIModelConfig {
   enabled?: boolean; temperature?: number;
 }
 export interface AIChatMessage { role: 'system' | 'user' | 'assistant'; content: string; }
+export interface WatchEntry { code: string; name?: string; }
 export interface AppSettings {
   stockPortfolio: StockPortfolio;
   fundPortfolio: FundPortfolio;
@@ -32,4 +33,9 @@ export interface AppSettings {
   hideStatusBarIcon: boolean;
   hideSidebarIcon?: boolean;
   hideActivityIcon?: boolean;
+  // ===== 扩展适配 - WebApp 专属 =====
+  theme: 'dark' | 'light';
+  statusBarStock: boolean;   // 迷你行情条是否显示自选股
+  tickerMs: number;          // 迷你行情条轮询周期（ms）
+  watchlist?: WatchEntry[];  // 兼容用（股票搜索/自选显示，与 stockPortfolio 同步）
 }

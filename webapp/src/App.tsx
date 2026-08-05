@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSettings } from './store/useSettings';
 import { useRouter } from './router/useRouter';
 import HomePage, { TABS, TabId } from './pages/HomePage';
@@ -6,7 +6,10 @@ import StockDetailPage from './pages/StockDetailPage';
 import AIChatPage from './pages/AIChatPage';
 import SettingsPage from './pages/SettingsPage';
 import AIModelEditorPage from './pages/AIModelEditorPage';
+import ReportPage from './pages/ReportPage';
 import { isAStockTradingHours } from '../local-shared/constants';
+import { WatchEntry } from '../local-shared/types';
+import { api } from './api/client';
 
 const BOTTOM_NAV = [
   { to: '/', label: '行情', icon: '📈' },
@@ -55,6 +58,194 @@ const BrandLogo = ({ size = 36 }: { size?: number }) => (
   </svg>
 );
 
+// ===== 迷你行情条（替代 VS Code StatusBar）：三大指数 + 自选股轮播 =====
+const IDX_NAMES = ['上证指数', '深证成指', '创业板指'];
+function MiniTickerBar({ navigate, onAskAI }: { navigate: (to: string) => void; onAskAI: () => void }) {
+  const { settings, watchlist } = useSettings();
+  const [indices, setIndices] = useState<any[]>([]);
+  const [flowTop, setFlowTop] = useState<any[]>([]);
+  const [watch, setWatch] = useState<any[]>([]);
+  const [showSearch, setShowSearch] = useState(false);
+  const fetching = useRef(false);
+  const iSlide = useRef(0);
+  const wSlide = useRef(0);
+
+  const refresh = useMemo(() => async () => {
+    if (fetching.current) return; fetching.current = true;
+    try {
+      const ov = await api.marketOverview();
+      const arr: any[] = ov?.data?.diff || [];
+      setIndices(IDX_NAMES.map((n) => arr.find((d: any) => d.f14 === n)).filter(Boolean));
+      const f = await api.stockFlowRank(8);
+      setFlowTop((f?.data?.diff || []).slice(0, 8));
+    } finally { fetching.current = false; }
+  }, []);
+
+  const refreshWatch = useMemo(() => async (listIn: WatchEntry[]) => {
+    if (!listIn.length) { setWatch([]); return; }
+    const codes = listIn.map((x) => x.code).filter(Boolean).slice(0, 30);
+    try {
+      const r = await api.marketRealtimeBatch(codes);
+      setWatch((r?.data?.diff || []).slice(0, 30));
+    } catch (_) { setWatch([]); }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { refreshWatch(watchlist); }, [refreshWatch, watchlist]);
+
+  useEffect(() => {
+    const ms = settings.tickerMs != null && settings.tickerMs > 0 ? settings.tickerMs : 5000;
+    const t = setInterval(refresh, ms);
+    return () => clearInterval(t);
+  }, [refresh, settings.tickerMs]);
+
+  useEffect(() => {
+    const ms = settings.tickerMs != null && settings.tickerMs > 0 ? settings.tickerMs : 5000;
+    const t = setInterval(() => refreshWatch(watchlist), ms);
+    return () => clearInterval(t);
+  }, [refreshWatch, settings.tickerMs, watchlist]);
+
+  // 自动滚动
+  useEffect(() => {
+    let cancelled = false;
+    const loop = () => {
+      if (cancelled) return;
+      iSlide.current++; wSlide.current++;
+      const bar = document.querySelector<HTMLElement>('.mini-ticker');
+      if (bar) {
+        const indWrap = bar.querySelector<HTMLElement>('.mt-indices .mt-row');
+        if (indWrap) indWrap.scrollLeft = (iSlide.current * 60) % Math.max(1, indWrap.scrollWidth - indWrap.clientWidth);
+        const wWrap = bar.querySelector<HTMLElement>('.mt-watch .mt-row');
+        if (wWrap) wWrap.scrollLeft = (wSlide.current * 60) % Math.max(1, wWrap.scrollWidth - wWrap.clientWidth);
+      }
+      setTimeout(loop, 3000);
+    };
+    const tid = setTimeout(loop, 3000);
+    return () => { cancelled = true; clearTimeout(tid); };
+  }, []);
+
+  const showWatch = settings.statusBarStock !== false;
+
+  return (
+    <div className="mini-ticker" aria-label="迷你行情条">
+      <div className="mt-indices">
+        <div className="mt-title">大盘</div>
+        <div className="mt-row">
+          {indices.map((d: any, i: number) => {
+            const pct = d.f3 || 0; const up = pct >= 0;
+            return (
+              <div key={i} className={'mt-item ' + (up ? 'up' : 'down')} title={`${d.f14} ${pct.toFixed(2)}%`}>
+                <b>{d.f14}</b><span>{fmt(d.f2, 2)}</span><em>{(up ? '+' : '') + pct.toFixed(2)}%</em>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-flow">
+        <div className="mt-title">主力TOP</div>
+        <div className="mt-row">
+          {flowTop.map((d: any, i: number) => (
+            <button
+              key={i} className={'mt-item ' + ((d.f3 || 0) >= 0 ? 'up' : 'down')}
+              onClick={() => navigate(`/stock/${d.f12}`)}
+              title={`${d.f14} - 主力流入 ${fmt(d.f62)}亿`}
+            >
+              <b>{d.f14}</b><em>{((d.f3 || 0) >= 0 ? '+' : '') + (d.f3 || 0).toFixed(2)}%</em>
+              <i>{(Number(d.f62 || 0) / 1e8).toFixed(0)}亿</i>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {showWatch && (
+        <div className="mt-watch">
+          <div className="mt-title">自选</div>
+          <div className="mt-row">
+            {watch.map((d: any, i: number) => (
+              <button
+                key={i} className={'mt-item ' + ((d.f3 || 0) >= 0 ? 'up' : 'down')}
+                onClick={() => navigate(`/stock/${d.f12}`)}
+                title={`${d.f14} ${(d.f3 || 0).toFixed(2)}%`}
+              >
+                <b>{d.f14}</b><span>{fmt(d.f2, 2)}</span><em>{((d.f3 || 0) >= 0 ? '+' : '') + (d.f3 || 0).toFixed(2)}%</em>
+              </button>
+            ))}
+            {watch.length === 0 && (
+              <button className="mt-item hint" onClick={() => setShowSearch(true)}>+ 添加自选股</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-actions">
+        <button className="mt-btn" onClick={() => navigate('/report')} title="生成选股报告">📊 选股报告</button>
+        <button className="mt-btn" onClick={() => setShowSearch(true)} title="搜索股票">🔍 搜索</button>
+        <button className="mt-btn" onClick={onAskAI} title="AI 助手">✨ AI</button>
+      </div>
+
+      {showSearch && <SearchDialog onClose={() => setShowSearch(false)} onPick={(code) => { setShowSearch(false); navigate(`/stock/${code}`); }} />}
+    </div>
+  );
+}
+function fmt(v: any, d = 1) { const n = Number(v); return isNaN(n) ? '-' : n.toFixed(d); }
+
+// ===== 搜索对话框（东方财富 /api/search）=====
+function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code: string) => void }) {
+  const { settings, addWatch } = useSettings();
+  const [q, setQ] = useState('');
+  const [list, setList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    const kw = q.trim();
+    if (!kw) { setList([]); return; }
+    let alive = true;
+    setLoading(true);
+    api.search(kw).then((r) => { if (alive) setList((r?.data?.list || []).slice(0, 12)); })
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, [q]);
+
+  const watchSet = new Set<string>((settings.watchlist || []).map((w: any) => String(w.code)));
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="dialog search-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-head"><b>搜索股票 / 指数</b><button className="icon-btn" onClick={onClose} aria-label="关闭">✕</button></div>
+        <div className="dialog-body">
+          <div className="search-input-wrap">
+            <input ref={inputRef} className="search-input" placeholder="输入代码/拼音/中文名称"
+              value={q} onChange={(e) => setQ(e.target.value)} />
+            {loading && <span className="search-loading" />}
+          </div>
+          <div className="search-list">
+            {list.map((d: any, i: number) => {
+              const inWatch = watchSet.has(String(d.code));
+              return (
+                <div key={i} className="search-row" onClick={() => onPick(d.code)}>
+                  <div>
+                    <b>{d.name}</b> <span className="cc">{d.display_code || d.code}</span>
+                    <span className="tag">{d.market || ''}{d.type ? ' · ' + d.type : ''}</span>
+                  </div>
+                  <div className="search-actions" onClick={(e) => e.stopPropagation()}>
+                    {!inWatch
+                      ? <button className="mt-btn" onClick={() => { addWatch({ code: String(d.code), name: d.name || String(d.code) }); onPick(d.code); }}>+ 自选</button>
+                      : <button className="mt-btn" onClick={() => onPick(d.code)}>查看 →</button>}
+                  </div>
+                </div>
+              );
+            })}
+            {q && !list.length && !loading && <div className="nodata">未找到匹配的股票</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const { path, navigate } = useRouter();
   const { settings } = useSettings();
@@ -76,10 +267,71 @@ export default function App() {
   const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   const md = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
+  // ===== 提醒通知：全局轮询 + 浏览器 Notification =====
+  const { watchlist } = useSettings();
+  const firedKeyRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!settings.remindSwitch || !watchlist.length) { firedKeyRef.current.clear(); return; }
+    let alive = true; let timer: any = null;
+    const tick = async () => {
+      if (!alive) return;
+      const entries: Array<{ code: string; cfg: any }> = [];
+      for (const w of watchlist) {
+        const c = String(w.code || ''); if (!c) continue;
+        const cfg: any = settings.stocksRemind?.[c]; if (!cfg || cfg.enabled === false) continue;
+        if (cfg.cond === 'chg' && (Number(cfg.threshold) || 0) === 0) continue;
+        if ((cfg.cond === 'high' || cfg.cond === 'low') && (Number(cfg.threshold) || 0) === 0) continue;
+        entries.push({ code: c, cfg });
+      }
+      if (!entries.length) return;
+      const codes = entries.map((e) => e.code);
+      try {
+        const r = await api.quote(codes);
+        const diff: any[] = r?.data?.diff || [];
+        const byCode = new Map<string, any>();
+        for (const d of diff) byCode.set(String(d.f12 || '').toLowerCase(), d);
+        for (const { code, cfg } of entries) {
+          const row = byCode.get(code.replace(/^(sh|sz|bj)/i, '')) || byCode.get(code);
+          if (!row) continue;
+          const price = Number(row.f2 || 0); const chg = Number(row.f3 || 0); const name = row.f14 || code;
+          const keyBase = `${code}:${cfg.cond}:${cfg.threshold}`;
+          let fired = false; let msg = '';
+          if (cfg.cond === 'chg') {
+            const t = Math.abs(Number(cfg.threshold)); if (Math.abs(chg) >= t) { fired = true; msg = `${name} 当日涨跌幅 ${(chg >= 0 ? '+' : '') + chg.toFixed(2)}% 达到阈值 ±${t}%`; }
+          } else if (cfg.cond === 'high') {
+            const t = Number(cfg.threshold); if (price && price >= t) { fired = true; msg = `${name} 最新价 ${price.toFixed(2)} 突破高价阈值 ≥ ${t}`; }
+          } else if (cfg.cond === 'low') {
+            const t = Number(cfg.threshold); if (price && price <= t) { fired = true; msg = `${name} 最新价 ${price.toFixed(2)} 跌破低价阈值 ≤ ${t}`; }
+          }
+          const key = `${keyBase}:${msg.replace(/[^0-9]/g, '').slice(-8)}:${new Date().toDateString()}`;
+          if (fired && !firedKeyRef.current.has(key)) {
+            firedKeyRef.current.add(key);
+            try {
+              if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                try { new Notification('StockExt 提醒', { body: msg, tag: key }); } catch { /* empty */ }
+              }
+              if (settings.voiceBroadcast && 'speechSynthesis' in window) {
+                try {
+                  const u = new SpeechSynthesisUtterance(msg);
+                  u.lang = 'zh-CN'; u.rate = 1.05; window.speechSynthesis.speak(u);
+                } catch { /* empty */ }
+              }
+              console.log('[Remind]', msg);
+            } catch { /* empty */ }
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    tick();
+    timer = setInterval(tick, Math.max(5000, settings.pollIntervalMs || 5000));
+    return () => { alive = false; if (timer) clearInterval(timer); firedKeyRef.current.clear(); };
+  }, [settings.remindSwitch, settings.stocksRemind, settings.voiceBroadcast, settings.pollIntervalMs, watchlist]);
+
   const inDetail = path.startsWith('/stock/') || path.startsWith('/settings/model');
   const isHome = path === '/' || path.startsWith('/stock/');
   const isAI = path === '/ai';
   const isSettings = path === '/settings' || path.startsWith('/settings/model');
+  const isReport = path === '/report';
   const showSidebar = path === '/'; // 只有首页才显示左侧 12 Tab 侧边栏
   const showBack = inDetail && !isSettings;
 
@@ -103,7 +355,7 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-right">
-          {(path === '/' || path.startsWith('/stock/')) && (
+          {(path === '/' || path.startsWith('/stock/') || isReport) && (
             <button
               className="fab-float"
               aria-label="AI 助手"
@@ -114,8 +366,22 @@ export default function App() {
               <span>问 AI</span>
             </button>
           )}
+          {(path === '/' || isReport) && (
+            <button
+              className="fab-float"
+              aria-label="选股报告"
+              title="生成六维选股报告"
+              onClick={() => navigate('/report')}
+              style={{ background: 'linear-gradient(135deg,#e8590c,#d6336c)' }}
+            >
+              📊<span>报告</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* 迷你行情条（替代 VS Code StatusBar）：仅在首页 / 报告页 / 详情页展示 */}
+      {(isHome || isReport) && <MiniTickerBar navigate={navigate} onAskAI={() => navigate('/ai')} />}
 
       {/* 主体：首页 = 左侧导航 + 主内容；其他页面 = 只有主内容 */}
       <div className={'main-area' + (showSidebar ? ' with-sidebar' : '')}>
@@ -155,6 +421,7 @@ export default function App() {
           {path.startsWith('/stock/') && (
             <StockDetailPage code={decodeURIComponent(path.split('/stock/')[1] || '')} />
           )}
+          {path === '/report' && <ReportPage />}
           {path === '/ai' && <AIChatPage />}
           {path === '/settings' && <SettingsPage />}
           {path.startsWith('/settings/model') && (

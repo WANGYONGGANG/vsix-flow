@@ -38,6 +38,30 @@ export default function SettingsPage() {
         <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '16px 16px 6px' }}>界面</div>
 
         <div className="form-item">
+          <div className="lbl">主题</div>
+          <div className="val">
+            <div className="flex items-center gap-2">
+              <button className={'pill' + (settings.theme === 'dark' ? ' on' : '')} onClick={() => update({ theme: 'dark' })}>🌙 暗色</button>
+              <button className={'pill' + (settings.theme === 'light' ? ' on' : '')} onClick={() => update({ theme: 'light' })}>☀️ 亮色</button>
+            </div>
+          </div>
+        </div>
+        <div className="form-item">
+          <div className="lbl">迷你行情条·显示自选股</div>
+          <div className="val flex jcsb items-center">
+            <div className={'switch' + (settings.statusBarStock ? ' on' : '')}
+              onClick={() => update({ statusBarStock: !settings.statusBarStock })} />
+          </div>
+        </div>
+        <div className="form-item">
+          <div className="lbl">迷你行情条·轮询(秒)</div>
+          <div className="val">
+            <input type="number" min={3} max={120}
+              value={Math.round((settings.tickerMs ?? 5000) / 1000)}
+              onChange={(e) => update({ tickerMs: Math.max(3000, Number(e.target.value || 5) * 1000) })} />
+          </div>
+        </div>
+        <div className="form-item">
           <div className="lbl">上涨颜色</div>
           <div className="val">
             <div className="flex items-center gap-2">
@@ -177,6 +201,70 @@ export default function SettingsPage() {
           ))}
           </div>
         )}
+      </div>
+
+      {/* 提醒通知（浏览器 Notification） */}
+      <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>提醒通知</div>
+      <div className="form-item">
+        <div className="lbl">开启价格 / 涨跌幅提醒</div>
+        <div className="val flex jcsb items-center">
+          <div className={'switch' + (settings.remindSwitch ? ' on' : '')}
+            onClick={() => {
+              if (!settings.remindSwitch && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+                try { Notification.requestPermission(); } catch { /* empty */ }
+              }
+              update({ remindSwitch: settings.remindSwitch ? 0 : 1 });
+            }} />
+        </div>
+      </div>
+      <div className="form-item" style={{ paddingTop: 4 }}>
+        <div className="lbl" style={{ alignSelf: 'flex-start', paddingTop: 8 }}>触发条件</div>
+        <div className="val" style={{ flex: 1, flexDirection: 'column', alignItems: 'stretch', display: 'flex' }}>
+          {getWatchCodes().length === 0 && <div style={{ opacity: .5, fontSize: 12 }}>请先在上方「自选股」中添加你想监控的股票。</div>}
+          {getWatchCodes().map((code) => {
+            const cur: any = settings.stocksRemind?.[code] || {};
+            const cond: string = cur.cond || 'chg';
+            const thr: string = String(cur.threshold ?? '');
+            const en: boolean = cur.enabled !== false;
+            const patch = (p: any) => {
+              const next = { ...(settings.stocksRemind || {}), [code]: { ...(settings.stocksRemind?.[code] || {}), ...p } };
+              update({ stocksRemind: next });
+            };
+            return (
+              <div key={code} className="remind-row">
+                <div>
+                  <div className="rk-name">{code.toUpperCase()}</div>
+                  <div className="rk-sub">
+                    {cond === 'chg' ? '当日涨跌幅(%)达到 ±' :
+                     cond === 'high' ? '最新价 ≥ ' :
+                     cond === 'low'  ? '最新价 ≤ ' : '价格条件'}
+                    {thr ? <b style={{ color: 'var(--accent)' }}> {thr}</b> : null}
+                  </div>
+                </div>
+                <select value={cond} onChange={(e) => patch({ cond: e.target.value })}>
+                  <option value="chg">涨跌幅±%</option>
+                  <option value="high">突破高价≥</option>
+                  <option value="low">跌破低价≤</option>
+                </select>
+                <input type="number" step="0.01" placeholder="阈值"
+                  value={thr}
+                  onChange={(e) => patch({ threshold: e.target.value === '' ? '' : Number(e.target.value) })}
+                  style={{ width: 90 }} />
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <div className={'switch' + (en ? ' on' : '')} onClick={() => patch({ enabled: !en })} />
+                  <button className="remind-del" title="清除这只的配置"
+                    onClick={() => {
+                      const next = { ...(settings.stocksRemind || {}) }; delete next[code];
+                      update({ stocksRemind: next });
+                    }}>✕</button>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 10, fontSize: 11, opacity: .55, lineHeight: 1.6 }}>
+            说明：浏览器需打开此页面才会轮询并通知；首次使用时请在系统与浏览器中允许通知权限。本提醒逻辑仅在前台运行。
+          </div>
+        </div>
       </div>
 
       {/* 导入导出 */}

@@ -37,4 +37,9 @@ export const DEFAULT_SETTINGS = {
   opacity: 1,
   hideStatusBar: false,
   hideStatusBarIcon: false,
+  // ===== 扩展适配 - WebApp 专属 =====
+  theme: 'dark' as 'dark' | 'light',
+  statusBarStock: true,
+  tickerMs: 5000,
+  watchlist: [] as { code: string; name?: string }[],
 };
