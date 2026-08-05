@@ -11,7 +11,7 @@ async function request<T = any>(path: string, init?: RequestInit): Promise<T | n
     const hasBody = !!(init?.body || init?.method && init.method !== 'GET' && init.method !== 'HEAD');
     const customHeaders = hasBody ? { 'Content-Type': 'application/json', ...(init?.headers || {}) } : (init?.headers || {});
     const res = await fetch(API_BASE + path, {
-      credentials: 'omit',
+      credentials: 'include',
       method: 'GET',
       ...(init || {}),
       headers: customHeaders,
@@ -65,6 +65,7 @@ export const api = {
     const { baseURL, apiKey, model, messages, temperature, onToken } = params;
     const resp = await fetch(API_BASE + '/api/ai/chat', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ baseURL, apiKey, model, temperature, messages, stream: true }),
     });
