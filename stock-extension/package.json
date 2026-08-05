@@ -464,8 +464,18 @@
         "stock-ext.theme": {
           "type": "string",
           "default": "classic",
-          "enum": ["classic", "dark", "light", "system"],
-          "enumDescriptions": ["经典主题", "黑色主题", "白色主题", "跟随系统"],
+          "enum": [
+            "classic",
+            "dark",
+            "light",
+            "system"
+          ],
+          "enumDescriptions": [
+            "经典主题",
+            "黑色主题",
+            "白色主题",
+            "跟随系统"
+          ],
           "description": "界面主题"
         },
         "stock-ext.voiceBroadcast": {
@@ -508,7 +518,8 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "axios": "^1.7.0"
+    "axios": "^1.7.0",
+    "msedge-tts": "^2.0.7"
   },
   "extensionKind": [
     "ui",

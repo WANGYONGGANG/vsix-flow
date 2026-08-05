@@ -58,7 +58,7 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     this._view = webviewView;
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
     const scriptUri = webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'centerView.js'));
-    const html = getStockCenterHtml(webviewView.webview.cspSource, scriptUri.toString());
+    const html = getStockCenterHtml(webviewView.webview.cspSource, scriptUri.toString(), getProxyPort());
     this.log(`[resolve] html length=${html.length}`);
     webviewView.webview.html = html;
 

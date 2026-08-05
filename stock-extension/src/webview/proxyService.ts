@@ -2,8 +2,30 @@ import * as http from 'http';
 import * as https from 'https';
 import * as url from 'url';
 import { TextDecoder } from 'util';
+import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 
 const gbDec = new TextDecoder('gb18030');
+
+const EDGE_TTS_VOICES = [
+  { id: 'zh-CN-XiaoxiaoNeural', name: '晓晓（女·亲切）', gender: 'female' },
+  { id: 'zh-CN-XiaoyiNeural', name: '晓伊（女·温柔）', gender: 'female' },
+  { id: 'zh-CN-XiaochenNeural', name: '晓辰（女·清新）', gender: 'female' },
+  { id: 'zh-CN-XiaohanNeural', name: '晓涵（女·知性）', gender: 'female' },
+  { id: 'zh-CN-XiaomengNeural', name: '晓梦（女·梦幻）', gender: 'female' },
+  { id: 'zh-CN-XiaomoNeural', name: '晓墨（女·沉稳）', gender: 'female' },
+  { id: 'zh-CN-XiaoqiuNeural', name: '晓秋（女·秋意）', gender: 'female' },
+  { id: 'zh-CN-XiaorouNeural', name: '晓柔（女·柔美）', gender: 'female' },
+  { id: 'zh-CN-XiaoshuangNeural', name: '晓双（女·儿童）', gender: 'child' },
+  { id: 'zh-CN-XiaoxuanNeural', name: '晓萱（女·活泼）', gender: 'female' },
+  { id: 'zh-CN-XiaozhenNeural', name: '晓甄（女·真诚）', gender: 'female' },
+  { id: 'zh-CN-YunjianNeural', name: '云健（男·沉稳磁性）', gender: 'male' },
+  { id: 'zh-CN-YunxiNeural', name: '云希（男·年轻）', gender: 'male' },
+  { id: 'zh-CN-YunxiaNeural', name: '云夏（男·少年）', gender: 'male' },
+  { id: 'zh-CN-YunyangNeural', name: '云扬（男·新闻播报）', gender: 'male' },
+  { id: 'zh-CN-YunfengNeural', name: '云枫（男·成熟）', gender: 'male' },
+  { id: 'zh-CN-YunhaoNeural', name: '云皓（男·浩然）', gender: 'male' },
+  { id: 'zh-CN-YunzeNeural', name: '云泽（男·稳重）', gender: 'male' },
+];
 
 function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
   let settled = false;
@@ -847,6 +869,46 @@ export class ProxyService {
           return;
         }
         this.json(res, 200, { data: { items: [] } });
+        return;
+      }
+
+      // Edge TTS - 文字转语音
+      if (targetUrl.startsWith('/api/tts')) {
+        const text = (parsed.query.text as string) || '';
+        const voice = (parsed.query.voice as string) || 'zh-CN-XiaoxiaoNeural';
+        const rate = parseFloat(parsed.query.rate as string) || 0;
+        const pitch = parseFloat(parsed.query.pitch as string) || 0;
+        if (!text) { this.json(res, 400, { error: 'text required' }); return; }
+        try {
+          const tts = new MsEdgeTTS();
+          await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+          const { audioStream } = tts.toStream(text, {
+            rate: `${rate >= 0 ? '+' : ''}${rate}%`,
+            pitch: `${pitch >= 0 ? '+' : ''}${pitch}%`,
+          });
+          const chunks: Buffer[] = [];
+          await new Promise<void>((resolve, reject) => {
+            audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
+            audioStream.on('end', () => resolve());
+            audioStream.on('error', (err: any) => reject(err));
+          });
+          tts.close();
+          const buf = Buffer.concat(chunks);
+          res.writeHead(200, {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': buf.length
+          });
+          res.end(buf);
+        } catch (err: any) {
+          this.json(res, 500, { error: 'TTS failed: ' + (err?.message || 'unknown') });
+        }
+        return;
+      }
+
+      // Edge TTS - 获取可用语音列表
+      if (targetUrl.startsWith('/api/tts-voices')) {
+        this.json(res, 200, { data: { voices: EDGE_TTS_VOICES } });
         return;
       }
 

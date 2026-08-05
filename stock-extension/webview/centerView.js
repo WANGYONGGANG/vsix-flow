@@ -43,14 +43,16 @@ var _selectedVoiceURI='';var _availableVoices=[];
 var _selectedVoicePreset='default';
 try{var _vstate=vscode.getState();if(_vstate&&_vstate.voiceURI){_selectedVoiceURI=_vstate.voiceURI;}if(_vstate&&_vstate.voicePreset){_selectedVoicePreset=_vstate.voicePreset;}}catch(_){}
 var VOICE_PRESETS=[
-  {id:'default',name:'默认语音',rate:1.1,pitch:1,gender:''},
-  {id:'gentle_female',name:'温柔女声',rate:0.95,pitch:1.15,gender:'female'},
-  {id:'magnetic_male',name:'磁性男声',rate:0.9,pitch:0.85,gender:'male'},
-  {id:'lively_girl',name:'活泼少女',rate:1.25,pitch:1.3,gender:'female'},
-  {id:'calm_anchor',name:'沉稳播音',rate:0.85,pitch:0.95,gender:'male'},
-  {id:'child_voice',name:'童声播报',rate:1.15,pitch:1.6,gender:'child'},
-  {id:'fast_news',name:'快速播报',rate:1.5,pitch:1,gender:''}
+  {id:'default',name:'默认语音',rate:10,pitch:0,gender:'',edgeVoice:'zh-CN-XiaoxiaoNeural'},
+  {id:'gentle_female',name:'温柔女声',rate:-5,pitch:5,gender:'female',edgeVoice:'zh-CN-XiaoyiNeural'},
+  {id:'magnetic_male',name:'磁性男声',rate:-10,pitch:-5,gender:'male',edgeVoice:'zh-CN-YunjianNeural'},
+  {id:'lively_girl',name:'活泼少女',rate:25,pitch:15,gender:'female',edgeVoice:'zh-CN-XiaoxuanNeural'},
+  {id:'calm_anchor',name:'沉稳播音',rate:-15,pitch:0,gender:'male',edgeVoice:'zh-CN-YunyangNeural'},
+  {id:'child_voice',name:'童声播报',rate:15,pitch:30,gender:'child',edgeVoice:'zh-CN-XiaoshuangNeural'},
+  {id:'fast_news',name:'快速播报',rate:50,pitch:0,gender:'',edgeVoice:'zh-CN-YunyangNeural'}
 ];
+var _useEdgeTTS=true;
+var _edgeAudio=null;
 var _maleKeywords=['kangkang','david','george','ravi','mark','male','男','yunxi','yunyang','google 普通话（中国大陆）','google mandarin','pinyin'];
 var _femaleKeywords=['huihui','yaoyao','zira','susan','anna','female','女','xiaoxiao','xiaoyi','tingting','google 普通话','google粤','cantonese'];
 var _childKeywords=['child','kid','童','xiaoyou'];
@@ -74,23 +76,63 @@ function matchVoiceForGender(gender){
 function getEffectiveVoiceURI(){
   if(_selectedVoiceURI)return _selectedVoiceURI;
   var preset=getVoicePreset(_selectedVoicePreset);
-  return matchVoiceForGender(preset.gender);
+  var matched=matchVoiceForGender(preset.gender);
+  if(matched)return matched;
+  if(_availableVoices.length){
+    for(var i=0;i<_availableVoices.length;i++){
+      var lang=(_availableVoices[i].lang||'').toLowerCase();
+      if(lang.indexOf('zh')>=0||lang.indexOf('cmn')>=0)return _availableVoices[i].voiceURI;
+    }
+    return _availableVoices[0].voiceURI;
+  }
+  return '';
 }
 function getVoiceNameByURI(uri){
-  if(!uri)return '';
+  if(!uri)return '系统默认';
   for(var i=0;i<_availableVoices.length;i++){
     if(_availableVoices[i].voiceURI===uri)return _availableVoices[i].name||'';
   }
   return '';
 }
+var _voiceLoadRetries=0;
+var _voiceLoadCallbacks=[];
 function warmUpVoices(){
   if(!('speechSynthesis' in window))return;
   _availableVoices=window.speechSynthesis.getVoices()||[];
-  if(!_availableVoices.length){
-    var u=new SpeechSynthesisUtterance(' ');u.lang='zh-CN';u.volume=0;
-    window.speechSynthesis.speak(u);
-    setTimeout(function(){_availableVoices=window.speechSynthesis.getVoices()||[];},200);
+  if(_availableVoices.length){_voiceLoadRetries=0;loadVoices();_notifyVoiceLoaded();return;}
+  if(_voiceLoadRetries>=15){console.log('[Voice] Max retries reached, voices may not be available');_notifyVoiceLoaded();return;}
+  _voiceLoadRetries++;
+  var u=new SpeechSynthesisUtterance(' ');u.lang='zh-CN';u.volume=0;
+  try{window.speechSynthesis.speak(u);}catch(e){}
+  setTimeout(function(){
+    _availableVoices=window.speechSynthesis.getVoices()||[];
+    if(_availableVoices.length){
+      console.log('[Voice] Loaded '+_availableVoices.length+' voices after '+_voiceLoadRetries+' retries');
+      _voiceLoadRetries=0;loadVoices();_notifyVoiceLoaded();
+    }else{
+      console.log('[Voice] Retry '+_voiceLoadRetries+': no voices yet');
+      warmUpVoices();
+    }
+  },300);
+}
+function _notifyVoiceLoaded(){
+  for(var i=0;i<_voiceLoadCallbacks.length;i++){try{_voiceLoadCallbacks[i](_availableVoices);}catch(e){}}
+  _voiceLoadCallbacks=[];
+  var voiceSel=document.getElementById('settingsVoiceModel');
+  if(voiceSel){
+    var curURI=voiceSel.value;
+    voiceSel.innerHTML='<option value="">跟随系统</option>';
+    for(var vi=0;vi<_availableVoices.length;vi++){
+      var v=_availableVoices[vi];
+      var vlabel=v.name+(v.lang?' ('+v.lang+')':'');
+      voiceSel.innerHTML+='<option value="'+esc(v.voiceURI)+'"'+(v.voiceURI===curURI?' selected':'')+'>'+esc(vlabel)+'</option>';
+    }
+    updateVoiceDiagnostic();
   }
+}
+function onVoicesLoaded(cb){
+  if(_availableVoices.length){cb(_availableVoices);return;}
+  _voiceLoadCallbacks.push(cb);
 }
 function loadVoices(){
   if(!('speechSynthesis' in window))return;
@@ -104,9 +146,65 @@ function loadVoices(){
     }
   }
 }
-if('speechSynthesis' in window){loadVoices();warmUpVoices();window.speechSynthesis.onvoiceschanged=loadVoices;}
+function reloadVoices(){
+  if(!('speechSynthesis' in window))return;
+  _voiceLoadRetries=0;
+  try{window.speechSynthesis.cancel();}catch(e){}
+  _availableVoices=window.speechSynthesis.getVoices()||[];
+  if(!_availableVoices.length){warmUpVoices();}
+  else{loadVoices();}
+}
+function getVoiceDiagnostic(){
+  var info={total:_availableVoices.length,zhCount:0,zhVoices:[],allVoices:[]};
+  for(var i=0;i<_availableVoices.length;i++){
+    var v=_availableVoices[i];
+    var lang=(v.lang||'').toLowerCase();
+    var isZh=lang.indexOf('zh')>=0||lang.indexOf('cmn')>=0;
+    var entry={name:v.name||'',lang:v.lang||'',uri:v.voiceURI||'',isZh:isZh};
+    info.allVoices.push(entry);
+    if(isZh){info.zhCount++;info.zhVoices.push(entry);}
+  }
+  var effUri=getEffectiveVoiceURI();
+  info.effectiveVoice=getVoiceNameByURI(effUri);
+  info.effectiveURI=effUri;
+  return info;
+}
+if('speechSynthesis' in window){loadVoices();warmUpVoices();window.speechSynthesis.onvoiceschanged=function(){loadVoices();_notifyVoiceLoaded();};}
 function getVoicePreset(id){for(var i=0;i<VOICE_PRESETS.length;i++){if(VOICE_PRESETS[i].id===id)return VOICE_PRESETS[i];}return VOICE_PRESETS[0];}
-function speakText(text){if(!text)return;if(!('speechSynthesis' in window))return;window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(text);u.lang='zh-CN';var preset=getVoicePreset(_selectedVoicePreset);u.rate=preset.rate;u.pitch=preset.pitch;var uri=getEffectiveVoiceURI();if(uri){for(var i=0;i<_availableVoices.length;i++){if(_availableVoices[i].voiceURI===uri){u.voice=_availableVoices[i];break;}}}window.speechSynthesis.speak(u)}
+function speakText(text){
+  if(!text)return;
+  var preset=getVoicePreset(_selectedVoicePreset);
+  if(_useEdgeTTS&&preset.edgeVoice){
+    speakEdgeTTS(text,preset);
+    return;
+  }
+  if(!('speechSynthesis' in window))return;
+  window.speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(text);u.lang='zh-CN';
+  u.rate=preset.rate/100+1;u.pitch=preset.pitch/100+1;
+  var uri=getEffectiveVoiceURI();
+  if(uri){for(var i=0;i<_availableVoices.length;i++){if(_availableVoices[i].voiceURI===uri){u.voice=_availableVoices[i];break;}}}
+  window.speechSynthesis.speak(u);
+}
+function speakEdgeTTS(text,preset){
+  if(_edgeAudio){try{_edgeAudio.pause();_edgeAudio=null;}catch(e){}}
+  var proxyPort=window._proxyPort||19101;
+  var url='http://localhost:'+proxyPort+'/api/tts?text='+encodeURIComponent(text)+'&voice='+encodeURIComponent(preset.edgeVoice)+'&rate='+preset.rate+'&pitch='+preset.pitch;
+  fetch(url).then(function(r){
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.blob();
+  }).then(function(blob){
+    var blobUrl=URL.createObjectURL(blob);
+    _edgeAudio=new Audio(blobUrl);
+    _edgeAudio.onended=function(){URL.revokeObjectURL(blobUrl);};
+    _edgeAudio.onerror=function(){URL.revokeObjectURL(blobUrl);console.log('[EdgeTTS] audio error, falling back');_useEdgeTTS=false;speakText(text);};
+    _edgeAudio.play().catch(function(){URL.revokeObjectURL(blobUrl);console.log('[EdgeTTS] play failed, falling back');_useEdgeTTS=false;speakText(text);});
+  }).catch(function(err){
+    console.log('[EdgeTTS] fetch failed: '+err.message+', falling back');
+    _useEdgeTTS=false;
+    speakText(text);
+  });
+}
 function toggleVoice(){voiceOn=!voiceOn;var btn=document.getElementById('voiceBtn');if(btn){btn.className='voice-toggle'+(voiceOn?' on':'');btn.querySelector('.voice-icon').textContent=voiceOn?'🔊':'🔇';btn.querySelector('.voice-label').textContent=voiceOn?'播报中':'播报'}if(voiceOn&&currentTab==='realtime_news')speakLatestNews();if(voiceOn&&currentTab==='alert')speakLatestAlert()}
 function speakLatestNews(){if(!voiceOn||currentTab!=='realtime_news')return;var items=document.querySelectorAll('#content .realtime-item .rt-title');if(items.length>0)speakText(items[0].textContent)}
 function speakLatestAlert(){if(!voiceOn||currentTab!=='alert')return;if(!_lastAlertData||!_lastAlertData.length)return;var x=_lastAlertData[0];var lbl=CHG_TYPES[x.t]||'异动';speakText((x.n||'')+'，'+lbl+'，'+decodeAlertSpeech(x.t,x.i))}
@@ -177,8 +275,15 @@ function agentAvatar(kind){
 }
 function renderAgentTab(){
   var ct=$('#content');if(!ct)return;
-  ct.style.cssText='flex:1 1 0;display:flex;flex-direction:column;overflow:hidden;padding:0;min-height:0';
-  var html='<div style="display:flex;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden">';
+  ct.style.cssText='';
+  ct.style.flex='1 1 0';
+  ct.style.display='flex';
+  ct.style.flexDirection='column';
+  ct.style.overflow='hidden';
+  ct.style.padding='0';
+  ct.style.minHeight='0';
+  ct.style.height='0';
+  var html='<div style="display:flex;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden;height:100%">';
   html+='<div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0">';
   html+=agentAvatar('agent');
   html+='<span style="font-weight:600;font-size:13px;flex:1">StockAgent</span>';
@@ -234,6 +339,7 @@ function renderAgentTab(){
   html+='<button id="agentSendBtn" onclick="sendAgentMsg()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:12px;white-space:nowrap">发送</button>';
   html+='</div></div>';
   ct.innerHTML=html;
+  void ct.offsetHeight;
   var sel=$('#agentModelSel');
   if(sel)sel.addEventListener('change',function(){_activeModelId=this.value;vscode.postMessage({type:'setActiveModel',id:this.value})});
   var msgsCt=$('#agentMsgs');
@@ -292,6 +398,45 @@ function detailSendAI(){
 }
 var _detailSearchResults=[];var _detailSearchIdx=-1;
 var _detailSearchDeb=null;
+var _detailSearchPos=null;
+function initDetailSearchDrag(){
+  var box=document.getElementById('detailSearchBox');
+  var drag=document.getElementById('detailSearchDrag');
+  if(!box||!drag)return;
+  if(_detailSearchPos){
+    box.style.left=_detailSearchPos.left+'px';
+    box.style.top=_detailSearchPos.top+'px';
+    box.style.right='auto';box.style.bottom='auto';
+  }
+  var startX=0,startY=0,boxX=0,boxY=0,dragging=false;
+  drag.addEventListener('mousedown',function(e){
+    dragging=true;
+    startX=e.clientX;startY=e.clientY;
+    var rect=box.getBoundingClientRect();
+    boxX=rect.left;boxY=rect.top;
+    box.style.right='auto';box.style.bottom='auto';
+    box.style.left=boxX+'px';box.style.top=boxY+'px';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!dragging)return;
+    var dx=e.clientX-startX;
+    var dy=e.clientY-startY;
+    var nx=boxX+dx;
+    var ny=boxY+dy;
+    var maxX=window.innerWidth-box.offsetWidth-4;
+    var maxY=window.innerHeight-box.offsetHeight-4;
+    nx=Math.max(4,Math.min(nx,maxX));
+    ny=Math.max(4,Math.min(ny,maxY));
+    box.style.left=nx+'px';box.style.top=ny+'px';
+  });
+  document.addEventListener('mouseup',function(e){
+    if(!dragging)return;
+    dragging=false;
+    var rect=box.getBoundingClientRect();
+    _detailSearchPos={left:rect.left,top:rect.top};
+  });
+}
 function detailSearch(kw){
   if(_detailSearchDeb)clearTimeout(_detailSearchDeb);
   var rs=$('#detailSearchResults');
@@ -387,6 +532,7 @@ function renderSettings(data){
   html+='</div></div>';
   html+='<div class="settings-row">';
   html+='<span class="settings-label">系统语音引擎</span>';
+  html+='<div style="display:flex;gap:6px;align-items:center">';
   html+='<select class="settings-select" id="settingsVoiceModel" onchange="settingsChangeVoice(this.value)" style="max-width:200px">';
   html+='<option value="">跟随系统</option>';
   for(var vi=0;vi<_availableVoices.length;vi++){
@@ -394,10 +540,15 @@ function renderSettings(data){
     var vlabel=v.name+(v.lang?' ('+v.lang+')':'');
     html+='<option value="'+esc(v.voiceURI)+'"'+(v.voiceURI===_selectedVoiceURI?' selected':'')+'>'+esc(vlabel)+'</option>';
   }
-  html+='</select></div>';
-  if(_availableVoices.length===0){
-    html+='<div class="settings-hint" style="padding-top:4px">系统语音引擎列表为空时将使用浏览器默认引擎，语音模型仍可通过语速音调调节</div>';
-  }
+  html+='</select>';
+  html+='<button class="settings-btn-outline" onclick="settingsReloadVoices(event)" style="font-size:10px;padding:3px 8px">刷新</button>';
+  html+='</div></div>';
+  var vdiag=getVoiceDiagnostic();
+  html+='<div id="voiceDiagnostic" class="settings-hint" style="padding-top:4px;line-height:1.6">';
+  html+='<span style="color:var(--accent)">✨ Edge TTS 已启用</span> - 18个高品质中文神经网络音色，无需安装语音包<br>';
+  html+='系统语音: '+vdiag.total+' 个 | 中文语音: '+vdiag.zhCount+' 个 (备用)<br>';
+  html+='当前生效: <span style="color:var(--accent)">'+esc(vdiag.effectiveVoice)+'</span><br>';
+  html+='</div>';
   html+='</div>';
   html+='<div class="settings-section">';
   html+='<div class="settings-section-title">🤖 AI 模型</div>';
@@ -451,6 +602,7 @@ function settingsChangeTheme(theme){
 function settingsChangeVoice(uri){
   _selectedVoiceURI=uri;
   try{var st=vscode.getState()||{};st.voiceURI=uri;vscode.setState(st);}catch(_){}
+  updateVoiceDiagnostic();
 }
 function settingsChangeVoicePreset(id){
   _selectedVoicePreset=id;
@@ -460,22 +612,106 @@ function settingsChangeVoicePreset(id){
   try{var st=vscode.getState()||{};st.voicePreset=id;st.voiceURI=_selectedVoiceURI;vscode.setState(st);}catch(_){}
   var voiceSel=document.getElementById('settingsVoiceModel');
   if(voiceSel)voiceSel.value=_selectedVoiceURI;
+  updateVoiceDiagnostic();
+}
+function settingsReloadVoices(ev){
+  reloadVoices();
+  var btn=ev&&ev.target;
+  if(btn){btn.textContent='加载中...';btn.disabled=true;}
+  onVoicesLoaded(function(){
+    var voiceSel=document.getElementById('settingsVoiceModel');
+    if(voiceSel){
+      var curURI=voiceSel.value;
+      voiceSel.innerHTML='<option value="">跟随系统</option>';
+      for(var vi=0;vi<_availableVoices.length;vi++){
+        var v=_availableVoices[vi];
+        var vlabel=v.name+(v.lang?' ('+v.lang+')':'');
+        voiceSel.innerHTML+='<option value="'+esc(v.voiceURI)+'"'+(v.voiceURI===curURI?' selected':'')+'>'+esc(vlabel)+'</option>';
+      }
+    }
+    updateVoiceDiagnostic();
+    if(btn){btn.textContent='刷新';btn.disabled=false;}
+  });
+  setTimeout(function(){
+    if(btn){btn.textContent='刷新';btn.disabled=false;}
+    var voiceSel2=document.getElementById('settingsVoiceModel');
+    if(voiceSel2){
+      var curURI2=voiceSel2.value;
+      voiceSel2.innerHTML='<option value="">跟随系统</option>';
+      for(var vi2=0;vi2<_availableVoices.length;vi2++){
+        var v2=_availableVoices[vi2];
+        var vlabel2=v2.name+(v2.lang?' ('+v2.lang+')':'');
+        voiceSel2.innerHTML+='<option value="'+esc(v2.voiceURI)+'"'+(v2.voiceURI===curURI2?' selected':'')+'>'+esc(vlabel2)+'</option>';
+      }
+    }
+    updateVoiceDiagnostic();
+  },2000);
+}
+function updateVoiceDiagnostic(){
+  var el=document.getElementById('voiceDiagnostic');
+  if(!el)return;
+  var vdiag=getVoiceDiagnostic();
+  var html='<span style="color:var(--accent)">✨ Edge TTS 已启用</span> - 18个高品质中文神经网络音色，无需安装语音包<br>';
+  html+='系统语音: '+vdiag.total+' 个 | 中文语音: '+vdiag.zhCount+' 个 (备用)<br>';
+  html+='当前生效: <span style="color:var(--accent)">'+esc(vdiag.effectiveVoice)+'</span><br>';
+  el.innerHTML=html;
 }
 function settingsPreviewVoice(){
   var presetSel=document.getElementById('settingsVoicePreset');
   var pid=presetSel?presetSel.value:'default';
   var preset=getVoicePreset(pid);
+  var previewText='你好，这是'+preset.name+'试听。当前股票行情播报功能已就绪。';
+  if(_useEdgeTTS&&preset.edgeVoice){
+    var edgeName=preset.edgeVoice.replace('Neural','').replace('zh-CN-','');
+    updateVoiceFeedback('正在加载 Edge TTS: '+edgeName+'...',false);
+    if(_edgeAudio){try{_edgeAudio.pause();_edgeAudio=null;}catch(e){}}
+    var proxyPort=window._proxyPort||19101;
+    var ttsUrl='http://localhost:'+proxyPort+'/api/tts?text='+encodeURIComponent(previewText)+'&voice='+encodeURIComponent(preset.edgeVoice)+'&rate='+preset.rate+'&pitch='+preset.pitch;
+    fetch(ttsUrl).then(function(r){
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return r.blob();
+    }).then(function(blob){
+      var blobUrl=URL.createObjectURL(blob);
+      updateVoiceFeedback('正在播放: '+preset.name+' (Edge TTS: '+edgeName+', 语速: '+preset.rate+'%, 音调: '+preset.pitch+'%)',false);
+      _edgeAudio=new Audio(blobUrl);
+      _edgeAudio.onended=function(){URL.revokeObjectURL(blobUrl);updateVoiceFeedback('播放完成 - Edge TTS: '+edgeName,false);};
+      _edgeAudio.onerror=function(){URL.revokeObjectURL(blobUrl);updateVoiceFeedback('Edge TTS 播放失败，回退到系统语音',true);_useEdgeTTS=false;settingsPreviewVoice();};
+      _edgeAudio.play().catch(function(){URL.revokeObjectURL(blobUrl);updateVoiceFeedback('Edge TTS 播放失败，回退到系统语音',true);_useEdgeTTS=false;settingsPreviewVoice();});
+    }).catch(function(err){
+      updateVoiceFeedback('Edge TTS 加载失败: '+err.message+'，回退到系统语音',true);
+      _useEdgeTTS=false;settingsPreviewVoice();
+    });
+    return;
+  }
   var voiceSel=document.getElementById('settingsVoiceModel');
   var manualURI=voiceSel?voiceSel.value:'';
-  var uri=manualURI||matchVoiceForGender(preset.gender);
-  var u=new SpeechSynthesisUtterance('你好，这是'+preset.name+'试听。当前股票行情播报功能已就绪。');
-  u.lang='zh-CN';u.rate=preset.rate;u.pitch=preset.pitch;
+  var uri=manualURI||getEffectiveVoiceURI()||matchVoiceForGender(preset.gender);
+  var actualVoiceName='系统默认';
+  var u=new SpeechSynthesisUtterance(previewText);
+  u.lang='zh-CN';u.rate=preset.rate/100+1;u.pitch=preset.pitch/100+1;
   if(uri){
     for(var i=0;i<_availableVoices.length;i++){
-      if(_availableVoices[i].voiceURI===uri){u.voice=_availableVoices[i];break;}
+      if(_availableVoices[i].voiceURI===uri){u.voice=_availableVoices[i];actualVoiceName=_availableVoices[i].name||'';break;}
     }
   }
-  if('speechSynthesis' in window){window.speechSynthesis.cancel();window.speechSynthesis.speak(u);}
+  if(!('speechSynthesis' in window)){
+    updateVoiceFeedback('浏览器不支持语音合成',true);
+    return;
+  }
+  u.onstart=function(){updateVoiceFeedback('正在播放: '+preset.name+' (系统引擎: '+actualVoiceName+', 语速: '+preset.rate+'%, 音调: '+preset.pitch+'%)',false);};
+  u.onend=function(){updateVoiceFeedback('播放完成 - 系统引擎: '+actualVoiceName,false);};
+  u.onerror=function(e){updateVoiceFeedback('播放失败: '+(e.error||'未知错误'),true);};
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(u);
+}
+function updateVoiceFeedback(msg,isError){
+  var el=document.getElementById('voiceDiagnostic');
+  if(!el)return;
+  var vdiag=getVoiceDiagnostic();
+  var html='<span style="color:var(--accent)">✨ Edge TTS 已启用</span> - 18个高品质中文神经网络音色<br>';
+  html+='系统语音: '+vdiag.total+' 个 (备用)<br>';
+  html+='<span style="color:'+(isError?'var(--up)':'var(--accent)')+'">'+esc(msg)+'</span>';
+  el.innerHTML=html;
 }
 function settingsChangeActiveModel(id){
   vscode.postMessage({type:'setActiveModel',id:id});
@@ -1076,6 +1312,7 @@ function renderStockDetail(s){
   html+='</div>';
   html+='</div>';
   html+='<div class="detail-search" id="detailSearchBox">';
+  html+='<div class="detail-search-drag" id="detailSearchDrag" title="拖动移动位置"><span class="ds-drag-label">拖动移动</span></div>';
   html+='<div class="detail-search-results" id="detailSearchResults"></div>';
   html+='<div class="detail-search-input">';
   html+='<input id="detailSearchInput" placeholder="搜索股票名称/代码..." oninput="detailSearch(this.value)" onkeydown="if(event.key===\'Enter\')detailSearchConfirm()">';
@@ -1085,6 +1322,7 @@ function renderStockDetail(s){
   $('#content').innerHTML=html;
   _inDetail=true;
   _idView={s:0,e:240};
+  initDetailSearchDrag();
   var goBack=function(){_inDetail=false;if(_intradayTimer){clearInterval(_intradayTimer);_intradayTimer=null}if(_quoteTimer){clearInterval(_quoteTimer);_quoteTimer=null}vscode.postMessage({type:'switchTab',tab:currentTab==='detail'?'watchlist':currentTab})};
   var backBtn=document.getElementById('detailBack');
   if(backBtn)backBtn.addEventListener('click',goBack);

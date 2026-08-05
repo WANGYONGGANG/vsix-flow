@@ -1,9 +1,9 @@
-export function getStockCenterHtml(cspSource: string, scriptUri: string): string {
+export function getStockCenterHtml(cspSource: string, scriptUri: string, proxyPort: number): string {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; style-src ${cspSource} 'unsafe-inline'; script-src ${cspSource} 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src data: blob:; style-src ${cspSource} 'unsafe-inline'; script-src ${cspSource} 'unsafe-inline'; connect-src https://push2.eastmoney.com https://push2his.eastmoney.com http://localhost http://127.0.0.1;">
 <title>StockCenter</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -188,7 +188,11 @@ td:first-child,th:first-child{text-align:left}
 .settings-form input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--fg);font-size:12px;outline:none}
 .settings-form input:focus{border-color:var(--accent)}
 .settings-form-btns{display:flex;gap:8px;margin-top:8px}
-.detail-search{position:fixed;bottom:12px;right:12px;width:240px;z-index:50}
+.detail-search{position:fixed;bottom:12px;right:12px;width:240px;z-index:50;user-select:none}
+.detail-search-drag{display:flex;align-items:center;justify-content:center;gap:4px;padding:2px 0 4px;cursor:move;font-size:10px;opacity:.4;transition:opacity .2s}
+.detail-search-drag:hover{opacity:.8}
+.detail-search-drag::before{content:'⠿';font-size:14px}
+.detail-search-drag .ds-drag-label{font-size:9px}
 .detail-search-input{display:flex;gap:4px}
 .detail-search-input input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--fg);font-size:12px;outline:none}
 .detail-search-input input:focus{border-color:var(--accent)}
@@ -205,6 +209,7 @@ td:first-child,th:first-child{text-align:left}
 <body>
 <div class="tab-bar" id="tabBar"></div>
 <div class="content" id="content"><div class="loading">加载中...</div></div>
+<script>window._proxyPort=${proxyPort};</script>
 <script src="${scriptUri}"></script>
 </body>
 </html>`;
