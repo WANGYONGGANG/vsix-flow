@@ -410,8 +410,8 @@ td:last-child, th:last-child { padding-right: 14px; }
 .kl-sub-hdr { display: flex; align-items: center; justify-content: space-between; padding: 4px 10px 0; font-size: 11px; color: var(--fg-dim); }
 .kl-sub-hdr button { color: var(--fg-dim); font-size: 14px; padding: 0 6px; }
 
-.detail-actions { display: flex; gap: 8px; padding: 10px 14px; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--card); }
-.detail-actions button { flex: 1; padding: 10px; border-radius: 4px; font-size: 14px; font-weight: 600; }
+.detail-actions { display: flex; gap: 8px; padding: 10px 14px; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--card); overflow: hidden; }
+.detail-actions button { flex: 0 1 auto; min-width: 0; padding: 8px 12px; border-radius: 4px; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .btn-del { background: var(--up-soft); color: var(--up); }
 .btn-back { background: var(--border-2); color: var(--fg-2); }
 
