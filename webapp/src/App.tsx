@@ -289,9 +289,24 @@ export default function App() {
         const r = await api.quote(codes);
         const diff: any[] = r?.data?.diff || [];
         const byCode = new Map<string, any>();
-        for (const d of diff) byCode.set(String(d.f12 || '').toLowerCase(), d);
+        for (const d of diff) {
+          const clean = String(d.f12 || '').toLowerCase();
+          const mkt = String(d.f124 || '').toUpperCase(); // SH/SZ/BJ
+          byCode.set(clean, d);
+          // 同时存带市场前缀的版本（自选股 code 可能带 sh/sz）
+          if (mkt === 'SH' || mkt === 'SZ' || mkt === 'BJ') {
+            byCode.set(`${mkt.toLowerCase()}${clean}`, d);
+          } else {
+            // 没 f124 时按代码规则补前缀
+            const p = /^(60|68|90|11|13|50|56|51|58)/.test(clean) ? 'sh'
+              : /^(00|30|20|12|15|16|18|159)/.test(clean) ? 'sz'
+              : /^(43|83|87|92|88)/.test(clean) ? 'bj' : '';
+            if (p) byCode.set(`${p}${clean}`, d);
+          }
+        }
         for (const { code, cfg } of entries) {
-          const row = byCode.get(code.replace(/^(sh|sz|bj)/i, '')) || byCode.get(code);
+          const cl = code.toLowerCase();
+          const row = byCode.get(cl) || byCode.get(cl.replace(/^(sh|sz|bj)/i, ''));
           if (!row) continue;
           const price = Number(row.f2 || 0); const chg = Number(row.f3 || 0); const name = row.f14 || code;
           const keyBase = `${code}:${cfg.cond}:${cfg.threshold}`;
