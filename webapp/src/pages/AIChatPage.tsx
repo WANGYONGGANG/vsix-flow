@@ -76,6 +76,10 @@ export default function AIChatPage() {
     updateSessionMessages(msgs);
     setSending(true);
     try {
+      // 截断历史消息到最大轮数（每轮 = user+assistant = 2 条）
+      const maxTurns = settings.maxVisibleTurns ?? 30;
+      const maxMsgs = maxTurns * 2;
+      const truncated = msgs.length > maxMsgs ? msgs.slice(-maxMsgs) : msgs;
       const full = await api.chatStream({
         baseURL: activeAIModel.baseURL,
         apiKey: activeAIModel.apiKey,
@@ -83,7 +87,7 @@ export default function AIChatPage() {
         temperature: activeAIModel.temperature ?? 0.7,
         messages: [
           { role: 'system', content: '你是 StockAI，一个 A 股行情分析助手。回答简洁，不要提供具体投资建议，使用中文。' },
-          ...msgs,
+          ...truncated,
         ],
         onToken: (delta) => {
           draftRef.current += delta;
@@ -142,6 +146,27 @@ export default function AIChatPage() {
     setInput(`今日板块资金流入 TOP：\n${lines}\n\n解读一下盘面主线。`);
   }
 
+  // 深度分析自选股：注入 K 线历史（受 aiStockHistoryRange 控制）
+  async function chipInjectDeepAnalysis() {
+    const codes = getWatchCodes();
+    if (!codes.length) { setInput('我的自选股有哪些？'); return; }
+    const range = settings.aiStockHistoryRange ?? '3m';
+    const lmt = range === '1w' ? 5 : range === '1m' ? 22 : range === '3m' ? 66 : range === '6m' ? 132 : 250;
+    const top = codes.slice(0, 3);
+    const parts: string[] = [];
+    for (const code of top) {
+      try {
+        const r = await api.kline(code, 'day', lmt, 'qfq');
+        const kls = r?.data?.klines || [];
+        if (!kls.length) continue;
+        const last = kls[kls.length - 1].split(',');
+        parts.push(`- ${code}：最新 ${last[2]}，近 ${kls.length} 日 ${(Number(last[2]) >= Number(kls[0].split(',')[2]) ? '+' : '')}${((Number(last[2]) / Number(kls[0].split(',')[2]) - 1) * 100).toFixed(2)}%`);
+      } catch { /* skip */ }
+    }
+    setInput(`自选股近 ${range} 走势摘要：\n${parts.join('\n')}\n\n请做深度技术面分析，给出支撑/压力位和趋势判断。`);
+    setTimeout(scrollToBottom, 0);
+  }
+
   return (
     <div className="page">
       {/* 顶部会话切换（简单横向 chip） */}
@@ -189,7 +214,7 @@ export default function AIChatPage() {
         <button className="ai-chip" onClick={chipInjectWatchlist}>📊 自选点评</button>
         <button className="ai-chip" onClick={chipInjectFlashnews}>⚡ 快讯解读</button>
         <button className="ai-chip" onClick={chipInjectSectors}>🔥 板块热点</button>
-        <button className="ai-chip" onClick={() => navigate('/watchlist_link_via_homepage' as any)} style={{ display: 'none' }} />
+        <button className="ai-chip" onClick={chipInjectDeepAnalysis}>📈 深度分析</button>
       </div>
 
       {/* 输入栏 */}

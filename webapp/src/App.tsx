@@ -273,6 +273,21 @@ function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code:
   );
 }
 
+// Webhook 推送（企业微信/钉钉/飞书）
+async function pushWebhook(plat: 'wecom' | 'dingtalk' | 'feishu', url: string, text: string) {
+  const body =
+    plat === 'wecom'
+      ? JSON.stringify({ msgtype: 'text', text: { content: text } })
+      : plat === 'dingtalk'
+      ? JSON.stringify({ msgtype: 'text', text: { content: text } })
+      : JSON.stringify({ msg_type: 'text', content: { text } });
+  await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+}
+
 export default function App() {
   const { path, navigate } = useRouter();
   const { settings } = useSettings();
@@ -355,8 +370,25 @@ export default function App() {
               if (settings.voiceBroadcast && 'speechSynthesis' in window) {
                 try {
                   const u = new SpeechSynthesisUtterance(msg);
-                  u.lang = 'zh-CN'; u.rate = 1.05; window.speechSynthesis.speak(u);
+                  u.lang = 'zh-CN'; u.rate = 1.05;
+                  const preset = settings.voicePreset;
+                  if (preset && preset !== 'system') {
+                    const voices = window.speechSynthesis.getVoices();
+                    const v = voices.find((x) => x.name?.includes(preset.replace('Neural', '')));
+                    if (v) u.voice = v;
+                  }
+                  window.speechSynthesis.speak(u);
                 } catch { /* empty */ }
+              }
+              // Webhook 推送
+              const wh = settings.webhook;
+              if (wh) {
+                for (const plat of ['wecom', 'dingtalk', 'feishu'] as const) {
+                  const c = wh[plat];
+                  if (c?.enabled && c.url) {
+                    pushWebhook(plat, c.url, msg).catch(() => { /* empty */ });
+                  }
+                }
               }
               console.log('[Remind]', msg);
             } catch { /* empty */ }
@@ -367,7 +399,7 @@ export default function App() {
     tick();
     timer = setInterval(tick, Math.max(5000, settings.pollIntervalMs || 5000));
     return () => { alive = false; if (timer) clearInterval(timer); firedKeyRef.current.clear(); };
-  }, [settings.remindSwitch, settings.stocksRemind, settings.voiceBroadcast, settings.pollIntervalMs, watchlist]);
+  }, [settings.remindSwitch, settings.stocksRemind, settings.voiceBroadcast, settings.voicePreset, settings.webhook, settings.pollIntervalMs, watchlist]);
 
   const inDetail = path.startsWith('/stock/') || path.startsWith('/settings/model');
   const isHome = path === '/' || path.startsWith('/stock/');

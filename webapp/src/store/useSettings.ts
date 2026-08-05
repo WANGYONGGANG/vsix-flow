@@ -29,9 +29,28 @@ export function useSettings() {
     const root = document.documentElement;
     root.style.setProperty('--up', settings.riseColor);
     root.style.setProperty('--down', settings.fallColor);
-    root.setAttribute('data-theme', settings.theme || 'dark');
-    if (settings.theme === 'light') root.classList.add('theme-light'); else root.classList.remove('theme-light');
+
+    // 计算实际生效的主题（system → 跟随 prefers-color-scheme）
+    const resolved = settings.theme === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+      : settings.theme;
+    root.setAttribute('data-theme', resolved);
+    if (resolved === 'light') root.classList.add('theme-light'); else root.classList.remove('theme-light');
   }, [settings.riseColor, settings.fallColor, settings.theme]);
+
+  // 监听系统主题变化（仅 theme === 'system' 时生效）
+  useEffect(() => {
+    if (settings.theme !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const handler = () => {
+      const root = document.documentElement;
+      const resolved = mq.matches ? 'light' : 'dark';
+      root.setAttribute('data-theme', resolved);
+      if (resolved === 'light') root.classList.add('theme-light'); else root.classList.remove('theme-light');
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [settings.theme]);
 
   const save = useCallback((next: AppSettings) => {
     setSettingsState(next);

@@ -43,6 +43,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-2">
               <button className={'pill' + (settings.theme === 'dark' ? ' on' : '')} onClick={() => update({ theme: 'dark' })}>🌙 暗色</button>
               <button className={'pill' + (settings.theme === 'light' ? ' on' : '')} onClick={() => update({ theme: 'light' })}>☀️ 亮色</button>
+              <button className={'pill' + (settings.theme === 'system' ? ' on' : '')} onClick={() => update({ theme: 'system' })}>🖥️ 跟随系统</button>
             </div>
           </div>
         </div>
@@ -103,6 +104,35 @@ export default function SettingsPage() {
           <div className="val flex jcsb items-center">
             <div className={'switch' + (settings.voiceBroadcast ? ' on' : '')}
               onClick={() => update({ voiceBroadcast: !settings.voiceBroadcast })} />
+          </div>
+        </div>
+        <div className="form-item">
+          <div className="lbl">语音音色</div>
+          <div className="val flex items-center gap-2">
+            <select value={settings.voicePreset ?? 'system'}
+              onChange={(e) => update({ voicePreset: e.target.value })}>
+              <option value="system">跟随系统</option>
+              <option value="zh-CN-XiaoxiaoNeural">晓晓（女·温婉）</option>
+              <option value="zh-CN-YunxiNeural">云希（男·沉稳）</option>
+              <option value="zh-CN-YunyangNeural">云扬（男·新闻）</option>
+              <option value="zh-CN-XiaoyiNeural">晓伊（女·活泼）</option>
+              <option value="zh-CN-YunjianNeural">云健（男·浑厚）</option>
+            </select>
+            <button className="ghost-btn" style={{ width: 'auto', margin: 0, padding: '6px 14px', fontSize: 12 }}
+              onClick={() => {
+                try {
+                  const u = new SpeechSynthesisUtterance('这是语音播报试听示例，当前A股市场行情播报中。');
+                  u.lang = 'zh-CN'; u.rate = 1.05;
+                  const preset = settings.voicePreset;
+                  if (preset && preset !== 'system') {
+                    const voices = window.speechSynthesis.getVoices();
+                    const v = voices.find((x) => x.name?.includes(preset.replace('Neural', '')));
+                    if (v) u.voice = v;
+                  }
+                  window.speechSynthesis.cancel();
+                  window.speechSynthesis.speak(u);
+                } catch { /* empty */ }
+              }}>试听</button>
           </div>
         </div>
         <div className="form-item">
@@ -184,6 +214,30 @@ export default function SettingsPage() {
           ))}
         </div>
 
+      {/* AI 高级 */}
+      <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>AI 高级</div>
+      <div className="form-item">
+        <div className="lbl">最大对话轮数</div>
+        <div className="val">
+          <input type="number" min={5} max={100}
+            value={settings.maxVisibleTurns ?? 30}
+            onChange={(e) => update({ maxVisibleTurns: Math.max(5, Number(e.target.value || 30)) })} />
+        </div>
+      </div>
+      <div className="form-item">
+        <div className="lbl">分析历史区间</div>
+        <div className="val">
+          <select value={settings.aiStockHistoryRange ?? '3m'}
+            onChange={(e) => update({ aiStockHistoryRange: e.target.value as any })}>
+            <option value="1w">近 1 周</option>
+            <option value="1m">近 1 月</option>
+            <option value="3m">近 3 月</option>
+            <option value="6m">近 6 月</option>
+            <option value="1y">近 1 年</option>
+          </select>
+        </div>
+      </div>
+
       {/* 提醒通知（浏览器 Notification） */}
       <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>提醒通知</div>
       <div className="form-item">
@@ -246,6 +300,33 @@ export default function SettingsPage() {
             说明：浏览器需打开此页面才会轮询并通知；首次使用时请在系统与浏览器中允许通知权限。本提醒逻辑仅在前台运行。
           </div>
         </div>
+      </div>
+
+      {/* Webhook 预警推送 */}
+      <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>Webhook 预警推送</div>
+      {(['wecom', 'dingtalk', 'feishu'] as const).map((plat) => {
+        const label = plat === 'wecom' ? '企业微信' : plat === 'dingtalk' ? '钉钉' : '飞书';
+        const cfg = (settings.webhook?.[plat]) || { url: '', enabled: false };
+        return (
+          <div key={plat} className="form-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+            <div className="flex items-center jcsb">
+              <div className="lbl" style={{ width: 'auto' }}>{label}</div>
+              <div className={'switch' + (cfg.enabled ? ' on' : '')}
+                onClick={() => update({
+                  webhook: { ...settings.webhook, [plat]: { ...cfg, enabled: !cfg.enabled } },
+                })} />
+            </div>
+            <input type="text" placeholder={`粘贴${label}机器人 Webhook URL`}
+              value={cfg.url}
+              onChange={(e) => update({
+                webhook: { ...settings.webhook, [plat]: { ...cfg, url: e.target.value } },
+              })}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)', color: '#eee', fontSize: 13, outline: 'none' }} />
+          </div>
+        );
+      })}
+      <div style={{ padding: '0 16px 10px', fontSize: 11, opacity: .55, lineHeight: 1.6 }}>
+        提醒触发时自动推送消息到已启用的群机器人。URL 格式参考各平台开发文档。
       </div>
 
       {/* 导入导出 */}
