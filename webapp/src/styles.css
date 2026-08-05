@@ -119,17 +119,12 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .main-area.with-sidebar { background: transparent; }
 .main-inner { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 
-/* ========= 首页侧边栏 — 东财风格（白底+红激活左条） ========= */
+/* ========= 首页侧边栏 — 东财风格（白底+红激活左条）—— 默认隐藏，强制使用顶部横排 tab ========= */
 .home-sidebar {
-  display: none;
-  width: 96px; flex-shrink: 0;
-  background: var(--bg-2);
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
+  display: none !important;
 }
 @media (min-width: 768px) {
-  .home-sidebar { display: block; }
-  .home-layout .tab-bar-mobile { display: none; }
+  .home-layout .tab-bar-mobile { display: flex !important; }
 }
 .sb-list { display: flex; flex-direction: column; padding: 4px 0; }
 .sb-item {

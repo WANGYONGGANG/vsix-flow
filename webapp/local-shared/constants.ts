@@ -36,7 +36,7 @@ export const DEFAULT_SETTINGS = {
   remindSwitch: 1,
   opacity: 1,
   // ===== 扩展适配 - WebApp 专属 =====
-  theme: 'dark' as 'dark' | 'light' | 'system',
+  theme: 'light' as 'dark' | 'light' | 'system',
   watchlist: [] as { code: string; name?: string }[],
   // ===== 从扩展补齐 =====
   webhook: {
