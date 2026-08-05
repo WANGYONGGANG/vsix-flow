@@ -184,25 +184,6 @@ export default function SettingsPage() {
           ))}
         </div>
 
-      {/* 自选管理 */}
-      <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>自选股 (共 {totalCodes} 只)</div>
-
-      <div style={{ padding: '0 14px 14px' }}>
-        <AddWatchInline onAdd={(c) => { addWatch(c); }} />
-        {getWatchCodes().length > 0 && (
-          <div className="card" style={{ marginTop: 10, padding: 0, overflow: 'hidden' }}>
-            {getWatchCodes().map((c) => (
-              <div key={c} className="flex items-center jcsb" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
-              <div>
-                <div style={{ fontSize: 13, color: '#ddd' }}>{c.toUpperCase()}</div>
-              </div>
-              <button className="wl-del" onClick={() => delWatch(c)}>删除</button>
-            </div>
-          ))}
-          </div>
-        )}
-      </div>
-
       {/* 提醒通知（浏览器 Notification） */}
       <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>提醒通知</div>
       <div className="form-item">
