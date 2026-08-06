@@ -27,7 +27,7 @@ const EDGE_TTS_VOICES = [
   { id: 'zh-CN-YunzeNeural', name: '云泽（男·稳重）', gender: 'male' },
 ];
 
-function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
+function httpGetJson(fullUrl: string, referer?: string, timeout?: number): Promise<any> {
   let settled = false;
   return new Promise((resolve) => {
     const done = (val: any) => { if (!settled) { settled = true; resolve(val); } };
@@ -42,7 +42,7 @@ function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
       });
     });
     req.on('error', () => done(null));
-    req.setTimeout(8000, () => { req.destroy(); done(null); });
+    req.setTimeout(timeout || 8000, () => { req.destroy(); done(null); });
   });
 }
 
@@ -624,8 +624,11 @@ export class ProxyService {
         const fid = (parsed.query.fid as string) || 'f62';
         const fs = (parsed.query.fs as string) || 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048';
         const fields = 'f12,f14,f2,f3,f6,f9,f20,f23,f8,f62,f66,f72,f100,f124';
-        const r = await httpGetJson(`https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=${fid}&fs=${encodeURIComponent(fs)}&fields=${fields}`, 'https://quote.eastmoney.com/center/gridlist.html');
-        const diff = r?.data?.diff || [];
+        const base = `https://push2delay.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=${fid}`;
+        const referer = 'https://quote.eastmoney.com/center/gridlist.html';
+        let r = await httpGetJson(`${base}&fs=${encodeURIComponent(fs)}&fields=${fields}`, referer, 12000);
+        let diff = r?.data?.diff || [];
+        console.log(`[stock-flow-rank] diff.length=${diff.length} total=${r?.data?.total || 0}`);
         this.json(res, 200, { data: { diff, total: r?.data?.total } });
         return;
       }
@@ -638,8 +641,11 @@ export class ProxyService {
           ? 'm:90+t:3+f:!50'
           : 'm:90+t:2+f:!50';
         const fields = 'f12,f14,f3,f62,f104,f105,f100,f204,f205';
-        const r = await httpGetJson(`https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=f62&fs=${fs}&fields=${fields}`, 'https://quote.eastmoney.com/center/boardlist.html');
-        const diff = r?.data?.diff || [];
+        const base = `https://push2delay.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=f62`;
+        const referer = 'https://quote.eastmoney.com/center/boardlist.html';
+        let r = await httpGetJson(`${base}&fs=${encodeURIComponent(fs)}&fields=${fields}`, referer, 12000);
+        let diff = r?.data?.diff || [];
+        console.log(`[sector-flow-rank] t=${t} diff.length=${diff.length}`);
         this.json(res, 200, { data: { diff } });
         return;
       }
@@ -650,7 +656,7 @@ export class ProxyService {
         const lmt = (parsed.query.lmt as string) || '30';
         const secid = (/^(60|68|90|11|13|50|56|51|58)/.test(code) ? '1.' : '0.') + code;
         const fields = 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65';
-        const r = await httpGetJson(`https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=${lmt}&klt=101&secid=${secid}&fields1=f1,f2,f3,f7&fields2=${fields}`, 'https://quote.eastmoney.com/');
+        const r = await httpGetJson(`https://push2delay.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=${lmt}&klt=101&secid=${secid}&fields1=f1,f2,f3,f7&fields2=${fields}`, 'https://quote.eastmoney.com/');
         const klines: string[] = r?.data?.klines || [];
         const list = klines.map((line: string) => {
           const p = line.split(',');

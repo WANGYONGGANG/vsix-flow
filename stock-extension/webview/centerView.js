@@ -271,80 +271,86 @@ var _settingsData=null;
 var _agentModels=[];
 var _activeModelId='';
 function agentAvatar(kind){
-  if(kind==='user')return '<div style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f59f00,#ff6b6b);box-shadow:0 1px 3px rgba(0,0,0,.3)"><svg width="16" height="16" viewBox="0 0 16 16" fill="#fff" opacity="0.95"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.5 15c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5"/></svg></div>';
-  return '<div style="width:28px;height:28px;flex-shrink:0;background:linear-gradient(135deg,#00d4ff,#7c3aed);clip-path:polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);display:flex;align-items:center;justify-content:center;box-shadow:0 0 6px rgba(0,212,255,.35)"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="6.5" cy="7.5" r="1.8" fill="#fff" opacity="0.95"/><circle cx="11.5" cy="7.5" r="1.8" fill="#fff" opacity="0.95"/><rect x="5" y="11.5" width="8" height="1.2" rx="0.6" fill="#fff" opacity="0.55"/><circle cx="9" cy="3.5" r="0.9" fill="#00ff88"/></svg></div>';
+  if(kind==='user')return '<div style="width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f59f00,#ff6b6b)"><svg width="14" height="14" viewBox="0 0 16 16" fill="#fff" opacity="0.9"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.5 15c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5"/></svg></div>';
+  return '<div style="width:26px;height:26px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 18 18" fill="#fff" opacity="0.9"><circle cx="6.5" cy="7.5" r="1.6"/><circle cx="11.5" cy="7.5" r="1.6"/><rect x="5.5" y="11" width="7" height="1.5" rx="0.75"/><circle cx="9" cy="3.5" r="0.8" fill="#a78bfa"/></svg></div>';
 }
 function renderAgentTab(){
   var ct=$('#content');if(!ct)return;
   ct.style.cssText='';
   ct.style.flex='1 1 0';
-  ct.style.display='flex';
-  ct.style.flexDirection='column';
   ct.style.overflow='hidden';
   ct.style.padding='0';
   ct.style.minHeight='0';
-  ct.style.height='0';
-  var html='<div style="display:flex;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden;height:100%">';
-  html+='<div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0">';
+  var html='<div style="display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden">';
+  // Header
+  html+='<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0">';
   html+=agentAvatar('agent');
-  html+='<span style="font-weight:600;font-size:13px;flex:1">StockAgent</span>';
-  html+='<select id="agentModelSel" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--fg);font-size:11px;max-width:140px;outline:none">';
+  html+='<span style="font-weight:600;font-size:13px;flex:1;color:#e2e8f0">StockAgent</span>';
+  html+='<select id="agentModelSel" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:3px 8px;color:var(--fg);font-size:11px;max-width:130px;outline:none">';
   if(_agentModels.length===0){html+='<option value="">默认模型</option>'}
   for(var i=0;i<_agentModels.length;i++){
     var ml=_agentModels[i];
     html+='<option value="'+esc(ml.id)+'"'+(ml.id===_activeModelId?' selected':'')+'>'+esc(ml.name||ml.model||ml.id)+'</option>';
   }
   html+='</select>';
-  html+='<button onclick="vscode.postMessage({type:\'openModelConfig\'})" style="background:none;border:none;color:var(--fg);cursor:pointer;opacity:.5;font-size:14px" title="配置模型">⚙</button>';
+  html+='<button onclick="vscode.postMessage({type:\'openModelConfig\'})" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:var(--fg);cursor:pointer;font-size:12px;padding:3px 6px" title="配置模型">⚙</button>';
   html+='</div>';
-  html+='<div style="display:flex;gap:4px;padding:6px 12px;flex-wrap:wrap;border-bottom:1px solid var(--border);flex-shrink:0">';
-  html+='<button onclick="sendAgentQuick(\'summary\')" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--fg);cursor:pointer">📊 摘要快讯</button>';
-  html+='<button onclick="sendAgentQuick(\'portfolio\')" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--fg);cursor:pointer">💼 自选概览</button>';
-  html+='<button onclick="sendAgentQuick(\'explain\')" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--fg);cursor:pointer">🔍 解读标的</button>';
-  html+='<button onclick="openStockReport()" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--fg);cursor:pointer">📈 选股报告</button>';
+  // Quick actions
+  html+='<div style="display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto">';
+  html+='<button onclick="sendAgentQuick(\'summary\')" style="display:inline-flex;align-items:center;gap:4px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#a5b4fc;cursor:pointer;white-space:nowrap">📊 摘要快讯</button>';
+  html+='<button onclick="sendAgentQuick(\'portfolio\')" style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#c4b5fd;cursor:pointer;white-space:nowrap">💼 自选概览</button>';
+  html+='<button onclick="sendAgentQuick(\'explain\')" style="display:inline-flex;align-items:center;gap:4px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#86efac;cursor:pointer;white-space:nowrap">🔍 解读标的</button>';
+  html+='<button onclick="openStockReport()" style="display:inline-flex;align-items:center;gap:4px;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#fdba74;cursor:pointer;white-space:nowrap">📈 选股报告</button>';
   html+='</div>';
-  html+='<div id="agentMsgs" style="flex:1 1 0;min-height:0;overflow-y:auto;padding:10px 12px">';
+  // Messages area
+  html+='<div id="agentMsgs" style="flex:1 1 0;min-height:0;overflow-y:auto;padding:14px;width:100%">';
   if(_agentMsgs.length===0){
-    html+='<div style="text-align:center;padding:40px 20px;opacity:.55">';
-    html+='<div style="width:56px;height:56px;margin:0 auto 14px;background:linear-gradient(135deg,#00d4ff,#7c3aed);clip-path:polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(0,212,255,.4)"><svg width="36" height="36" viewBox="0 0 18 18"><circle cx="6.5" cy="7.5" r="1.8" fill="#fff" opacity="0.95"/><circle cx="11.5" cy="7.5" r="1.8" fill="#fff" opacity="0.95"/><rect x="5" y="11.5" width="8" height="1.2" rx="0.6" fill="#fff" opacity="0.55"/><circle cx="9" cy="3.5" r="0.9" fill="#00ff88"/></svg></div>';
-    html+='<div style="font-size:13px;margin-bottom:6px;color:var(--fg)">你好，我是 StockAgent</div>';
-    html+='<div style="font-size:11px;line-height:1.6;opacity:.7">可以帮你分析行情、解读资讯、<br>整理自选信息（不提供投资建议）</div></div>';
+    html+='<div style="text-align:center;padding:50px 20px;opacity:.5">';
+    html+='<div style="width:48px;height:48px;margin:0 auto 12px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 18 18" fill="#fff" opacity="0.9"><circle cx="6.5" cy="7.5" r="1.6"/><circle cx="11.5" cy="7.5" r="1.6"/><rect x="5.5" y="11" width="7" height="1.5" rx="0.75"/><circle cx="9" cy="3.5" r="0.8" fill="#a78bfa"/></svg></div>';
+    html+='<div style="font-size:13px;margin-bottom:4px;color:#e2e8f0">你好，我是 StockAgent</div>';
+    html+='<div style="font-size:11px;line-height:1.6">可以帮你分析行情、解读资讯、整理自选<br>（不提供投资建议）</div></div>';
   }
   if(noAgentModel()&&_agentMsgs.length===0){
-    html+='<div style="margin:0 12px 8px;padding:10px 12px;background:rgba(232,179,57,.1);border:1px solid rgba(232,179,57,.3);border-radius:8px;font-size:11px;line-height:1.5">';
-    html+='<div style="color:var(--accent);margin-bottom:6px">⚠️ 尚未接入 AI 模型</div>';
-    html+='<div style="opacity:.7;margin-bottom:6px">请先在设置中配置模型，或确认 VS Code 已安装 Copilot 等 AI 扩展</div>';
-    html+='<button onclick="vscode.postMessage({type:\'openModelConfig\'})" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px">前往配置 →</button>';
+    html+='<div style="margin:0 0 10px;padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:11px;line-height:1.5">';
+    html+='<div style="color:#fbbf24;margin-bottom:4px;font-weight:500">⚠️ 尚未接入 AI 模型</div>';
+    html+='<div style="opacity:.7;margin-bottom:6px">请先在设置中配置模型</div>';
+    html+='<button onclick="vscode.postMessage({type:\'openModelConfig\'})" style="background:#fbbf24;color:#1a1a1a;border:none;border-radius:5px;padding:4px 14px;cursor:pointer;font-size:11px;font-weight:500">前往配置</button>';
     html+='</div>';
   }
   for(var i=0;i<_agentMsgs.length;i++){
     var m=_agentMsgs[i];
     var isUser=m.role==='user';
-    html+='<div style="display:flex;gap:8px;margin-bottom:12px;'+(isUser?'justify-content:flex-end':'')+'">';
+    var isLoading=m.role==='loading';
+    html+='<div style="display:flex;gap:8px;margin-bottom:10px;width:100%;align-items:flex-start;flex-direction:'+(isUser?'row-reverse':'row')+'">';
     if(!isUser)html+=agentAvatar('agent');
-    html+='<div style="max-width:75%;padding:8px 12px;border-radius:'+(!isUser?'2px 10px 10px 10px':'10px 2px 10px 10px')+';font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-word;';
-    html+=!isUser?'background:#1a1d24;color:#d4d4d4':'background:var(--accent);color:#fff">';
-    html+=esc(m.text)+'</div>';
-    if(isUser)html+=agentAvatar('user');
+    else html+=agentAvatar('user');
+    if(isLoading){
+      html+='<div style="padding:10px 14px;border-radius:12px;background:#1e2330;font-size:12px;line-height:1.7;color:#94a3b8;max-width:80%"><span style="display:inline-flex;gap:3px"><span style="width:5px;height:5px;border-radius:50%;background:#6366f1;animation:bounce .6s infinite;animation-delay:0s"></span><span style="width:5px;height:5px;border-radius:50%;background:#8b5cf6;animation:bounce .6s infinite;animation-delay:.15s"></span><span style="width:5px;height:5px;border-radius:50%;background:#a78bfa;animation:bounce .6s infinite;animation-delay:.3s"></span></span></div>';
+    }else{
+      var bubbleBg=isUser?'linear-gradient(135deg,#3b82f6,#6366f1)':'#1e2330';
+      var bubbleColor=isUser?'#fff':'#cbd5e1';
+      var borderR=isUser?'6px 12px 2px 12px':'12px 6px 12px 2px';
+      html+='<div style="max-width:80%;padding:9px 13px;border-radius:'+borderR+';font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-word;flex:0 1 auto;background:'+bubbleBg+';color:'+bubbleColor+'">'+esc(m.text)+'</div>';
+    }
     html+='</div>';
   }
   if(_agentLoading){
-    html+='<div style="display:flex;gap:8px;margin-bottom:12px">';
+    html+='<div style="display:flex;gap:8px;margin-bottom:10px;width:100%;align-items:flex-start">';
     html+=agentAvatar('agent');
-    html+='<div style="padding:10px 14px;border-radius:2px 10px 10px 10px;background:#1a1d24;font-size:12px">';
-    html+='<span style="animation:pulse 1.2s infinite">思考中</span></div></div>';
+    html+='<div style="padding:10px 14px;border-radius:12px;background:#1e2330;font-size:12px;line-height:1.7;color:#94a3b8"><span style="display:inline-flex;gap:3px"><span style="width:5px;height:5px;border-radius:50%;background:#6366f1;animation:bounce .6s infinite;animation-delay:0s"></span><span style="width:5px;height:5px;border-radius:50%;background:#8b5cf6;animation:bounce .6s infinite;animation-delay:.15s"></span><span style="width:5px;height:5px;border-radius:50%;background:#a78bfa;animation:bounce .6s infinite;animation-delay:.3s"></span></span></div></div>';
   }
   html+='</div>';
-  html+='<div style="display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0">';
-  html+='<input id="agentInput" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--fg);font-size:12px;outline:none" placeholder="'+(noAgentModel()?'⚠️ 请先配置 AI 模型...':'输入消息...')+'" onkeydown="if(event.key===\'Enter\')sendAgentMsg()">';
-  html+='<button id="agentSendBtn" onclick="sendAgentMsg()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:12px;white-space:nowrap">发送</button>';
+  // Input area
+  html+='<div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;background:rgba(255,255,255,.02)">';
+  html+='<input id="agentInput" style="flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 12px;color:var(--fg);font-size:12px;outline:none;transition:border-color .15s" onfocus="this.style.borderColor=\'rgba(99,102,241,.5)\'" onblur="this.style.borderColor=\'rgba(255,255,255,.08)\'" placeholder="'+(noAgentModel()?'⚠️ 请先配置 AI 模型':'输入消息...')+'" onkeydown="if(event.key===\'Enter\')sendAgentMsg()">';
+  html+='<button id="agentSendBtn" onclick="sendAgentMsg()" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap;transition:opacity .15s">发送</button>';
   html+='</div></div>';
   ct.innerHTML=html;
   void ct.offsetHeight;
   var sel=$('#agentModelSel');
   if(sel)sel.addEventListener('change',function(){_activeModelId=this.value;vscode.postMessage({type:'setActiveModel',id:this.value})});
   var msgsCt=$('#agentMsgs');
-  if(msgsCt)msgsCt.scrollTop=msgsCt.scrollHeight;
+  if(msgsCt){msgsCt.scrollTop=msgsCt.scrollHeight;msgsCt.addEventListener('scroll',function(){});}
 }
 function noAgentModel(){return !_agentModels.length&&!_activeModelId}
 var _noModelWarned=false;
@@ -499,7 +505,7 @@ document.addEventListener('keydown',function(e){
     _detailSearchResults=[];_detailSearchIdx=-1;
     return;
   }
-  // 上下方向键：有搜索结果时选列表，否则缩放图表
+  // 上下方向键：有搜索结果时选列表，否则缩放图表（上=放大，下=缩小）
   if(e.key==='ArrowDown'||e.key==='ArrowUp'){
     if(hasResults){
       e.preventDefault();
@@ -509,11 +515,11 @@ document.addEventListener('keydown',function(e){
       highlightDetailSearchItem();
     }else{
       e.preventDefault();
-      chartZoom(e.key==='ArrowUp'?0.85:1.15);
+      chartZoom(e.key==='ArrowUp'?1.15:0.85);
     }
     return;
   }
-  // 左右方向键：无搜索结果时移动图表
+  // 左右方向键：无搜索结果时移动图表（左=看更早，右=看更晚）
   if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&!hasResults){
     e.preventDefault();
     chartPan(e.key==='ArrowLeft'?-30:30);
@@ -543,24 +549,27 @@ document.addEventListener('keydown',function(e){
 });
 // 图表缩放（factor<1放大，>1缩小）
 function chartZoom(factor){
+  // 统一语义：factor>1=放大，<1=缩小
   if(_klPeriod==='intraday'){
     var span=_idView.e-_idView.s;
-    var newSpan=span*factor;
+    // 放大=看更少时间=span变小，用 /factor
+    var newSpan=span/factor;
     newSpan=Math.max(_idMinSpan,Math.min(_idMaxSpan,newSpan));
     var mid=(_idView.s+_idView.e)/2;
     var ns=mid-newSpan/2;
     ns=Math.max(0,Math.min(240-newSpan,ns));
     _idView.s=ns;_idView.e=ns+newSpan;
-    redrawIntraday();
+    redrawChart();
   }else if(_kl.data.length){
     var main=_klCanvases.main;
     var W=main?main.parentElement.clientWidth-12:300;
     var cW=W-54;
     if(!_kl.gap)_kl.gap=cW/60;
+    // K线：放大=gap变大=*factor
     _kl.gap=Math.max(cW/Math.min(_kl.data.length,200),Math.min(cW/10,_kl.gap*factor));
     var maxS=Math.max(0,_kl.data.length-Math.floor(cW/_kl.gap));
     _kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
-    renderChart();
+    redrawChart();
   }
 }
 // 图表平移（dm>0右移看更晚，<0左移看更早）
@@ -571,7 +580,7 @@ function chartPan(dm){
     if(ns<0){ns=0;ne=span}
     if(ne>240){ne=240;ns=240-span}
     _idView.s=ns;_idView.e=ne;
-    redrawIntraday();
+    redrawChart();
   }else if(_kl.data.length){
     var main=_klCanvases.main;
     var W=main?main.parentElement.clientWidth-12:300;
@@ -580,7 +589,7 @@ function chartPan(dm){
     _kl.scroll-=dm/gap;
     var maxS=Math.max(0,_kl.data.length-Math.floor(cW/gap));
     _kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
-    renderChart();
+    redrawChart();
   }
 }
 function renderSettings(data){
@@ -1162,9 +1171,9 @@ function renderAlert(d){
 
 function renderHot(d){
   var list=d&&d.data?d.data.diff:(d&&d.diff?d.diff:[]);if(!list||!list.length){$('#content').innerHTML='<div class="loading">暂无数据</div>';return}
-  var html='<table><tr><th>排名</th><th>代码</th><th>名称</th><th>最新价</th><th>涨跌幅</th><th>今开</th><th>最高</th><th>最低</th><th>昨收</th><th>成交额</th><th>换手率</th></tr>';
+  var html='<table><tr><th>排名</th><th>代码</th><th>名称</th><th>最新价</th><th>涨跌幅</th><th>今开</th><th>最高</th><th>最低</th><th>昨收</th><th style="white-space:nowrap">成交额</th><th style="white-space:nowrap">换手率</th></tr>';
   for(var i=0;i<Math.min(30,list.length);i++){var x=list[i];
-    html+='<tr class="stock-row" data-code="'+esc(x.f12||'')+'" data-name="'+esc(x.f14||'')+'"><td>'+(x.rank||(i+1))+'</td><td>'+esc(x.f12||'')+'</td><td>'+esc(x.f14||'')+'</td><td>'+(x.f2||0).toFixed(2)+'</td><td class="'+upClass(x.f3)+'">'+upSign(x.f3)+(x.f3||0).toFixed(2)+'%</td><td>'+(x.f17||0).toFixed(2)+'</td><td class="text-up">'+(x.f15||0).toFixed(2)+'</td><td class="text-down">'+(x.f16||0).toFixed(2)+'</td><td>'+(x.f18||0).toFixed(2)+'</td><td>'+fmtYi(x.f6||0)+'</td><td>'+(x.f8?(x.f8).toFixed(2)+'%':'—')+'</td></tr>'}
+    html+='<tr class="stock-row" data-code="'+esc(x.f12||'')+'" data-name="'+esc(x.f14||'')+'"><td>'+(x.rank||(i+1))+'</td><td>'+esc(x.f12||'')+'</td><td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px">'+esc(x.f14||'')+'</td><td>'+(x.f2||0).toFixed(2)+'</td><td class="'+upClass(x.f3)+'">'+upSign(x.f3)+(x.f3||0).toFixed(2)+'%</td><td>'+(x.f17||0).toFixed(2)+'</td><td class="text-up">'+(x.f15||0).toFixed(2)+'</td><td class="text-down">'+(x.f16||0).toFixed(2)+'</td><td>'+(x.f18||0).toFixed(2)+'</td><td>'+fmtYi(x.f6||0)+'</td><td>'+(x.f8?(x.f8).toFixed(2)+'%':'—')+'</td></tr>'}
   html+='</table>';$('#content').innerHTML=html
 }
 
@@ -1628,6 +1637,93 @@ function fitSideHeight(totalH){
   var side=document.getElementById('klSide');if(!side)return;
   side.style.maxHeight=Math.max(totalH,120)+'px';
 }
+// 只重绘内容，不重设 canvas 尺寸（用于键盘/拖动时的平滑刷新）
+function redrawChart(){
+  if(_klPeriod==='intraday'){
+    redrawIntradayContent();
+  }else if(_kl.data.length){
+    var main=_klCanvases.main;
+    if(!main)return;
+    drawMain(main,_kl.data);
+    for(var i=0;i<_kl.subs.length;i++){
+      var sid=_kl.subs[i];
+      var c=_klCanvases[sid];
+      if(!c)continue;
+      if(sid==='vol')drawVol(c,_kl.data);
+      else if(sid==='macd')drawMACD(c,_kl.data);
+      else if(sid==='rsi')drawRSI(c,_kl.data);
+    }
+  }
+}
+// 分时图只重绘内容（不重设 canvas 尺寸）
+function redrawIntradayContent(){
+  if(!_intradayCache)return;
+  var canvas=document.getElementById('klMain');if(!canvas)return;
+  var dpr=window.devicePixelRatio||1;
+  var ctx=canvas.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0);ctx.scale(dpr,dpr);
+  var W=canvas.width/dpr,H=canvas.height/dpr;
+  var data=_intradayCache.data,preClose=_intradayCache.preClose;
+  var padL=46,padR=8,padT=6,padB=18;
+  var cW=W-padL-padR,cH=H-padT-padB;
+  ctx.fillStyle='#12151a';ctx.fillRect(0,0,W,H);
+  if(!data.length)return;
+  var minP=Math.min(preClose,Math.min.apply(null,data.map(function(d){return d.price})));
+  var maxP=Math.max(preClose,Math.max.apply(null,data.map(function(d){return d.price})));
+  var pad=(maxP-minP)*0.1||1;
+  minP-=pad;maxP+=pad;
+  var spanM=_idView.e-_idView.s;
+  function yx(p){return padT+cH*(1-(p-minP)/(maxP-minP))}
+  function vx(m){return padL+cW*(m-_idView.s)/spanM}
+  // 昨收虚线
+  ctx.strokeStyle='#444';ctx.lineWidth=0.5;ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(padL,yx(preClose));ctx.lineTo(W-padR,yx(preClose));ctx.stroke();ctx.setLineDash([]);
+  // 价格线
+  var grad=ctx.createLinearGradient(0,padT,0,padT+cH);
+  grad.addColorStop(0,'rgba(255,82,82,0.3)');grad.addColorStop(1,'rgba(255,82,82,0)');
+  ctx.beginPath();ctx.moveTo(padL,yx(data[0].price));
+  for(var i=0;i<data.length;i++){
+    var x=vx(data[i].min);if(x<padL||x>W-padR)continue;
+    ctx.lineTo(x,yx(data[i].price));
+  }
+  ctx.lineTo(Math.min(vx(data[data.length-1].min),W-padR),padT+cH);
+  ctx.lineTo(padL,padT+cH);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+  ctx.strokeStyle='#ff5252';ctx.lineWidth=1;ctx.beginPath();
+  var st=false;
+  for(var i=0;i<data.length;i++){
+    var x=vx(data[i].min);if(x<padL||x>W-padR)continue;
+    var y=yx(data[i].price);
+    if(!st){ctx.moveTo(x,y);st=true}else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  // 时间轴刻度
+  var stepM=spanM<=60?15:spanM<=120?30:60;
+  var s0=Math.ceil(_idView.s/stepM)*stepM;
+  ctx.fillStyle='#555';ctx.font='9px monospace';ctx.textAlign='center';
+  for(var m=s0;m<=_idView.e;m+=stepM){
+    var x=padL+cW*(m-_idView.s)/spanM;
+    ctx.fillText(Math.floor(m/60+9)+':'+('0'+(30+m%60)%60).slice(-2),x,H-4);
+  }
+  // 均价线
+  if(data[0].avg!==undefined){
+    ctx.strokeStyle='#e8b393';ctx.lineWidth=1;ctx.beginPath();var st2=false;
+    for(var i=0;i<data.length;i++){
+      var x=vx(data[i].min);if(x<padL||x>W-padR)continue;
+      var y=yx(data[i].avg);
+      if(!st2){ctx.moveTo(x,y);st2=true}else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  // 重绘子图
+  for(var si=0;si<_kl.subs.length;si++){
+    var sid=_kl.subs[si];
+    var sc=_klCanvases[sid];
+    if(!sc)continue;
+    if(sid==='vol')drawVol(sc,_kl.data);
+    else if(sid==='macd')drawMACD(sc,_kl.data);
+    else if(sid==='rsi')drawRSI(sc,_kl.data);
+  }
+}
 function drawMain(canvas,data){
   var dpr=window.devicePixelRatio||1;
   var ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
@@ -1782,13 +1878,13 @@ function setupChartDrag(){
       if(ns<0){ns=0;ne=span}
       if(ne>240){ne=240;ns=240-span}
       _idView.s=ns;_idView.e=ne;
-      redrawIntraday();
+      redrawChart();
     }else{
       var gap=_kl.gap||((_klCanvases.main?_klCanvases.main.clientWidth:300)/60);
       _kl.scroll-=dx/gap;
       var cW=(_klCanvases.main?_klCanvases.main.clientWidth:300)-54;
       var maxS=Math.max(0,_kl.data.length-Math.floor(cW/gap));_kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
-      renderChart();
+      redrawChart();
     }
   });
   window.addEventListener('mouseup',function(){_kl.dragging=false});
@@ -1800,24 +1896,26 @@ function setupChartDrag(){
       var g=_intradayGeo;if(!g)return;
       var frac=(x-g.padL)/g.cW;frac=Math.max(0,Math.min(1,frac));
       var span=_idView.e-_idView.s;
-      var factor=e.deltaY>0?1.15:1/1.15;
-      var newSpan=span*factor;
+      // 向下滚动=缩小(0.85)，向上滚动=放大(1.15)
+      var factor=e.deltaY>0?0.85:1.15;
+      var newSpan=span/factor;
       newSpan=Math.max(_idMinSpan,Math.min(_idMaxSpan,newSpan));
       var anchor=_idView.s+span*frac;
       var ns=anchor-newSpan*frac;
       ns=Math.max(0,Math.min(240-newSpan,ns));
       _idView.s=ns;_idView.e=ns+newSpan;
-      redrawIntraday();
+      redrawChart();
     }else if(_kl.data.length){
       var main=_klCanvases.main;
       var W=main?main.parentElement.clientWidth-12:300;
       var cW=W-54;
       if(!_kl.gap)_kl.gap=cW/60;
-      var factor=e.deltaY>0?1.15:1/1.15;
+      // 向下滚动=缩小(0.85)，向上滚动=放大(1.15)
+      var factor=e.deltaY>0?0.85:1.15;
       _kl.gap=Math.max(cW/Math.min(_kl.data.length,200),Math.min(cW/10,_kl.gap*factor));
       var maxS=Math.max(0,_kl.data.length-Math.floor(cW/_kl.gap));
       _kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
-      renderChart();
+      redrawChart();
     }
   },{passive:false});
   var mc=document.getElementById('klMain');

@@ -851,7 +851,7 @@ function isExcluded(it: RankItem): boolean {
   const name = String(it.f14 || '');
   if (/ST|退/.test(name)) return true;
   if ((it.f3 || 0) >= 9.8 && (it.f8 || 0) < 0.5) return true;
-  if ((it.f20 || 0) < 25e8) return true;
+  if ((it.f20 || 0) > 0 && it.f20 < 25e8) return true;
   return false;
 }
 

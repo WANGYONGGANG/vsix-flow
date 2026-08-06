@@ -3,7 +3,7 @@ export function getStockCenterHtml(cspSource: string, scriptUri: string, proxyPo
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src data: blob:; style-src ${cspSource} 'unsafe-inline'; script-src ${cspSource} 'unsafe-inline'; connect-src https://push2.eastmoney.com https://push2his.eastmoney.com http://localhost http://127.0.0.1;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src data: blob:; style-src ${cspSource} 'unsafe-inline'; script-src ${cspSource} 'unsafe-inline'; connect-src https://push2.eastmoney.com https://push2his.eastmoney.com https://push2delay.eastmoney.com http://localhost http://127.0.0.1;">
 <title>StockCenter</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -161,6 +161,7 @@ td:first-child,th:first-child{text-align:left}
 .stock-row{cursor:pointer}
 .stock-row:hover{background:var(--card)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes bounce{0%,80%,100%{transform:scale(0);opacity:.5}40%{transform:scale(1);opacity:1}}
 .detail-ai{margin-top:10px;background:var(--card);border-radius:8px;padding:10px}
 .detail-ai-title{font-size:11px;opacity:.6;margin-bottom:6px;display:flex;align-items:center;gap:4px}
 .detail-ai-quick{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}

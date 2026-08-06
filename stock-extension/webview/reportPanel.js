@@ -10,6 +10,10 @@ window.addEventListener('message', function (e) {
     if (reportRoot) reportRoot.innerHTML = msg.html;
   } else if (msg.type === 'setOpacity') {
     document.documentElement.style.setProperty('--panel-opacity', msg.opacity);
+  } else if (msg.type === 'refresh') {
+    if (loadingEl) loadingEl.style.display = '';
+    if (reportRoot) reportRoot.innerHTML = '';
+    vscode.postMessage({ type: 'refresh' });
   }
 });
 var refreshBtn = document.getElementById('refreshBtn');
