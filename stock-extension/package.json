@@ -1,7 +1,7 @@
 {
   "name": "stock-extension",
-  "displayName": "StockExtension",
-  "description": "A股行情追踪扩展 - 实时股票/基金/币安/外汇行情、资金流向、快讯、AI 分析",
+  "displayName": "A股行情",
+  "description": "A股行情扩展 - 实时股票行情、资金流向、快讯、AI 分析",
   "version": "5.0.0",
   "author": "StockExt",
   "publisher": "stockext",
@@ -10,6 +10,7 @@
     "url": "https://github.com/stockext/stock-extension"
   },
   "license": "BSD-3-Clause",
+  "icon": "resources/logo-256.png",
   "engines": {
     "vscode": "^1.100.0"
   },

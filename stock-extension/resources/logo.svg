@@ -1,78 +1,96 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#667eea"/>
-      <stop offset="50%" stop-color="#5A67D8"/>
-      <stop offset="100%" stop-color="#4C51BF"/>
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="60%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
     </linearGradient>
-    <linearGradient id="up" x1="0" y1="1" x2="0" y2="0" gradientUnits="objectBoundingBox">
-      <stop offset="0%" stop-color="#F56565"/>
-      <stop offset="100%" stop-color="#FC8181"/>
+    <linearGradient id="up" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#B91C1C"/>
+      <stop offset="100%" stop-color="#EF4444"/>
     </linearGradient>
-    <linearGradient id="down" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-      <stop offset="0%" stop-color="#48BB78"/>
-      <stop offset="100%" stop-color="#68D391"/>
+    <linearGradient id="down" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#16A34A"/>
+      <stop offset="100%" stop-color="#4ADE80"/>
     </linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
-      <stop offset="0%" stop-color="#ECC94B"/>
-      <stop offset="100%" stop-color="#F6E05E"/>
+    <linearGradient id="arrow" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#FCD34D"/>
+    </linearGradient>
+    <linearGradient id="ma" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#FDE68A"/>
     </linearGradient>
     <filter id="glow">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
     <filter id="shadow">
-      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.35"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.4"/>
     </filter>
+    <clipPath id="round">
+      <rect width="512" height="512" rx="96"/>
+    </clipPath>
   </defs>
+
   <!-- Background -->
-  <rect width="512" height="512" rx="80" fill="url(#bg)"/>
-  <!-- Grid -->
-  <g opacity="0.06" stroke="#fff" stroke-width="1">
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Decorative grid -->
+  <g clip-path="url(#round)" opacity="0.05" stroke="#fff" stroke-width="1">
     <line x1="0" y1="128" x2="512" y2="128"/><line x1="0" y1="256" x2="512" y2="256"/><line x1="0" y1="384" x2="512" y2="384"/>
     <line x1="128" y1="0" x2="128" y2="512"/><line x1="256" y1="0" x2="256" y2="512"/><line x1="384" y1="0" x2="384" y2="512"/>
   </g>
-  <!-- Main chart group -->
+
+  <!-- Ambient glow blobs -->
+  <circle cx="120" cy="120" r="160" fill="#EF4444" opacity="0.08"/>
+  <circle cx="400" cy="400" r="180" fill="#F59E0B" opacity="0.06"/>
+
+  <!-- Main chart -->
   <g filter="url(#shadow)">
     <!-- Candle 1 (down) -->
-    <rect x="56" y="180" width="32" height="110" rx="4" fill="url(#down)"/>
-    <line x1="72" y1="140" x2="72" y2="300" stroke="#48BB78" stroke-width="4" stroke-linecap="round"/>
+    <rect x="48" y="200" width="34" height="110" rx="5" fill="url(#down)"/>
+    <line x1="65" y1="160" x2="65" y2="320" stroke="#4ADE80" stroke-width="4" stroke-linecap="round"/>
     <!-- Candle 2 (up) -->
-    <rect x="116" y="200" width="32" height="90" rx="4" fill="url(#up)"/>
-    <line x1="132" y1="160" x2="132" y2="300" stroke="#F56565" stroke-width="4" stroke-linecap="round"/>
+    <rect x="118" y="220" width="34" height="90" rx="5" fill="url(#up)"/>
+    <line x1="135" y1="180" x2="135" y2="320" stroke="#EF4444" stroke-width="4" stroke-linecap="round"/>
     <!-- Candle 3 (down) -->
-    <rect x="176" y="150" width="32" height="130" rx="4" fill="url(#down)"/>
-    <line x1="192" y1="110" x2="192" y2="300" stroke="#48BB78" stroke-width="4" stroke-linecap="round"/>
+    <rect x="188" y="170" width="34" height="140" rx="5" fill="url(#down)"/>
+    <line x1="205" y1="130" x2="205" y2="320" stroke="#4ADE80" stroke-width="4" stroke-linecap="round"/>
     <!-- Candle 4 (up) -->
-    <rect x="236" y="170" width="32" height="110" rx="4" fill="url(#up)"/>
-    <line x1="252" y1="130" x2="252" y2="300" stroke="#F56565" stroke-width="4" stroke-linecap="round"/>
+    <rect x="258" y="150" width="34" height="160" rx="5" fill="url(#up)"/>
+    <line x1="275" y1="110" x2="275" y2="320" stroke="#EF4444" stroke-width="4" stroke-linecap="round"/>
     <!-- Candle 5 (down) -->
-    <rect x="296" y="210" width="32" height="80" rx="4" fill="url(#down)"/>
-    <line x1="312" y1="180" x2="312" y2="300" stroke="#48BB78" stroke-width="4" stroke-linecap="round"/>
-    <!-- Candle 6 (up) -->
-    <rect x="356" y="140" width="32" height="140" rx="4" fill="url(#up)"/>
-    <line x1="372" y1="100" x2="372" y2="300" stroke="#F56565" stroke-width="4" stroke-linecap="round"/>
-    <!-- Candle 7 (up, tall) -->
-    <rect x="416" y="120" width="32" height="150" rx="4" fill="url(#up)"/>
-    <line x1="432" y1="80" x2="432" y2="290" stroke="#F56565" stroke-width="4" stroke-linecap="round"/>
+    <rect x="328" y="210" width="34" height="100" rx="5" fill="url(#down)"/>
+    <line x1="345" y1="180" x2="345" y2="320" stroke="#4ADE80" stroke-width="4" stroke-linecap="round"/>
+    <!-- Candle 6 (up, breakout) -->
+    <rect x="398" y="120" width="34" height="190" rx="5" fill="url(#up)"/>
+    <line x1="415" y1="80" x2="415" y2="320" stroke="#EF4444" stroke-width="4" stroke-linecap="round"/>
   </g>
-  <!-- MA line with glow -->
+
+  <!-- MA trend line with glow -->
   <g filter="url(#glow)">
-    <polyline points="72,230 132,245 192,190 252,210 312,250 372,175 432,160"
-      fill="none" stroke="url(#gold)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="65,270 135,255 205,210 275,180 345,240 415,160"
+      fill="none" stroke="url(#ma)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
+
   <!-- Volume bars -->
-  <g opacity="0.65">
-    <rect x="56" y="330" width="32" height="60" rx="4" fill="#FC8181"/>
-    <rect x="116" y="345" width="32" height="45" rx="4" fill="#FC8181"/>
-    <rect x="176" y="335" width="32" height="55" rx="4" fill="#68D391"/>
-    <rect x="236" y="325" width="32" height="65" rx="4" fill="#FC8181"/>
-    <rect x="296" y="350" width="32" height="40" rx="4" fill="#68D391"/>
-    <rect x="356" y="315" width="32" height="75" rx="4" fill="#FC8181"/>
-    <rect x="416" y="320" width="32" height="70" rx="4" fill="#FC8181"/>
+  <g opacity="0.55">
+    <rect x="48" y="350" width="34" height="50" rx="5" fill="#F87171"/>
+    <rect x="118" y="360" width="34" height="40" rx="5" fill="#F87171"/>
+    <rect x="188" y="345" width="34" height="55" rx="5" fill="#4ADE80"/>
+    <rect x="258" y="335" width="34" height="65" rx="5" fill="#F87171"/>
+    <rect x="328" y="365" width="34" height="35" rx="5" fill="#4ADE80"/>
+    <rect x="398" y="330" width="34" height="70" rx="5" fill="#F87171"/>
   </g>
-  <!-- Text: StockExt -->
-  <text x="256" y="460" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="700" font-size="56" fill="#fff" letter-spacing="4">StockExt</text>
-  <!-- Subtle tagline -->
-  <text x="256" y="498" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="400" font-size="18" fill="#fff" opacity="0.5" letter-spacing="6">A-SHARE MARKET TRACKER</text>
+
+  <!-- Rising arrow accent (top-right) -->
+  <g filter="url(#glow)" opacity="0.9">
+    <path d="M420 150 L455 95 L490 60 M455 95 L485 96 M455 95 L456 65"
+      stroke="url(#arrow)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+
+  <!-- Brand text -->
+  <text x="256" y="450" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="700" font-size="62" fill="#fff" letter-spacing="3">StockExt</text>
+  <text x="256" y="488" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="400" font-size="20" fill="#94A3B8" letter-spacing="8">A-SHARE TRACKER</text>
 </svg>
