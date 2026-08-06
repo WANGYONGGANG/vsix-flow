@@ -4,12 +4,6 @@
   "installCommand": "echo '--- root install ---' && (npm install || true) && echo '--- install webapp ---' && cd webapp && npm install --legacy-peer-deps",
   "buildCommand": "cd webapp && npm run build",
   "outputDirectory": "webapp/dist",
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "@vercel/node@4",
-      "maxDuration": 30
-    }
-  },
   "headers": [
     {
       "source": "/assets/(.*)",
