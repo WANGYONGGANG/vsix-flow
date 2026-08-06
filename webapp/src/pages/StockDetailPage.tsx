@@ -70,7 +70,7 @@ export default function StockDetailPage({ code }: { code: string }) {
     if (diff[0]) {
       const n = diff[0];
       // 东财财务字段不稳定（限流返回空），为0时保留上次值避免闪烁
-      setQuote(prev => {
+      setQuote((prev: any) => {
         if (prev) {
           if (!Number(n.f9)) n.f9 = prev.f9;
           if (!Number(n.f23)) n.f23 = prev.f23;
