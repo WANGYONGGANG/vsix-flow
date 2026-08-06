@@ -214,12 +214,18 @@ export class ProxyService {
             f5: (parseFloat(p[6]) || 0) * 100,
             f6: (parseFloat(p[37]) || 0) * 10000,
             f8: parseFloat(p[38]) || 0,
+            f9: parseFloat(p[39]) || 0,
             f12: toCleanCode(m[1]),
             f14: p[1] || '',
             f15: parseFloat(p[33]) || 0,
             f16: parseFloat(p[34]) || 0,
             f17: parseFloat(p[5]) || 0,
             f18: parseFloat(p[4]) || 0,
+            f20: (parseFloat(p[46]) || 0) * 100000000,
+            f21: (parseFloat(p[45]) || 0) * 100000000,
+            f23: parseFloat(p[47]) || 0,
+            f43: parseFloat(p[44]) || 0,
+            f50: parseFloat(p[48]) || 0,
             f72: parseInt(p[72]) || 0,
             // Buy/Sell 1-5
             buy1: parseFloat(p[9]) || 0, buy1vol: parseInt(p[10]) || 0,
@@ -519,6 +525,8 @@ export class ProxyService {
           return {
             f2: parseFloat(p[3]) || 0, f3: parseFloat(p[32]) || 0, f4: parseFloat(p[31]) || 0,
             f5: (parseFloat(p[6]) || 0) * 100, f6: (parseFloat(p[37]) || 0) * 10000, f8: parseFloat(p[38]) || 0,
+            f9: parseFloat(p[39]) || 0, f20: (parseFloat(p[46]) || 0) * 100000000, f21: (parseFloat(p[45]) || 0) * 100000000,
+            f23: parseFloat(p[47]) || 0, f43: parseFloat(p[44]) || 0, f50: parseFloat(p[48]) || 0,
             f12: code, f14: p[1] || '',
             f15: parseFloat(p[33]) || 0, f16: parseFloat(p[34]) || 0,
             f17: parseFloat(p[5]) || 0, f18: parseFloat(p[4]) || 0,
@@ -583,6 +591,29 @@ export class ProxyService {
         const r = await httpGetJson(`https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=f62&fs=${fs}&fields=${fields}`, 'https://quote.eastmoney.com/center/boardlist.html');
         const diff = r?.data?.diff || [];
         this.json(res, 200, { data: { diff } });
+        return;
+      }
+
+      // 个股日线资金流历史（选股报告用）- 近N日主力净流入
+      if (targetUrl.startsWith('/api/stock-fflow-day')) {
+        const code = toCleanCode(toSinaCode((parsed.query.code as string) || ''));
+
+      // 东方财富详情行情（完整字段）- 用于详情页
+      } else if (targetUrl.startsWith('/api/stock-detail-quote')) {
+        const code = toCleanCode((parsed.query.code as string) || '');
+        const secid = (/^(60|68|90|11|13|50|56|51|58)/.test(code) ? '1.' : '0.') + code;
+        const fields = 'f2,f3,f4,f5,f6,f8,f9,f12,f14,f15,f16,f17,f18,f20,f21,f23,f43,f50,f57,f58,f71,f116,f117,f162,f167,f170';
+        const r = await httpGetJson(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=${fields}`, 'https://quote.eastmoney.com/');
+        const d = r?.data || {};
+        this.json(res, 200, { data: {
+          f2: d.f2 || 0, f3: d.f3 || 0, f4: d.f4 || 0,
+          f5: (d.f5 || 0) * 100, f6: (d.f6 || 0) * 10000, f8: d.f8 || 0,
+          f9: d.f9 || 0, f12: d.f12 || code, f14: d.f14 || '',
+          f15: d.f15 || 0, f16: d.f16 || 0, f17: d.f17 || 0, f18: d.f18 || 0,
+          f20: d.f20 || 0, f21: d.f21 || 0, f23: d.f23 || 0,
+          f43: d.f43 || 0, f50: d.f50 || 0,
+          f116: d.f116 || 0, f117: d.f117 || 0,
+        } });
         return;
       }
 

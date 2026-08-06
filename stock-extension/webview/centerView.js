@@ -1243,10 +1243,12 @@ function renderStockDetail(s){
   var amt=Number(s.amount||0);var amtStr=amt>=100000000?(amt/100000000).toFixed(2)+'亿':amt>=10000?(amt/10000).toFixed(1)+'万':amt.toLocaleString('zh-CN');
   var turnover=Number(s.turnover||0).toFixed(2);
   var chg=Number(s.price||0)-Number(s.preClose||0);var chgStr=(chg>=0?'+':'')+chg.toFixed(2);
-  // 扩展数据：市值、市盈等
-  var totalCap=s.totalMarketCap!=null?Number(s.totalMarketCap||0):(s.f20!=null?Number(s.f20||0):0);
-  var circCap=s.circMarketCap!=null?Number(s.circMarketCap||0):(s.f21!=null?Number(s.f21||0):0);
-  var peTTM=s.peTTM!=null?Number(s.peTTM||0):(s.f9!=null?Number(s.f9||0):(s.f23!=null?Number(s.f23||0):0));
+  // 东方财富接口字段
+  var totalCap=s.f20!=null?Number(s.f20||0):(s.totalMarketCap||0);
+  var circCap=s.f21!=null?Number(s.f21||0):(s.circMarketCap||0);
+  var peTTM=s.f9!=null?Number(s.f9||0):(s.peTTM||0);
+  var amp=s.f43!=null?Number(s.f43||0):0;
+  var volRatio=s.f50!=null?Number(s.f50||0):0;
   var capStr=totalCap>=100000000?(totalCap/100000000).toFixed(2)+'亿':totalCap>=10000?(totalCap/10000).toFixed(1)+'万':totalCap.toLocaleString('zh-CN');
   var circStr=circCap>=100000000?(circCap/100000000).toFixed(2)+'亿':circCap>=10000?(circCap/10000).toFixed(1)+'万':circCap.toLocaleString('zh-CN');
   var html='<button class="detail-back" id="detailBack">← 返回</button>';
@@ -1255,41 +1257,39 @@ function renderStockDetail(s){
   html+='<div class="detail-name-row">';
   html+='<span class="nm">'+name+'</span>';
   html+='<span class="cd">'+code+'</span>';
-  html+='<span class="tag-tag">沪股通</span>';
   html+='</div>';
-  // 第二行：左大价格 + 右今开/最高/最低
+  // 第二行：左大价格 + 右今开/最高/最低（紧凑单行）
   html+='<div class="detail-price-row">';
   html+='<div class="price-left"><span class="price-big '+(up?'text-up':'text-down')+'">'+price+'</span></div>';
   html+='<div class="price-meta">';
-  html+='<div class="meta-item"><span class="meta-lbl">今开</span><span class="meta-val">'+open+'</span></div>';
-  html+='<div class="meta-item"><span class="meta-lbl">最高</span><span class="meta-val text-up">'+high+'</span></div>';
-  html+='<div class="meta-item"><span class="meta-lbl">最低</span><span class="meta-val text-down">'+low+'</span></div>';
+  html+='<span>今开 <b>'+open+'</b></span>';
+  html+='<span>最高 <b class="text-up">'+high+'</b></span>';
+  html+='<span>最低 <b class="text-down">'+low+'</b></span>';
   html+='</div>';
   html+='</div>';
-  // 第三行：涨跌幅 + 换手 + 总手 + 金额
+  // 第三行：涨跌幅 + 涨跌额 + 换手 + 总手 + 金额（紧凑单行）
   html+='<div class="detail-info-row">';
-  html+='<div class="info-main"><span class="info-big '+(up?'text-up':'text-down')+'">'+chgStr+'</span><span class="info-pct '+(up?'text-up':'text-down')+'">('+(up?'+':'')+rate.toFixed(2)+'%)</span></div>';
-  html+='<div class="info-extra">';
-  html+='<span><i>换手</i><b>'+turnover+'%</b></span>';
-  html+='<span><i>总手</i><b>'+volStr+'</b></span>';
-  html+='<span><i>金额</i><b>'+amtStr+'</b></span>';
-  html+='</div>';
+  html+='<span class="info-big '+(up?'text-up':'text-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span>';
+  html+='<span class="info-chg '+(up?'text-up':'text-down')+'">'+chgStr+'</span>';
+  html+='<span>换手 <b>'+turnover+'%</b></span>';
+  html+='<span>总手 <b>'+volStr+'</b></span>';
+  html+='<span>金额 <b>'+amtStr+'</b></span>';
   html+='</div>';
   // 第四行：总值 + 流值 + 市盈 + 更多
   html+='<div class="detail-more-row">';
-  html+='<span><i>总值</i><b>'+capStr+'</b></span>';
-  html+='<span><i>流值</i><b>'+circStr+'</b></span>';
-  html+='<span><i>市盈</i><b>'+(peTTM||'-')+'</b></span>';
-  html+='<span class="more-btn" id="detailMoreBtn">更多 ▼</span>';
+  html+='<span>总值 <b>'+capStr+'</b></span>';
+  html+='<span>流值 <b>'+circStr+'</b></span>';
+  html+='<span>市盈 <b>'+(peTTM||'-')+'</b></span>';
+  html+='<span class="more-btn" id="detailMoreBtn">更多</span>';
   html+='</div>';
-  // 展开：昨收 + 涨跌额等
+  // 展开：昨收 + 量比 + 振幅等
   html+='<div class="detail-grid" id="detailMoreGrid" style="display:none">';
   html+='<div class="detail-cell"><div class="lbl">昨收</div><div class="val">'+preClose+'</div></div>';
-  html+='<div class="detail-cell"><div class="lbl">涨跌额</div><div class="val '+(up?'text-up':'text-down')+'">'+chgStr+'</div></div>';
-  html+='<div class="detail-cell"><div class="lbl">量比</div><div class="val">-</div></div>';
-  html+='<div class="detail-cell"><div class="lbl">振幅</div><div class="val">-</div></div>';
+  html+='<div class="detail-cell"><div class="lbl">量比</div><div class="val">'+(volRatio||'-')+'</div></div>';
+  html+='<div class="detail-cell"><div class="lbl">振幅</div><div class="val">'+(amp?amp.toFixed(2)+'%':'-')+'</div></div>';
   html+='<div class="detail-cell"><div class="lbl">换手率</div><div class="val">'+turnover+'%</div></div>';
   html+='<div class="detail-cell"><div class="lbl">市盈率</div><div class="val">'+(peTTM||'-')+'</div></div>';
+  html+='<div class="detail-cell"><div class="lbl">市净率</div><div class="val">-</div></div>';
   html+='</div>';
   html+='</div>';
   html+='<div class="kl-toolbar" id="klToolbar">';
@@ -2362,47 +2362,53 @@ function updateDetailQuote(d){
   // 更新价格
   var pr=document.querySelector('.price-big');if(pr){var p=Number(d.f2||0).toFixed(2);pr.textContent=p;pr.className='price-big '+(Number(d.f3||0)>=0?'text-up':'text-down')}
   // 更新今开/最高/最低
-  var metaVals=document.querySelectorAll('.price-meta .meta-val');
-  if(metaVals.length>=3){
-    metaVals[0].textContent=Number(d.f17||0).toFixed(2);
-    metaVals[1].textContent=Number(d.f15||0).toFixed(2);
-    metaVals[1].className='meta-val '+(Number(d.f15||0)>=Number(d.f18||0)?'text-up':'text-down');
-    metaVals[2].textContent=Number(d.f16||0).toFixed(2);
-    metaVals[2].className='meta-val '+(Number(d.f16||0)>=Number(d.f18||0)?'text-up':'text-down');
+  var priceMeta=document.querySelectorAll('.price-meta span');
+  if(priceMeta.length>=3){
+    priceMeta[0].innerHTML='今开 <b>'+Number(d.f17||0).toFixed(2)+'</b>';
+    priceMeta[1].innerHTML='最高 <b class="text-up">'+Number(d.f15||0).toFixed(2)+'</b>';
+    priceMeta[2].innerHTML='最低 <b class="text-down">'+Number(d.f16||0).toFixed(2)+'</b>';
   }
-  // 更新涨跌额 + 涨跌幅
-  var chgBig=document.querySelector('.info-big');
-  var chgPct=document.querySelector('.info-pct');
-  if(chgBig&&chgPct){
+  // 更新涨跌幅 + 涨跌额 + 换手 + 总手 + 金额
+  var infoRow=document.querySelector('.detail-info-row');
+  if(infoRow){
     var chg=Number(d.f2||0)-Number(d.f18||0);var rate=Number(d.f3||0);
-    chgBig.textContent=(chg>=0?'+':'')+chg.toFixed(2);
-    chgBig.className='info-big '+(rate>=0?'text-up':'text-down');
-    chgPct.textContent='('+(rate>=0?'+':'')+rate.toFixed(2)+'%)';
-    chgPct.className='info-pct '+(rate>=0?'text-up':'text-down');
-  }
-  // 更新换手 + 总手 + 金额
-  var infoExtra=document.querySelectorAll('.info-extra span b');
-  if(infoExtra.length>=3){
-    infoExtra[0].textContent=Number(d.f8||0).toFixed(2)+'%';
-    var vol=Number(d.f5||0);infoExtra[1].textContent=vol>=10000?(vol/10000).toFixed(1)+'万':vol.toLocaleString('zh-CN');
-    var amt=Number(d.f6||0);infoExtra[2].textContent=amt>=100000000?(amt/100000000).toFixed(2)+'亿':amt>=10000?(amt/10000).toFixed(1)+'万':amt.toLocaleString('zh-CN');
+    var up=rate>=0;
+    infoRow.innerHTML=
+      '<span class="info-big '+(up?'text-up':'text-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span>'+
+      '<span class="info-chg '+(up?'text-up':'text-down')+'">'+(chg>=0?'+':'')+chg.toFixed(2)+'</span>'+
+      '<span>换手 <b>'+Number(d.f8||0).toFixed(2)+'%</b></span>'+
+      '<span>总手 <b>'+((Number(d.f5||0)>=10000)?(Number(d.f5||0)/10000).toFixed(1)+'万':Number(d.f5||0).toLocaleString('zh-CN'))+'</b></span>'+
+      '<span>金额 <b>'+((Number(d.f6||0)>=100000000)?(Number(d.f6||0)/100000000).toFixed(2)+'亿':Number(d.f6||0)>=10000?(Number(d.f6||0)/10000).toFixed(1)+'万':Number(d.f6||0).toLocaleString('zh-CN'))+'</b></span>';
   }
   // 更新市值
-  var moreVals=document.querySelectorAll('.detail-more-row span b');
-  if(moreVals.length>=3){
-    var tc=Number(d.f20||0);moreVals[0].textContent=tc>=100000000?(tc/100000000).toFixed(2)+'亿':tc>=10000?(tc/10000).toFixed(1)+'万':tc.toLocaleString('zh-CN');
-    var cc=Number(d.f21||0);moreVals[1].textContent=cc>=100000000?(cc/100000000).toFixed(2)+'亿':cc>=10000?(cc/10000).toFixed(1)+'万':cc.toLocaleString('zh-CN');
-    var pe=Number(d.f9||0)||Number(d.f23||0);moreVals[2].textContent=pe||'-';
+  var moreRow=document.querySelector('.detail-more-row');
+  if(moreRow){
+    var tc=Number(d.f20||0);var cc=Number(d.f21||0);var pe=Number(d.f9||0)||Number(d.f23||0);
+    var tcStr=tc>=100000000?(tc/100000000).toFixed(2)+'亿':tc>=10000?(tc/10000).toFixed(1)+'万':tc.toLocaleString('zh-CN');
+    var ccStr=cc>=100000000?(cc/100000000).toFixed(2)+'亿':cc>=10000?(cc/10000).toFixed(1)+'万':cc.toLocaleString('zh-CN');
+    moreRow.innerHTML=
+      '<span>总值 <b>'+tcStr+'</b></span>'+
+      '<span>流值 <b>'+ccStr+'</b></span>'+
+      '<span>市盈 <b>'+(pe||'-')+'</b></span>'+
+      '<span class="more-btn" id="detailMoreBtn">更多</span>';
+    var moreBtn=document.getElementById('detailMoreBtn');
+    var moreGrid=document.getElementById('detailMoreGrid');
+    if(moreBtn&&moreGrid){
+      moreBtn.addEventListener('click',function(){
+        if(moreGrid.style.display==='none'){moreGrid.style.display='grid';moreBtn.textContent='收起';}
+        else{moreGrid.style.display='none';moreBtn.textContent='更多';}
+      });
+    }
   }
   // 更新展开区域
   var cells=document.querySelectorAll('#detailMoreGrid .val');
   if(cells.length>=6){
     cells[0].textContent=Number(d.f18||0).toFixed(2);
-    var chg2=Number(d.f2||0)-Number(d.f18||0);cells[1].textContent=(chg2>=0?'+':'')+chg2.toFixed(2);cells[1].className='val '+(chg2>=0?'text-up':'text-down');
-    cells[2].textContent='-';
-    cells[3].textContent='-';
+    var chg2=Number(d.f2||0)-Number(d.f18||0);cells[1].textContent=(chg2>=0?'+':'')+chg2.toFixed(2);
+    cells[2].textContent=d.f50?Number(d.f50).toFixed(2):'-';
+    cells[3].textContent=d.f43?Number(d.f43).toFixed(2)+'%':'-';
     cells[4].textContent=Number(d.f8||0).toFixed(2)+'%';
-    var pe2=Number(d.f9||0)||Number(d.f23||0);cells[5].textContent=pe2||'-';
+    cells[5].textContent=(Number(d.f9||0)||Number(d.f23||0))||'-';
   }
   updateOrderBook(d);
 }

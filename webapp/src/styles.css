@@ -403,39 +403,30 @@ td:last-child, th:last-child { padding-right: 14px; }
 .wl-menu button.cancel { border-bottom: none; color: var(--fg-dim); }
 
 /* ========= STOCK DETAIL ========= */
-.detail-top { padding: 12px 14px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.detail-top { padding: 10px 14px 8px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 
-/* 第一行：名称 + 代码 + 标签 */
-.detail-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.detail-name-row .nm { font-size: 17px; font-weight: 700; color: var(--fg); }
-.detail-name-row .cd { font-size: 12px; color: var(--fg-dim); font-family: ui-monospace, monospace; }
-.detail-name-row .tag-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); }
+/* 第一行：名称 + 代码 */
+.detail-name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.detail-name-row .nm { font-size: 16px; font-weight: 700; color: var(--fg); }
+.detail-name-row .cd { font-size: 11px; color: var(--fg-dim); font-family: ui-monospace, monospace; }
 
-/* 第二行：左大价格 + 右今开/最高/最低 */
-.detail-price-row { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 6px; }
+/* 第二行：左大价格 + 右今开/最高/最低（紧凑单行） */
+.detail-price-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
 .price-left { flex-shrink: 0; }
-.price-big { font-size: 38px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-.price-meta { display: flex; gap: 14px; flex: 1; padding-top: 6px; }
-.meta-item { display: flex; flex-direction: column; gap: 2px; }
-.meta-lbl { font-size: 11px; color: var(--fg-dim); }
-.meta-val { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.price-big { font-size: 36px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.price-meta { display: flex; gap: 14px; flex: 1; padding-top: 4px; font-size: 12px; color: var(--fg-2); }
+.price-meta span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; margin-left: 2px; }
 
-/* 第三行：涨跌幅 + 换手 + 总手 + 金额 */
-.detail-info-row { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
-.info-main { display: flex; align-items: baseline; gap: 4px; }
-.info-big { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.info-pct { font-size: 12px; font-weight: 600; }
-.info-extra { display: flex; gap: 14px; flex-wrap: wrap; }
-.info-extra span { font-size: 12px; color: var(--fg-2); }
-.info-extra span i { font-style: normal; color: var(--fg-dim); margin-right: 3px; }
-.info-extra span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+/* 第三行：涨跌幅 + 涨跌额 + 换手 + 总手 + 金额（紧凑单行） */
+.detail-info-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; font-size: 12px; color: var(--fg-2); }
+.info-big { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.info-chg { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.detail-info-row span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; margin-left: 2px; }
 
-/* 第四行：总值 + 流值 + 市盈 + 更多 */
-.detail-more-row { display: flex; align-items: center; gap: 14px; padding-top: 6px; border-top: 1px solid var(--border); }
-.detail-more-row span { font-size: 12px; color: var(--fg-2); }
-.detail-more-row span i { font-style: normal; color: var(--fg-dim); margin-right: 3px; }
-.detail-more-row span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
-.more-btn { margin-left: auto; color: var(--accent); cursor: pointer; font-size: 12px !important; padding: 4px 8px; border-radius: 4px; }
+/* 第四行：总值 + 流值 + 市盈 + 更多（紧凑单行） */
+.detail-more-row { display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px solid var(--border); font-size: 12px; color: var(--fg-2); }
+.detail-more-row span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; margin-left: 2px; }
+.more-btn { margin-left: auto; color: var(--accent); cursor: pointer; font-size: 12px !important; padding: 2px 8px; border-radius: 4px; }
 .more-btn:hover { background: var(--accent-soft); }
 
 .detail-grid {
@@ -445,7 +436,7 @@ td:last-child, th:last-child { padding-right: 14px; }
   background: var(--border);
   border-radius: 8px;
   overflow: hidden;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 .detail-cell {
   background: var(--card);
