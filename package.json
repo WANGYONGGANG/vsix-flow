@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "tsx": "^4.23.5"
+  },
+  "dependencies": {
+    "iconv-lite": "^0.7.3"
+  }
+}

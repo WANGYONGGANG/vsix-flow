@@ -1,0 +1,32 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "echo '--- root install ---' && (npm install || true) && echo '--- install webapp ---' && cd webapp && npm install --legacy-peer-deps",
+  "buildCommand": "cd webapp && npm run build",
+  "outputDirectory": "webapp/dist",
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@4",
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/((?!assets|api|favicon|sw\\.js|workbox|manifest|robots\\.txt).*)", "destination": "/index.html" }
+  ]
+}
