@@ -1,9 +1,47 @@
 // ============================================
 // API 层 HTTP 请求工具：统一用 Node 20 内置 fetch
 // 原因：容器内 HTTP_PROXY 通过 NODE_OPTIONS preload 打补丁，只有 fetch(undici) 兼容
+// 编码：自动从 Content-Type 解析 charset，支持 GBK/GB2312/Big5/UTF-8
+// 使用 iconv-lite 做可靠解码（规避 Vite/esbuild 转译环境下 TextDecoder gbk 失败问题）
 // ============================================
 
+import iconv from 'iconv-lite';
+
 const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+// 从 Content-Type 头解析 charset，默认 utf-8
+function parseCharset(contentType: string | null): string {
+  if (!contentType) return 'utf-8';
+  const m = contentType.match(/charset=([\w-]+)/i);
+  if (m) {
+    const cs = m[1].toLowerCase();
+    if (cs === 'gbk' || cs === 'gb2312' || cs === 'gb18030' || cs === 'hz-gb-2312') return 'gbk';
+    if (cs === 'big5' || cs === 'big5-hkscs') return 'big5';
+    return cs;
+  }
+  return 'utf-8';
+}
+
+// 读取响应为 ArrayBuffer 并按正确 charset 解码为字符串
+// 优先使用 iconv-lite（支持 gbk/big5），其他编码用 TextDecoder 兜底
+async function responseToText(r: Response): Promise<string> {
+  const buf = await r.arrayBuffer();
+  const bytes = Buffer.from(buf);
+  const charset = parseCharset(r.headers.get('content-type'));
+  if (charset === 'gbk' || charset === 'big5' || iconv.encodingExists(charset)) {
+    try {
+      return iconv.decode(bytes, charset);
+    } catch {
+      // fall through
+    }
+  }
+  try {
+    const dec = new TextDecoder(charset, { fatal: false });
+    return dec.decode(buf);
+  } catch {
+    return bytes.toString('utf-8');
+  }
+}
 
 export async function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
   try {
@@ -14,7 +52,7 @@ export async function httpGetJson(fullUrl: string, referer?: string): Promise<an
       signal: ctrl.signal,
     } as any);
     clearTimeout(t);
-    const text = await r.text();
+    const text = await responseToText(r);
     try { return JSON.parse(text); } catch { return null; }
   } catch { return null; }
 }
@@ -28,7 +66,7 @@ export async function httpsGetText(fullUrl: string, referer?: string): Promise<s
       signal: ctrl.signal,
     } as any);
     clearTimeout(t);
-    return await r.text();
+    return await responseToText(r);
   } catch { return ''; }
 }
 

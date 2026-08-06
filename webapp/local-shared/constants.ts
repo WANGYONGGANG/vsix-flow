@@ -35,6 +35,16 @@ export const DEFAULT_SETTINGS = {
   stocksRemind: {},
   remindSwitch: 1,
   opacity: 1,
-  hideStatusBar: false,
-  hideStatusBarIcon: false,
+  // ===== 扩展适配 - WebApp 专属 =====
+  theme: 'light' as 'dark' | 'light' | 'system',
+  watchlist: [] as { code: string; name?: string }[],
+  // ===== 从扩展补齐 =====
+  webhook: {
+    wecom: { url: '', enabled: false },
+    dingtalk: { url: '', enabled: false },
+    feishu: { url: '', enabled: false },
+  },
+  voicePreset: 'system',
+  maxVisibleTurns: 30,
+  aiStockHistoryRange: '3m' as '1y' | '6m' | '3m' | '1m' | '1w',
 };

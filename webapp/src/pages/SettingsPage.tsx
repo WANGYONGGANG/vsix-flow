@@ -6,6 +6,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useSettings } from '../store/useSettings';
 import { useRouter } from '../router/useRouter';
 
+const VOICE_OPTIONS: { value: string; name: string; desc: string }[] = [
+  { value: 'system', name: '跟随系统', desc: '使用系统默认语音' },
+  { value: 'zh-CN-XiaoxiaoNeural', name: '晓晓', desc: '女 · 温婉' },
+  { value: 'zh-CN-YunxiNeural', name: '云希', desc: '男 · 沉稳' },
+  { value: 'zh-CN-YunyangNeural', name: '云扬', desc: '男 · 新闻' },
+  { value: 'zh-CN-XiaoyiNeural', name: '晓伊', desc: '女 · 活泼' },
+  { value: 'zh-CN-YunjianNeural', name: '云健', desc: '男 · 浑厚' },
+];
+
 export default function SettingsPage() {
   const s = useSettings();
   const { settings, update, addWatch, delWatch, getWatchCodes,
@@ -14,6 +23,7 @@ export default function SettingsPage() {
   const { navigate } = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
+  const [voicePickerOpen, setVoicePickerOpen] = useState(false);
 
   useEffect(() => {
     const opacity = (settings as any).opacity ?? 1;
@@ -37,6 +47,16 @@ export default function SettingsPage() {
         {/* UI 偏好 */}
         <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '16px 16px 6px' }}>界面</div>
 
+        <div className="form-item">
+          <div className="lbl">主题</div>
+          <div className="val">
+            <div className="flex items-center gap-2">
+              <button className={'pill' + (settings.theme === 'dark' ? ' on' : '')} onClick={() => update({ theme: 'dark' })}>🌙 暗色</button>
+              <button className={'pill' + (settings.theme === 'light' ? ' on' : '')} onClick={() => update({ theme: 'light' })}>☀️ 亮色</button>
+              <button className={'pill' + (settings.theme === 'system' ? ' on' : '')} onClick={() => update({ theme: 'system' })}>🖥️ 跟随系统</button>
+            </div>
+          </div>
+        </div>
         <div className="form-item">
           <div className="lbl">上涨颜色</div>
           <div className="val">
@@ -82,6 +102,32 @@ export default function SettingsPage() {
           </div>
         </div>
         <div className="form-item">
+          <div className="lbl">语音音色</div>
+          <div className="val flex items-center gap-2">
+            <button className="ghost-btn"
+              style={{ width: 'auto', margin: 0, padding: '8px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => setVoicePickerOpen(true)}>
+              <span>{(VOICE_OPTIONS.find((v) => v.value === (settings.voicePreset ?? 'system')) || VOICE_OPTIONS[0]).name}</span>
+              <span style={{ fontSize: 10, opacity: .5 }}>▾</span>
+            </button>
+            <button className="ghost-btn" style={{ width: 'auto', margin: 0, padding: '6px 14px', fontSize: 12 }}
+              onClick={() => {
+                try {
+                  const u = new SpeechSynthesisUtterance('这是语音播报试听示例，当前A股市场行情播报中。');
+                  u.lang = 'zh-CN'; u.rate = 1.05;
+                  const preset = settings.voicePreset;
+                  if (preset && preset !== 'system') {
+                    const voices = window.speechSynthesis.getVoices();
+                    const v = voices.find((x) => x.name?.includes(preset.replace('Neural', '')));
+                    if (v) u.voice = v;
+                  }
+                  window.speechSynthesis.cancel();
+                  window.speechSynthesis.speak(u);
+                } catch { /* empty */ }
+              }}>试听</button>
+          </div>
+        </div>
+        <div className="form-item">
           <div className="lbl">面板透明度</div>
           <div className="val">
             <div className="flex items-center gap-2">
@@ -91,20 +137,6 @@ export default function SettingsPage() {
                 style={{ flex: 1 }} />
               <span style={{ fontSize: 13, opacity: .7, minWidth: 36, textAlign: 'right' }}>{((settings as any).opacity ?? 1).toFixed(1)}</span>
             </div>
-          </div>
-        </div>
-        <div className="form-item">
-          <div className="lbl">隐藏状态栏</div>
-          <div className="val flex jcsb items-center">
-            <div className={'switch' + ((settings as any).hideStatusBar ? ' on' : '')}
-              onClick={() => update({ hideStatusBar: !(settings as any).hideStatusBar } as any)} />
-          </div>
-        </div>
-        <div className="form-item">
-          <div className="lbl">隐藏状态栏图标</div>
-          <div className="val flex jcsb items-center">
-            <div className={'switch' + ((settings as any).hideStatusBarIcon ? ' on' : '')}
-              onClick={() => update({ hideStatusBarIcon: !(settings as any).hideStatusBarIcon } as any)} />
           </div>
         </div>
 
@@ -160,23 +192,119 @@ export default function SettingsPage() {
           ))}
         </div>
 
-      {/* 自选管理 */}
-      <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>自选股 (共 {totalCodes} 只)</div>
+      {/* AI 高级 */}
+      <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>AI 高级</div>
+      <div className="form-item">
+        <div className="lbl">最大对话轮数</div>
+        <div className="val">
+          <input type="number" min={5} max={100}
+            value={settings.maxVisibleTurns ?? 30}
+            onChange={(e) => update({ maxVisibleTurns: Math.max(5, Number(e.target.value || 30)) })} />
+        </div>
+      </div>
+      <div className="form-item">
+        <div className="lbl">分析历史区间</div>
+        <div className="val">
+          <select value={settings.aiStockHistoryRange ?? '3m'}
+            onChange={(e) => update({ aiStockHistoryRange: e.target.value as any })}>
+            <option value="1w">近 1 周</option>
+            <option value="1m">近 1 月</option>
+            <option value="3m">近 3 月</option>
+            <option value="6m">近 6 月</option>
+            <option value="1y">近 1 年</option>
+          </select>
+        </div>
+      </div>
 
-      <div style={{ padding: '0 14px 14px' }}>
-        <AddWatchInline onAdd={(c) => { addWatch(c); }} />
-        {getWatchCodes().length > 0 && (
-          <div className="card" style={{ marginTop: 10, padding: 0, overflow: 'hidden' }}>
-            {getWatchCodes().map((c) => (
-              <div key={c} className="flex items-center jcsb" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
-              <div>
-                <div style={{ fontSize: 13, color: '#ddd' }}>{c.toUpperCase()}</div>
+      {/* 提醒通知（浏览器 Notification） */}
+      <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>提醒通知</div>
+      <div className="form-item">
+        <div className="lbl">开启价格 / 涨跌幅提醒</div>
+        <div className="val flex jcsb items-center">
+          <div className={'switch' + (settings.remindSwitch ? ' on' : '')}
+            onClick={() => {
+              if (!settings.remindSwitch && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+                try { Notification.requestPermission(); } catch { /* empty */ }
+              }
+              update({ remindSwitch: settings.remindSwitch ? 0 : 1 });
+            }} />
+        </div>
+      </div>
+      <div className="form-item" style={{ paddingTop: 4 }}>
+        <div className="lbl" style={{ alignSelf: 'flex-start', paddingTop: 8 }}>触发条件</div>
+        <div className="val" style={{ flex: 1, flexDirection: 'column', alignItems: 'stretch', display: 'flex' }}>
+          {getWatchCodes().length === 0 && <div style={{ opacity: .5, fontSize: 12 }}>请先在上方「自选股」中添加你想监控的股票。</div>}
+          {getWatchCodes().map((code) => {
+            const cur: any = settings.stocksRemind?.[code] || {};
+            const cond: string = cur.cond || 'chg';
+            const thr: string = String(cur.threshold ?? '');
+            const en: boolean = cur.enabled !== false;
+            const patch = (p: any) => {
+              const next = { ...(settings.stocksRemind || {}), [code]: { ...(settings.stocksRemind?.[code] || {}), ...p } };
+              update({ stocksRemind: next });
+            };
+            return (
+              <div key={code} className="remind-row">
+                <div>
+                  <div className="rk-name">{code.toUpperCase()}</div>
+                  <div className="rk-sub">
+                    {cond === 'chg' ? '当日涨跌幅(%)达到 ±' :
+                     cond === 'high' ? '最新价 ≥ ' :
+                     cond === 'low'  ? '最新价 ≤ ' : '价格条件'}
+                    {thr ? <b style={{ color: 'var(--accent)' }}> {thr}</b> : null}
+                  </div>
+                </div>
+                <select value={cond} onChange={(e) => patch({ cond: e.target.value })}>
+                  <option value="chg">涨跌幅±%</option>
+                  <option value="high">突破高价≥</option>
+                  <option value="low">跌破低价≤</option>
+                </select>
+                <input type="number" step="0.01" placeholder="阈值"
+                  value={thr}
+                  onChange={(e) => patch({ threshold: e.target.value === '' ? '' : Number(e.target.value) })}
+                  style={{ width: 90 }} />
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <div className={'switch' + (en ? ' on' : '')} onClick={() => patch({ enabled: !en })} />
+                  <button className="remind-del" title="清除这只的配置"
+                    onClick={() => {
+                      const next = { ...(settings.stocksRemind || {}) }; delete next[code];
+                      update({ stocksRemind: next });
+                    }}>✕</button>
+                </div>
               </div>
-              <button className="wl-del" onClick={() => delWatch(c)}>删除</button>
-            </div>
-          ))}
+            );
+          })}
+          <div style={{ marginTop: 10, fontSize: 11, opacity: .55, lineHeight: 1.6 }}>
+            说明：浏览器需打开此页面才会轮询并通知；首次使用时请在系统与浏览器中允许通知权限。本提醒逻辑仅在前台运行。
           </div>
-        )}
+        </div>
+      </div>
+
+      {/* Webhook 预警推送 */}
+      <div style={{ fontSize: 12, letterSpacing: .5, textTransform: 'uppercase', opacity: .55, padding: '4px 16px 6px' }}>Webhook 预警推送</div>
+      {(['wecom', 'dingtalk', 'feishu'] as const).map((plat) => {
+        const label = plat === 'wecom' ? '企业微信' : plat === 'dingtalk' ? '钉钉' : '飞书';
+        const cfg = (settings.webhook?.[plat]) || { url: '', enabled: false };
+        return (
+          <div key={plat} className="form-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+            <div className="flex items-center jcsb">
+              <div className="lbl" style={{ width: 'auto' }}>{label}</div>
+              <div className={'switch' + (cfg.enabled ? ' on' : '')}
+                onClick={() => update({
+                  webhook: { ...settings.webhook, [plat]: { ...cfg, enabled: !cfg.enabled } },
+                })} />
+            </div>
+            <input type="text" placeholder={`粘贴${label}机器人 Webhook URL`}
+              value={cfg.url}
+              onChange={(e) => update({
+                webhook: { ...settings.webhook, [plat]: { ...cfg, url: e.target.value } },
+              })}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)', color: '#eee', fontSize: 13, outline: 'none' }} />
+          </div>
+        );
+      })}
+      <div style={{ padding: '0 16px 10px', fontSize: 11, opacity: .55, lineHeight: 1.6 }}>
+        提醒触发时自动推送消息到已启用的群机器人。URL 格式参考各平台开发文档。
       </div>
 
       {/* 导入导出 */}
@@ -201,7 +329,33 @@ export default function SettingsPage() {
         数据由东方财富/新浪/腾讯公开接口提供 · 仅供学习，不构成投资建议<br/>
       </div>
     </div>
-  </div>
+
+    {voicePickerOpen && (
+      <div className="modal-mask" onClick={() => setVoicePickerOpen(false)}>
+        <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="vp-head">
+            <span>选择语音音色</span>
+            <button className="modal-close" onClick={() => setVoicePickerOpen(false)}>×</button>
+          </div>
+          <div className="vp-list">
+            {VOICE_OPTIONS.map((v) => {
+              const on = v.value === (settings.voicePreset ?? 'system');
+              return (
+                <button key={v.value} className={'vp-item' + (on ? ' on' : '')}
+                  onClick={() => { update({ voicePreset: v.value }); setVoicePickerOpen(false); }}>
+                  <div className="vp-info">
+                    <div className="vp-name">{v.name}</div>
+                    <div className="vp-desc">{v.desc}</div>
+                  </div>
+                  {on && <span className="vp-check">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    )}
+    </div>
   );
 }
 
