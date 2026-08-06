@@ -29,12 +29,16 @@ export function normalizeCode(raw: string): string {
   return m + c;
 }
 export function mapEmDiffToStockItem(d: any): any {
+  // 盘口字段来自腾讯（实时），财务字段来自东方财富（振幅/市盈/市净/市值/行业）
   return {
     code: d.f12, name: d.f14,
-    price: d.f43 ?? d.f2 ?? 0, changeRate: d.f170 ?? d.f3 ?? 0, changeAmount: d.f169 ?? d.f4 ?? 0,
-    volume: d.f47 ?? 0, amount: d.f48 ?? 0,
-    high: d.f44 ?? d.f15 ?? 0, low: d.f45 ?? d.f16 ?? 0, open: d.f46 ?? d.f17 ?? 0, preClose: d.f18 ?? 0,
-    turnoverRate: d.f168 ?? d.f38 ?? 0, marketCap: d.f20 ?? 0, amplitude: d.f37 ?? 0,
+    price: d.f2 ?? 0, changeRate: d.f3 ?? 0, changeAmount: d.f4 ?? 0,
+    volume: d.f5 ?? 0, amount: d.f6 ?? 0,
+    high: d.f15 ?? 0, low: d.f16 ?? 0, open: d.f17 ?? 0, preClose: d.f18 ?? 0,
+    turnoverRate: d.f8 ?? 0, marketCap: d.f20 ?? 0, amplitude: d.f7 ?? 0,
+    pe: d.f9 ?? 0, pb: d.f23 ?? 0, floatCap: d.f21 ?? 0,
+    isSHConnect: /^(601|603|605|688)/.test(d.f12 || ''), isSZConnect: /^(000|002|300)/.test(d.f12 || ''),
+    isMargin: /^(60|68|00|30)/.test(d.f12 || ''), marginBalance: 0, industry: d.f127 ?? '',
     buy1: d.buy1, buy1vol: d.buy1vol, buy2: d.buy2, buy2vol: d.buy2vol,
     buy3: d.buy3, buy3vol: d.buy3vol, buy4: d.buy4, buy4vol: d.buy4vol,
     buy5: d.buy5, buy5vol: d.buy5vol,

@@ -27,8 +27,6 @@ export default function StockDetailPage({ code }: { code: string }) {
 
   const [quote, setQuote] = useState<any>(null);
   const [klinePeriod, setKlinePeriod] = useState<string>('intraday');
-  const [showMore, setShowMore] = useState(false);
-  const toggleMore = () => setShowMore(v => !v);
   const [klineRows, setKlineRows] = useState<string[]>([]);
   const [kline120Rows, setKline120Rows] = useState<string[]>([]);
   const [intraday, setIntraday] = useState<{ minutes: string[]; preClose: number; ticks: any[]; orderBook: any } | null>(null);
@@ -67,9 +65,23 @@ export default function StockDetailPage({ code }: { code: string }) {
   }
 
   async function loadQuote() {
-    const r = await api.quote([realCode]);
+    const r = await api.quoteDetail(realCode);
     const diff = r?.data?.diff || [];
-    if (diff[0]) setQuote(diff[0]);
+    if (diff[0]) {
+      const n = diff[0];
+      // 东财财务字段不稳定（限流返回空），为0时保留上次值避免闪烁
+      setQuote(prev => {
+        if (prev) {
+          if (!Number(n.f9)) n.f9 = prev.f9;
+          if (!Number(n.f23)) n.f23 = prev.f23;
+          if (!Number(n.f20)) n.f20 = prev.f20;
+          if (!Number(n.f21)) n.f21 = prev.f21;
+          if (!Number(n.f7)) n.f7 = prev.f7;
+          if (!n.f127) n.f127 = prev.f127;
+        }
+        return n;
+      });
+    }
   }
 
   async function loadKline(period: string) {
@@ -288,57 +300,72 @@ export default function StockDetailPage({ code }: { code: string }) {
     navigate(from);
   }
 
+  const [moreInfoOpen, setMoreInfoOpen] = useState(false);
+
   return (
     <div className="page detail-page">
-      {/* 顶部：价格（仿东方财富紧凑4行布局） */}
+      {/* 顶部：价格 */}
       <div className="detail-top">
-        {/* 第一行：名称 + 代码 */}
-        <div className="detail-name-row">
+        <div className="detail-hdr">
           <span className="nm">{escapeHtml(nm)}</span>
           <span className="cd">{codeN}</span>
+          <span className="detail-tags">
+            {s?.isSHConnect && <span className="tag-sh">沪股通</span>}
+            {s?.isSZConnect && <span className="tag-sz">深股通</span>}
+            {s?.isMargin && <span className="tag-margin">融资融券</span>}
+          </span>
         </div>
-        {/* 第二行：左大价格 + 右今开/最高/最低 */}
-        <div className="detail-price-row">
-          <div className="price-left">
-            <span className={'price-big ' + (up ? 'text-up' : 'text-down')}>{price.toFixed(2)}</span>
+        {/* 第一行：大价格（左） + 今开/最高/最低（右） */}
+        <div className="detail-row-1">
+          <span className={'detail-price ' + (up ? 'text-up' : 'text-down')}>{price.toFixed(2)}</span>
+          <div className="detail-row-1-right">
+            <span className="detail-smi"><i>今开</i><b>{Number(s?.open || 0).toFixed(2)}</b></span>
+            <span className="detail-smi"><i>昨收</i><b>{Number(s?.preClose || 0).toFixed(2)}</b></span>
+            <span className="detail-smi"><i>最高</i><b className="text-up">{Number(s?.high || 0).toFixed(2)}</b></span>
+            <span className="detail-smi"><i>最低</i><b className="text-down">{Number(s?.low || 0).toFixed(2)}</b></span>
           </div>
-          <div className="price-meta">
-            <span>今开 <b>{Number(s?.open || 0).toFixed(2)}</b></span>
-            <span>最高 <b className="text-up">{Number(s?.high || 0).toFixed(2)}</b></span>
-            <span>最低 <b className="text-down">{Number(s?.low || 0).toFixed(2)}</b></span>
+        </div>
+        {/* 第二行：涨跌幅%（大）+涨跌额（小）（左） + 换手/总手/金额（右） */}
+        <div className="detail-row-2">
+          <div className="detail-row-2-left">
+            <span className={'detail-rate ' + (up ? 'text-up' : 'text-down')}>
+              {upSign(rate)}{rate.toFixed(2)}%
+            </span>
+            <span className={'detail-chg ' + (up ? 'text-up' : 'text-down')}>
+              {upSign(chg)}{chg.toFixed(2)}
+            </span>
+          </div>
+          <div className="detail-row-2-right">
+            <span className="detail-smi"><i>换手</i><b>{Number(s?.turnoverRate || 0).toFixed(2)}%</b></span>
+            <span className="detail-smi"><i>总手</i><b>{fmtYi(Number(s?.volume || 0))}</b></span>
+            <span className="detail-smi"><i>金额</i><b>{fmtYi(Number(s?.amount || 0))}</b></span>
           </div>
         </div>
-        {/* 第三行：涨跌幅 + 涨跌额 + 换手 + 总手 + 金额（紧凑单行） */}
-        <div className="detail-info-row">
-          <span className={'info-big ' + (up ? 'text-up' : 'text-down')}>{upSign(rate)}{rate.toFixed(2)}%</span>
-          <span className={'info-chg ' + (up ? 'text-up' : 'text-down')}>{upSign(chg)}{chg.toFixed(2)}</span>
-          <span>换手 <b>{Number(s?.turnoverRate || 0).toFixed(2)}%</b></span>
-          <span>总手 <b>{fmtYi(Number(s?.volume || 0))}</b></span>
-          <span>金额 <b>{fmtYi(Number(s?.amount || 0))}</b></span>
+        {/* 第三行：市值/PE/PB + 更多按钮 */}
+        <div className="detail-row-3">
+          <div className="detail-row-3-left">
+            <span className="detail-smi"><i>总市值</i><b>{fmtYi(Number(s?.marketCap || 0))}</b></span>
+            <span className="detail-smi"><i>流通</i><b>{fmtYi(Number(s?.floatCap || 0))}</b></span>
+            <span className="detail-smi"><i>市盈</i><b>{s?.pe ? Number(s.pe).toFixed(2) : '--'}</b></span>
+            <span className="detail-smi"><i>市净</i><b>{s?.pb ? Number(s.pb).toFixed(2) : '--'}</b></span>
+          </div>
+          <button className="detail-more-btn" onClick={() => setMoreInfoOpen(!moreInfoOpen)}>
+            {moreInfoOpen ? '收起 ▲' : '更多 ▼'}
+          </button>
         </div>
-        {/* 第四行：总值 + 流值 + 市盈 + 更多 */}
-        <div className="detail-more-row">
-          <span>总值 <b>{fmtYi(Number(s?.totalMarketCap || 0))}</b></span>
-          <span>流值 <b>{fmtYi(Number(s?.circMarketCap || 0))}</b></span>
-          <span>市盈 <b>{Number(s?.peTTM || 0).toFixed(2)}</b></span>
-          <span className="more-btn" onClick={toggleMore}>{showMore ? '收起' : '更多'}</span>
-        </div>
-        {/* 展开：昨收 + 量比 + 振幅等 */}
-        {showMore && (
-          <div className="detail-grid">
-            {[
-              ['昨收', Number(s?.preClose || 0).toFixed(2), ''],
-              ['量比', Number(s?.volumeRatio || 0).toFixed(2), ''],
-              ['振幅', Number(s?.amplitude || 0).toFixed(2) + '%', ''],
-              ['换手率', Number(s?.turnoverRate || 0).toFixed(2) + '%', ''],
-              ['市盈率', Number(s?.peTTM || 0).toFixed(2), ''],
-              ['市净率', Number(s?.pb || 0).toFixed(2), ''],
-            ].map(([lbl, val, cls], i) => (
-              <div key={i} className="detail-cell">
-                <div className="lbl">{lbl}</div>
-                <div className={'val ' + cls}>{val}</div>
+        {/* 展开的详细信息 */}
+        {moreInfoOpen && (
+          <div className="detail-more">
+            <div className="detail-more-row">
+              <span className="detail-smi"><i>行业</i><b>{s?.industry || '--'}</b></span>
+              <span className="detail-smi"><i>振幅</i><b>{Number(s?.amplitude || 0).toFixed(2)}%</b></span>
+            </div>
+            {s?.isMargin && (
+              <div className="detail-more-row">
+                <span className="detail-smi"><i>融资余额</i><b>{fmtYi(Number(s?.marginBalance || 0))}</b></span>
+                <span className="detail-smi"><i>融券余额</i><b>{fmtYi(Number(s?.marginBalance || 0))}</b></span>
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>

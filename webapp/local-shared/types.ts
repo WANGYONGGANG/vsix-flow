@@ -3,6 +3,9 @@ export interface StockItem {
   code: string; name: string; price: number; changeRate: number; changeAmount: number;
   volume: number; amount: number; high: number; low: number; open: number; preClose: number;
   turnoverRate: number; marketCap: number; amplitude: number;
+  pe: number; pb: number; floatCap: number;
+  isSHConnect: boolean; isSZConnect: boolean; isMargin: boolean;
+  marginBalance: number; industry: string;
 }
 export interface PortfolioGroup { name: string; codes: string[]; }
 export interface StockPortfolio { groups: PortfolioGroup[]; expandKeys: string[]; }

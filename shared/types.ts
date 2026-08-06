@@ -17,6 +17,14 @@ export interface StockItem {
   turnoverRate: number;
   marketCap: number;
   amplitude: number;
+  pe: number;          // 市盈率
+  pb: number;          // 市净率
+  floatCap: number;    // 流通市值
+  isSHConnect: boolean;   // 沪股通
+  isSZConnect: boolean;   // 深股通
+  isMargin: boolean;      // 融资融券
+  marginBalance: number;  // 融资融券余额
+  industry: string;       // 所属行业
 }
 
 export interface FundItem {

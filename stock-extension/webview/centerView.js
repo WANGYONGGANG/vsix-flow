@@ -465,11 +465,123 @@ function detailSearchSelect(idx){
   var name=item.f14||item.name||'';
   var rs=$('#detailSearchResults');if(rs)rs.classList.remove('show');
   var inp=$('#detailSearchInput');if(inp)inp.value='';
+  var box=$('#detailSearchBox');if(box)box.classList.remove('show');
+  _detailSearchResults=[];_detailSearchIdx=-1;
   openStockDetail(code,name);
 }
 function detailSearchConfirm(){
   if(_detailSearchIdx>=0&&_detailSearchResults[_detailSearchIdx]){detailSearchSelect(_detailSearchIdx);return}
   if(_detailSearchResults.length>0)detailSearchSelect(0);
+}
+// 高亮当前选中的搜索项
+function highlightDetailSearchItem(){
+  var items=document.querySelectorAll('.detail-search-item');
+  for(var i=0;i<items.length;i++){
+    if(i===_detailSearchIdx){items[i].classList.add('active')}
+    else{items[i].classList.remove('active')}
+  }
+  // 滚动到可见
+  var cur=document.querySelector('.detail-search-item.active');
+  if(cur)cur.scrollIntoView({block:'nearest'});
+}
+// 详情页全局键盘：直接输入搜索框 + 方向键控制图表/搜索列表
+document.addEventListener('keydown',function(e){
+  if(!_inDetail)return;
+  var tag=(e.target&&e.target.tagName)||'';
+  var inEditable=tag==='INPUT'||tag==='TEXTAREA';
+  var hasResults=_detailSearchResults.length>0;
+  // Escape：清空搜索框并隐藏
+  if(e.key==='Escape'){
+    var inpE=$('#detailSearchInput');
+    var boxE=$('#detailSearchBox');
+    if(inpE&&inpE.value){inpE.value='';detailSearch('');inpE.blur();e.preventDefault();return}
+    if(boxE){boxE.classList.remove('show')}
+    _detailSearchResults=[];_detailSearchIdx=-1;
+    return;
+  }
+  // 上下方向键：有搜索结果时选列表，否则缩放图表
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    if(hasResults){
+      e.preventDefault();
+      _detailSearchIdx+=(e.key==='ArrowDown'?1:-1);
+      if(_detailSearchIdx<0)_detailSearchIdx=_detailSearchResults.length-1;
+      if(_detailSearchIdx>=_detailSearchResults.length)_detailSearchIdx=0;
+      highlightDetailSearchItem();
+    }else{
+      e.preventDefault();
+      chartZoom(e.key==='ArrowUp'?0.85:1.15);
+    }
+    return;
+  }
+  // 左右方向键：无搜索结果时移动图表
+  if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&!hasResults){
+    e.preventDefault();
+    chartPan(e.key==='ArrowLeft'?-30:30);
+    return;
+  }
+  // Enter 确认（焦点不在输入框时）
+  if(e.key==='Enter'&&!inEditable){
+    if(hasResults){detailSearchConfirm();e.preventDefault();}
+    return;
+  }
+  // 可打印字符（字母/数字）：显示搜索框并输入
+  if(inEditable)return;
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.isComposing||e.keyCode===229)return; // 中文输入法 composing 中不拦截
+  var ch=e.key;
+  if(ch&&ch.length===1&&/[a-zA-Z0-9]/.test(ch)){
+    e.preventDefault();
+    var box=$('#detailSearchBox');
+    var inp=$('#detailSearchInput');
+    if(box&&inp){
+      box.classList.add('show');
+      inp.focus();
+      inp.value=ch;
+      detailSearch(ch);
+    }
+  }
+});
+// 图表缩放（factor<1放大，>1缩小）
+function chartZoom(factor){
+  if(_klPeriod==='intraday'){
+    var span=_idView.e-_idView.s;
+    var newSpan=span*factor;
+    newSpan=Math.max(_idMinSpan,Math.min(_idMaxSpan,newSpan));
+    var mid=(_idView.s+_idView.e)/2;
+    var ns=mid-newSpan/2;
+    ns=Math.max(0,Math.min(240-newSpan,ns));
+    _idView.s=ns;_idView.e=ns+newSpan;
+    redrawIntraday();
+  }else if(_kl.data.length){
+    var main=_klCanvases.main;
+    var W=main?main.parentElement.clientWidth-12:300;
+    var cW=W-54;
+    if(!_kl.gap)_kl.gap=cW/60;
+    _kl.gap=Math.max(cW/Math.min(_kl.data.length,200),Math.min(cW/10,_kl.gap*factor));
+    var maxS=Math.max(0,_kl.data.length-Math.floor(cW/_kl.gap));
+    _kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
+    renderChart();
+  }
+}
+// 图表平移（dm>0右移看更晚，<0左移看更早）
+function chartPan(dm){
+  if(_klPeriod==='intraday'){
+    var span=_idView.e-_idView.s;
+    var ns=_idView.s+dm,ne=_idView.e+dm;
+    if(ns<0){ns=0;ne=span}
+    if(ne>240){ne=240;ns=240-span}
+    _idView.s=ns;_idView.e=ne;
+    redrawIntraday();
+  }else if(_kl.data.length){
+    var main=_klCanvases.main;
+    var W=main?main.parentElement.clientWidth-12:300;
+    var cW=W-54;
+    var gap=_kl.gap||cW/60;
+    _kl.scroll-=dm/gap;
+    var maxS=Math.max(0,_kl.data.length-Math.floor(cW/gap));
+    _kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
+    renderChart();
+  }
 }
 function renderSettings(data){
   var ct=$('#content');if(!ct)return;
@@ -1243,53 +1355,48 @@ function renderStockDetail(s){
   var amt=Number(s.amount||0);var amtStr=amt>=100000000?(amt/100000000).toFixed(2)+'亿':amt>=10000?(amt/10000).toFixed(1)+'万':amt.toLocaleString('zh-CN');
   var turnover=Number(s.turnover||0).toFixed(2);
   var chg=Number(s.price||0)-Number(s.preClose||0);var chgStr=(chg>=0?'+':'')+chg.toFixed(2);
-  // 东方财富接口字段
-  var totalCap=s.f20!=null?Number(s.f20||0):(s.totalMarketCap||0);
-  var circCap=s.f21!=null?Number(s.f21||0):(s.circMarketCap||0);
-  var peTTM=s.f9!=null?Number(s.f9||0):(s.peTTM||0);
-  var amp=s.f43!=null?Number(s.f43||0):0;
-  var volRatio=s.f50!=null?Number(s.f50||0):0;
-  var capStr=totalCap>=100000000?(totalCap/100000000).toFixed(2)+'亿':totalCap>=10000?(totalCap/10000).toFixed(1)+'万':totalCap.toLocaleString('zh-CN');
-  var circStr=circCap>=100000000?(circCap/100000000).toFixed(2)+'亿':circCap>=10000?(circCap/10000).toFixed(1)+'万':circCap.toLocaleString('zh-CN');
   var html='<button class="detail-back" id="detailBack">← 返回</button>';
   html+='<div class="detail-card">';
-  // 第一行：名称 + 代码
-  html+='<div class="detail-name-row">';
-  html+='<span class="nm">'+name+'</span>';
-  html+='<span class="cd">'+code+'</span>';
+  html+='<div class="detail-hdr"><span class="nm">'+name+'</span><span class="cd">'+code+'</span>';
+  var tags=[];if(s.isSHConnect)tags.push('<span class="tag-sh">沪股通</span>');if(s.isSZConnect)tags.push('<span class="tag-sz">深股通</span>');if(s.isMargin)tags.push('<span class="tag-margin">融资融券</span>');
+  if(tags.length)html+='<span class="detail-tags">'+tags.join('')+'</span>';
   html+='</div>';
-  // 第二行：左大价格 + 右今开/最高/最低（紧凑单行）
-  html+='<div class="detail-price-row">';
-  html+='<div class="price-left"><span class="price-big '+(up?'text-up':'text-down')+'">'+price+'</span></div>';
-  html+='<div class="price-meta">';
-  html+='<span>今开 <b>'+open+'</b></span>';
-  html+='<span>最高 <b class="text-up">'+high+'</b></span>';
-  html+='<span>最低 <b class="text-down">'+low+'</b></span>';
+  html+='<div class="detail-row-1">';
+  html+='<span class="detail-price '+(up?'text-up':'text-down')+'">'+price+'</span>';
+  html+='<div class="detail-row-1-right">';
+  html+='<span class="detail-smi"><i>今开</i><b data-field="open">'+open+'</b></span>';
+  html+='<span class="detail-smi"><i>昨收</i><b data-field="preClose">'+preClose+'</b></span>';
+  html+='<span class="detail-smi"><i>最高</i><b data-field="high" class="text-up">'+high+'</b></span>';
+  html+='<span class="detail-smi"><i>最低</i><b data-field="low" class="text-down">'+low+'</b></span>';
+  html+='</div></div>';
+  html+='<div class="detail-row-2">';
+  html+='<div class="detail-row-2-left">';
+  html+='<span class="detail-rate '+(up?'text-up':'text-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span>';
+  html+='<span class="detail-chg '+(up?'text-up':'text-down')+'">'+chgStr+'</span>';
   html+='</div>';
+  html+='<div class="detail-row-2-right">';
+  html+='<span class="detail-smi"><i>换手</i><b data-field="turnover">'+turnover+'%</b></span>';
+  html+='<span class="detail-smi"><i>总手</i><b data-field="vol">'+volStr+'</b></span>';
+  html+='<span class="detail-smi"><i>金额</i><b data-field="amt">'+amtStr+'</b></span>';
+  html+='</div></div>';
+  var cap=Number(s.marketCap||0);var capStr=cap>=100000000?(cap/100000000).toFixed(2)+'亿':cap>=10000?(cap/10000).toFixed(1)+'万':cap.toLocaleString('zh-CN');
+  var fc=Number(s.floatCap||0);var fcStr=fc>=100000000?(fc/100000000).toFixed(2)+'亿':fc>=10000?(fc/10000).toFixed(1)+'万':fc.toLocaleString('zh-CN');
+  var pe=s.pe?Number(s.pe).toFixed(2):'--';var pb=s.pb?Number(s.pb).toFixed(2):'--';
+  html+='<div class="detail-row-3">';
+  html+='<div class="detail-row-3-left">';
+  html+='<span class="detail-smi"><i>总市值</i><b data-field="cap">'+capStr+'</b></span>';
+  html+='<span class="detail-smi"><i>流通</i><b data-field="floatCap">'+fcStr+'</b></span>';
+  html+='<span class="detail-smi"><i>市盈</i><b data-field="pe">'+pe+'</b></span>';
+  html+='<span class="detail-smi"><i>市净</i><b data-field="pb">'+pb+'</b></span>';
   html+='</div>';
-  // 第三行：涨跌幅 + 涨跌额 + 换手 + 总手 + 金额（紧凑单行）
-  html+='<div class="detail-info-row">';
-  html+='<span class="info-big '+(up?'text-up':'text-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span>';
-  html+='<span class="info-chg '+(up?'text-up':'text-down')+'">'+chgStr+'</span>';
-  html+='<span>换手 <b>'+turnover+'%</b></span>';
-  html+='<span>总手 <b>'+volStr+'</b></span>';
-  html+='<span>金额 <b>'+amtStr+'</b></span>';
+  html+='<button class="detail-more-btn" id="detailMoreBtn">更多 ▼</button>';
   html+='</div>';
-  // 第四行：总值 + 流值 + 市盈 + 更多
+  html+='<div class="detail-more" id="detailMore" style="display:none">';
   html+='<div class="detail-more-row">';
-  html+='<span>总值 <b>'+capStr+'</b></span>';
-  html+='<span>流值 <b>'+circStr+'</b></span>';
-  html+='<span>市盈 <b>'+(peTTM||'-')+'</b></span>';
-  html+='<span class="more-btn" id="detailMoreBtn">更多</span>';
+  html+='<span class="detail-smi"><i>行业</i><b data-field="industry">'+esc(s.industry||'--')+'</b></span>';
+  html+='<span class="detail-smi"><i>振幅</i><b data-field="amplitude">'+Number(s.amplitude||0).toFixed(2)+'%</b></span>';
   html+='</div>';
-  // 展开：昨收 + 量比 + 振幅等
-  html+='<div class="detail-grid" id="detailMoreGrid" style="display:none">';
-  html+='<div class="detail-cell"><div class="lbl">昨收</div><div class="val">'+preClose+'</div></div>';
-  html+='<div class="detail-cell"><div class="lbl">量比</div><div class="val">'+(volRatio||'-')+'</div></div>';
-  html+='<div class="detail-cell"><div class="lbl">振幅</div><div class="val">'+(amp?amp.toFixed(2)+'%':'-')+'</div></div>';
-  html+='<div class="detail-cell"><div class="lbl">换手率</div><div class="val">'+turnover+'%</div></div>';
-  html+='<div class="detail-cell"><div class="lbl">市盈率</div><div class="val">'+(peTTM||'-')+'</div></div>';
-  html+='<div class="detail-cell"><div class="lbl">市净率</div><div class="val">-</div></div>';
+  if(s.isMargin){html+='<div class="detail-more-row">';html+='<span class="detail-smi"><i>融资余额</i><b>'+capStr+'</b></span>';html+='</div>';}
   html+='</div>';
   html+='</div>';
   html+='<div class="kl-toolbar" id="klToolbar">';
@@ -1363,13 +1470,8 @@ function renderStockDetail(s){
   var backBtn2=document.getElementById('detailBackBtn');
   if(backBtn2)backBtn2.addEventListener('click',goBack);
   var moreBtn=document.getElementById('detailMoreBtn');
-  var moreGrid=document.getElementById('detailMoreGrid');
-  if(moreBtn&&moreGrid){
-    moreBtn.addEventListener('click',function(){
-      if(moreGrid.style.display==='none'){moreGrid.style.display='grid';moreBtn.textContent='收起 ▲';}
-      else{moreGrid.style.display='none';moreBtn.textContent='更多 ▼';}
-    });
-  }
+  var moreDiv=document.getElementById('detailMore');
+  if(moreBtn&&moreDiv){moreBtn.addEventListener('click',function(){var open=moreDiv.style.display!=='none';moreDiv.style.display=open?'none':'block';moreBtn.textContent=open?'更多 ▼':'收起 ▲'})}
   var watchBtn=document.getElementById('detailWatchBtn');
   if(watchBtn)watchBtn.addEventListener('click',function(){
     var inW=this.getAttribute('data-in')==='1';
@@ -2354,61 +2456,52 @@ function openStockDetail(code,name){
 
 function updateDetailQuote(d){
   if(!d)return;
+  // 东财财务字段不稳定（限流会返回空），为0时保留上次值避免闪烁
+  if(_lastQuote){
+    if(!Number(d.f9))d.f9=_lastQuote.f9||0;
+    if(!Number(d.f23))d.f23=_lastQuote.f23||0;
+    if(!Number(d.f20))d.f20=_lastQuote.f20||0;
+    if(!Number(d.f21))d.f21=_lastQuote.f21||0;
+    if(!Number(d.f7))d.f7=_lastQuote.f7||0;
+    if(!d.f127)d.f127=_lastQuote.f127||'';
+  }
   _lastQuote=d;
   if(d.f72)_floatShares=d.f72;
   if(_klPeriod==='chips'&&_chipsData){try{renderChips(_chipsData);}catch(e){}}
-  // 更新名称
-  var nm=document.querySelector('.detail-name-row .nm');if(nm)nm.textContent=d.f14||_detailName||'';
-  // 更新价格
-  var pr=document.querySelector('.price-big');if(pr){var p=Number(d.f2||0).toFixed(2);pr.textContent=p;pr.className='price-big '+(Number(d.f3||0)>=0?'text-up':'text-down')}
-  // 更新今开/最高/最低
-  var priceMeta=document.querySelectorAll('.price-meta span');
-  if(priceMeta.length>=3){
-    priceMeta[0].innerHTML='今开 <b>'+Number(d.f17||0).toFixed(2)+'</b>';
-    priceMeta[1].innerHTML='最高 <b class="text-up">'+Number(d.f15||0).toFixed(2)+'</b>';
-    priceMeta[2].innerHTML='最低 <b class="text-down">'+Number(d.f16||0).toFixed(2)+'</b>';
-  }
-  // 更新涨跌幅 + 涨跌额 + 换手 + 总手 + 金额
-  var infoRow=document.querySelector('.detail-info-row');
-  if(infoRow){
-    var chg=Number(d.f2||0)-Number(d.f18||0);var rate=Number(d.f3||0);
-    var up=rate>=0;
-    infoRow.innerHTML=
-      '<span class="info-big '+(up?'text-up':'text-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span>'+
-      '<span class="info-chg '+(up?'text-up':'text-down')+'">'+(chg>=0?'+':'')+chg.toFixed(2)+'</span>'+
-      '<span>换手 <b>'+Number(d.f8||0).toFixed(2)+'%</b></span>'+
-      '<span>总手 <b>'+((Number(d.f5||0)>=10000)?(Number(d.f5||0)/10000).toFixed(1)+'万':Number(d.f5||0).toLocaleString('zh-CN'))+'</b></span>'+
-      '<span>金额 <b>'+((Number(d.f6||0)>=100000000)?(Number(d.f6||0)/100000000).toFixed(2)+'亿':Number(d.f6||0)>=10000?(Number(d.f6||0)/10000).toFixed(1)+'万':Number(d.f6||0).toLocaleString('zh-CN'))+'</b></span>';
-  }
-  // 更新市值
-  var moreRow=document.querySelector('.detail-more-row');
-  if(moreRow){
-    var tc=Number(d.f20||0);var cc=Number(d.f21||0);var pe=Number(d.f9||0)||Number(d.f23||0);
-    var tcStr=tc>=100000000?(tc/100000000).toFixed(2)+'亿':tc>=10000?(tc/10000).toFixed(1)+'万':tc.toLocaleString('zh-CN');
-    var ccStr=cc>=100000000?(cc/100000000).toFixed(2)+'亿':cc>=10000?(cc/10000).toFixed(1)+'万':cc.toLocaleString('zh-CN');
-    moreRow.innerHTML=
-      '<span>总值 <b>'+tcStr+'</b></span>'+
-      '<span>流值 <b>'+ccStr+'</b></span>'+
-      '<span>市盈 <b>'+(pe||'-')+'</b></span>'+
-      '<span class="more-btn" id="detailMoreBtn">更多</span>';
-    var moreBtn=document.getElementById('detailMoreBtn');
-    var moreGrid=document.getElementById('detailMoreGrid');
-    if(moreBtn&&moreGrid){
-      moreBtn.addEventListener('click',function(){
-        if(moreGrid.style.display==='none'){moreGrid.style.display='grid';moreBtn.textContent='收起';}
-        else{moreGrid.style.display='none';moreBtn.textContent='更多';}
-      });
-    }
-  }
-  // 更新展开区域
-  var cells=document.querySelectorAll('#detailMoreGrid .val');
-  if(cells.length>=6){
-    cells[0].textContent=Number(d.f18||0).toFixed(2);
-    var chg2=Number(d.f2||0)-Number(d.f18||0);cells[1].textContent=(chg2>=0?'+':'')+chg2.toFixed(2);
-    cells[2].textContent=d.f50?Number(d.f50).toFixed(2):'-';
-    cells[3].textContent=d.f43?Number(d.f43).toFixed(2)+'%':'-';
-    cells[4].textContent=Number(d.f8||0).toFixed(2)+'%';
-    cells[5].textContent=(Number(d.f9||0)||Number(d.f23||0))||'-';
+  // 名称
+  var nm=document.querySelector('.detail-hdr .nm');if(nm)nm.textContent=d.f14||_detailName||'';
+  // 价格 + 颜色
+  var up=Number(d.f3||0)>=0;
+  var pr=document.querySelector('.detail-price');if(pr){pr.textContent=Number(d.f2||0).toFixed(2);pr.className='detail-price '+(up?'text-up':'text-down')}
+  // 涨跌幅 + 涨跌额
+  var rate=Number(d.f3||0);var chg=Number(d.f2||0)-Number(d.f18||0);
+  var rateEl=document.querySelector('.detail-rate');if(rateEl){rateEl.textContent=(rate>=0?'+':'')+rate.toFixed(2)+'%';rateEl.className='detail-rate '+(up?'text-up':'text-down')}
+  var chgEl=document.querySelector('.detail-chg');if(chgEl){chgEl.textContent=(chg>=0?'+':'')+chg.toFixed(2);chgEl.className='detail-chg '+(up?'text-up':'text-down')}
+  // 各字段
+  function setField(f,v){var el=document.querySelector('[data-field="'+f+'"]');if(el)el.textContent=v}
+  setField('open',Number(d.f17||0).toFixed(2));
+  setField('preClose',Number(d.f18||0).toFixed(2));
+  setField('high',Number(d.f15||0).toFixed(2));
+  setField('low',Number(d.f16||0).toFixed(2));
+  setField('turnover',Number(d.f8||0).toFixed(2)+'%');
+  var vol=Number(d.f5||0);setField('vol',vol>=10000?(vol/10000).toFixed(1)+'万':vol.toLocaleString('zh-CN'));
+  var amt=Number(d.f6||0);setField('amt',amt>=100000000?(amt/100000000).toFixed(2)+'亿':amt>=10000?(amt/10000).toFixed(1)+'万':amt.toLocaleString('zh-CN'));
+  // 市值/PE/PB（东方财富字段）
+  var cap=Number(d.f20||0);setField('cap',cap>=100000000?(cap/100000000).toFixed(2)+'亿':cap>=10000?(cap/10000).toFixed(1)+'万':cap.toLocaleString('zh-CN'));
+  var fc=Number(d.f21||0);setField('floatCap',fc>=100000000?(fc/100000000).toFixed(2)+'亿':fc>=10000?(fc/10000).toFixed(1)+'万':fc.toLocaleString('zh-CN'));
+  setField('pe',d.f9?Number(d.f9).toFixed(2):'--');
+  setField('pb',d.f23?Number(d.f23).toFixed(2):'--');
+  // 更新更多区域
+  var indEl=document.querySelector('[data-field="industry"]');if(indEl)indEl.textContent=d.f127||'--';
+  var ampEl=document.querySelector('[data-field="amplitude"]');if(ampEl)ampEl.textContent=Number(d.f7||0).toFixed(2)+'%';
+  // 更新标签（沪股通/深股通/融资融券）
+  var tagBox=document.querySelector('.detail-tags');
+  if(tagBox){
+    var c=String(d.f12||'');var tags=[];
+    if(/^(601|603|605|688)/.test(c))tags.push('<span class="tag-sh">沪股通</span>');
+    if(/^(000|002|300)/.test(c))tags.push('<span class="tag-sz">深股通</span>');
+    if(/^(60|68|00|30)/.test(c))tags.push('<span class="tag-margin">融资融券</span>');
+    tagBox.innerHTML=tags.join('');
   }
   updateOrderBook(d);
 }

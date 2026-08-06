@@ -403,48 +403,52 @@ td:last-child, th:last-child { padding-right: 14px; }
 .wl-menu button.cancel { border-bottom: none; color: var(--fg-dim); }
 
 /* ========= STOCK DETAIL ========= */
-.detail-top { padding: 10px 14px 8px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-
-/* 第一行：名称 + 代码 */
-.detail-name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
-.detail-name-row .nm { font-size: 16px; font-weight: 700; color: var(--fg); }
-.detail-name-row .cd { font-size: 11px; color: var(--fg-dim); font-family: ui-monospace, monospace; }
-
-/* 第二行：左大价格 + 右今开/最高/最低（紧凑单行） */
-.detail-price-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
-.price-left { flex-shrink: 0; }
-.price-big { font-size: 36px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-.price-meta { display: flex; gap: 14px; flex: 1; padding-top: 4px; font-size: 12px; color: var(--fg-2); }
-.price-meta span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; margin-left: 2px; }
-
-/* 第三行：涨跌幅 + 涨跌额 + 换手 + 总手 + 金额（紧凑单行） */
-.detail-info-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; font-size: 12px; color: var(--fg-2); }
-.info-big { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.info-chg { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.detail-info-row span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; margin-left: 2px; }
-
-/* 第四行：总值 + 流值 + 市盈 + 更多（紧凑单行） */
-.detail-more-row { display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px solid var(--border); font-size: 12px; color: var(--fg-2); }
-.detail-more-row span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; margin-left: 2px; }
-.more-btn { margin-left: auto; color: var(--accent); cursor: pointer; font-size: 12px !important; padding: 2px 8px; border-radius: 4px; }
-.more-btn:hover { background: var(--accent-soft); }
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 6px;
+.detail-top { padding: 10px 14px 12px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.back-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 4px;
+  background: var(--accent-soft); font-size: 12px; margin-bottom: 8px; color: var(--accent);
 }
-.detail-cell {
-  background: var(--card);
-  padding: 8px 6px;
-  text-align: center;
+.detail-hdr { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.detail-hdr .nm { font-size: 17px; font-weight: 700; color: var(--fg); }
+.detail-hdr .cd { font-size: 12px; color: var(--fg-dim); font-family: ui-monospace, monospace; }
+
+/* 第一行：大价格（左） + 今开/最高/最低（右，一行） */
+.detail-row-1 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.detail-price { font-size: 40px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.detail-row-1-right { display: flex; align-items: baseline; gap: 14px; }
+
+/* 第二行：涨跌幅%（大）+涨跌额（小）（左） + 换手/总手/金额（右） */
+.detail-row-2 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.detail-row-2-left { display: flex; align-items: baseline; gap: 10px; }
+.detail-rate { font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.detail-chg { font-size: 14px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; opacity: .95; }
+.detail-row-2-right { display: flex; align-items: baseline; gap: 14px; }
+
+/* 通用小信息（今开/最高/最低/换手/总手/金额） */
+.detail-smi { display: inline-flex; align-items: baseline; gap: 3px; }
+.detail-smi i { font-style: normal; font-size: 10px; color: var(--fg-dim); line-height: 1; }
+.detail-smi b { font-size: 13px; color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+
+/* 第三行：市值/PE/PB + 更多按钮 */
+.detail-row-3 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.detail-row-3-left { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.detail-more-btn { font-size: 11px; color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 10px; padding: 1px 10px; cursor: pointer; white-space: nowrap; }
+.detail-more-btn:hover { background: var(--accent-soft); }
+
+/* 标签（沪股通/深股通/融资融券） */
+.detail-tags { display: inline-flex; gap: 4px; margin-left: 8px; }
+.detail-tags .tag-sh, .detail-tags .tag-sz, .detail-tags .tag-margin {
+  font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 500; letter-spacing: .5px;
 }
-.detail-cell .lbl { font-size: 11px; color: var(--fg-dim); }
-.detail-cell .val { font-size: 14px; font-weight: 600; margin-top: 2px; }
+.detail-tags .tag-sh { background: rgba(59,130,246,.15); color: #60a5fa; }
+.detail-tags .tag-sz { background: rgba(34,197,94,.15); color: #4ade80; }
+.detail-tags .tag-margin { background: rgba(168,85,247,.15); color: #c084fc; }
+
+/* 展开的更多信息 */
+.detail-more { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.detail-more-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+.detail-more-row:last-child { margin-bottom: 0; }
 
 .kl-toolbar { display: flex; align-items: center; gap: 4px; padding: 8px 12px; flex-wrap: wrap; flex-shrink: 0; background: var(--card); border-bottom: 1px solid var(--border); }
 .kl-pbtn { padding: 3px 10px; border-radius: 2px; color: var(--fg-2); font-size: 12px; }

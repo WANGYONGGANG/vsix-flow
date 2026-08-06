@@ -128,8 +128,9 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         const r = await proxyGet(`/api/stock-profile?code=${msg.code}&sub=${msg.sub}`);
         webviewView.webview.postMessage({ type: 'stockProfileSubData', code: msg.code, data: r?.data || null });
       } else if (msg.type === 'fetchQuote' && msg.code) {
-        const r = await proxyGet(`/api/stock-detail-quote?code=${msg.code}`);
-        if (r?.data) webviewView.webview.postMessage({ type: 'quoteData', code: msg.code, data: r.data });
+        const r = await proxyGet(`/api/quote-detail?code=${msg.code}`);
+        const diff = r?.data?.diff || [];
+        if (diff.length) webviewView.webview.postMessage({ type: 'quoteData', code: msg.code, data: diff[0] });
       } else if (msg.type === 'moveWatch' && msg.code) {
         await this.moveWatch(msg.code, msg.dir || 'up');
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });

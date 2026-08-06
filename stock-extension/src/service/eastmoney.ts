@@ -43,6 +43,9 @@ export async function fetchStockQuotes(codes: string[]): Promise<StockItem[]> {
     turnoverRate: d.f168 ?? d.f38 ?? 0,
     marketCap: d.f20 ?? 0,
     amplitude: d.f37 ?? 0,
+    pe: d.f9 ?? 0, pb: d.f23 ?? 0, floatCap: d.f116 ?? 0,
+    isSHConnect: /^(601|603|605|688)/.test(d.f12 || ''), isSZConnect: /^(000|002|300)/.test(d.f12 || ''),
+    isMargin: (d.f116 ?? 0) > 5e8, marginBalance: 0, industry: d.f127 ?? '',
   }));
 }
 

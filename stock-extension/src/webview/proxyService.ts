@@ -196,6 +196,64 @@ export class ProxyService {
     const parsed = url.parse(targetUrl, true);
 
     try {
+      // 详情页行情：腾讯盘口（实时）+ 东方财富财务字段（振幅/市盈/市净/市值/行业）
+      if (targetUrl.startsWith('/api/quote-detail')) {
+        const rawCode = String(parsed.query.code || '');
+        if (!rawCode) { this.json(res, 200, { data: { diff: [] } }); return; }
+        const cleanCode = rawCode.replace(/^(sh|sz|bj)/i, '');
+        const isSh = /^(60|68|90|11|13|50|56|51|58)/.test(cleanCode);
+        const secid = `${isSh ? 1 : 0}.${cleanCode}`;
+        const ulistFields = 'f7,f9,f20,f21,f23'; // 振幅/市盈/总市值/流通市值/市净
+        // 并行：腾讯盘口 + 东财 ulist 财务 + 东财 stock/get 行业
+        const [tencentText, u, s] = await Promise.all([
+          httpsGetText(`https://qt.gtimg.cn/q=${toTencentCode(rawCode)}`, 'https://finance.qq.com/'),
+          httpGetJson(`https://push2.eastmoney.com/api/qt/ulist.np/get?secids=${secid}&fields=${ulistFields}&fltt=2&invt=2`, 'https://quote.eastmoney.com/'),
+          httpGetJson(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f127&fltt=2&invt=2`, 'https://quote.eastmoney.com/'),
+        ]);
+        // 腾讯盘口
+        const tqLine = tencentText.split('\n').filter((l) => l.trim()).map((line) => {
+          const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
+          if (!m) return null;
+          const p = m[2].split('~');
+          return {
+            f2: parseFloat(p[3]) || 0, f3: parseFloat(p[32]) || 0, f4: parseFloat(p[31]) || 0,
+            f5: (parseFloat(p[6]) || 0) * 100, f6: (parseFloat(p[37]) || 0) * 10000,
+            f8: parseFloat(p[38]) || 0, f12: toCleanCode(m[1]), f14: p[1] || '',
+            f15: parseFloat(p[33]) || 0, f16: parseFloat(p[34]) || 0,
+            f17: parseFloat(p[5]) || 0, f18: parseFloat(p[4]) || 0,
+            buy1: parseFloat(p[9]) || 0, buy1vol: parseInt(p[10]) || 0,
+            buy2: parseFloat(p[11]) || 0, buy2vol: parseInt(p[12]) || 0,
+            buy3: parseFloat(p[13]) || 0, buy3vol: parseInt(p[14]) || 0,
+            buy4: parseFloat(p[15]) || 0, buy4vol: parseInt(p[16]) || 0,
+            buy5: parseFloat(p[17]) || 0, buy5vol: parseInt(p[18]) || 0,
+            sell1: parseFloat(p[19]) || 0, sell1vol: parseInt(p[20]) || 0,
+            sell2: parseFloat(p[21]) || 0, sell2vol: parseInt(p[22]) || 0,
+            sell3: parseFloat(p[23]) || 0, sell3vol: parseInt(p[24]) || 0,
+            sell4: parseFloat(p[25]) || 0, sell4vol: parseInt(p[26]) || 0,
+            sell5: parseFloat(p[27]) || 0, sell5vol: parseInt(p[28]) || 0,
+          };
+        }).filter(Boolean)[0];
+        if (!tqLine) { this.json(res, 200, { data: { diff: [] } }); return; }
+        const ud = u?.data?.diff?.[0] || {};
+        const sd = s?.data || {};
+        const diff = [{
+          // 腾讯实时盘口
+          f2: tqLine.f2 ?? 0, f3: tqLine.f3 ?? 0, f4: tqLine.f4 ?? 0, f5: tqLine.f5 ?? 0, f6: tqLine.f6 ?? 0,
+          f8: tqLine.f8 ?? 0, f12: tqLine.f12 ?? cleanCode, f14: tqLine.f14 || '',
+          f15: tqLine.f15 ?? 0, f16: tqLine.f16 ?? 0, f17: tqLine.f17 ?? 0, f18: tqLine.f18 ?? 0,
+          buy1: tqLine.buy1, buy1vol: tqLine.buy1vol, buy2: tqLine.buy2, buy2vol: tqLine.buy2vol,
+          buy3: tqLine.buy3, buy3vol: tqLine.buy3vol, buy4: tqLine.buy4, buy4vol: tqLine.buy4vol,
+          buy5: tqLine.buy5, buy5vol: tqLine.buy5vol,
+          sell1: tqLine.sell1, sell1vol: tqLine.sell1vol, sell2: tqLine.sell2, sell2vol: tqLine.sell2vol,
+          sell3: tqLine.sell3, sell3vol: tqLine.sell3vol, sell4: tqLine.sell4, sell4vol: tqLine.sell4vol,
+          sell5: tqLine.sell5, sell5vol: tqLine.sell5vol,
+          // 东财财务字段
+          f7: ud.f7 ?? 0, f9: ud.f9 ?? 0, f20: ud.f20 ?? 0, f21: ud.f21 ?? 0, f23: ud.f23 ?? 0,
+          f127: sd.f127 ?? '',
+        }];
+        this.json(res, 200, { data: { diff } });
+        return;
+      }
       if (targetUrl.startsWith('/api/quote') || (targetUrl.startsWith('/api/market-overview') && !targetUrl.startsWith('/api/market-overview-detail'))) {
         const codes = targetUrl.startsWith('/api/market-overview')
           ? 'sh000001,sz399001,sz399006,sh000016,sh000688,sh000300,sz399005'
@@ -214,18 +272,12 @@ export class ProxyService {
             f5: (parseFloat(p[6]) || 0) * 100,
             f6: (parseFloat(p[37]) || 0) * 10000,
             f8: parseFloat(p[38]) || 0,
-            f9: parseFloat(p[39]) || 0,
             f12: toCleanCode(m[1]),
             f14: p[1] || '',
             f15: parseFloat(p[33]) || 0,
             f16: parseFloat(p[34]) || 0,
             f17: parseFloat(p[5]) || 0,
             f18: parseFloat(p[4]) || 0,
-            f20: (parseFloat(p[46]) || 0) * 100000000,
-            f21: (parseFloat(p[45]) || 0) * 100000000,
-            f23: parseFloat(p[47]) || 0,
-            f43: parseFloat(p[44]) || 0,
-            f50: parseFloat(p[48]) || 0,
             f72: parseInt(p[72]) || 0,
             // Buy/Sell 1-5
             buy1: parseFloat(p[9]) || 0, buy1vol: parseInt(p[10]) || 0,
@@ -525,8 +577,6 @@ export class ProxyService {
           return {
             f2: parseFloat(p[3]) || 0, f3: parseFloat(p[32]) || 0, f4: parseFloat(p[31]) || 0,
             f5: (parseFloat(p[6]) || 0) * 100, f6: (parseFloat(p[37]) || 0) * 10000, f8: parseFloat(p[38]) || 0,
-            f9: parseFloat(p[39]) || 0, f20: (parseFloat(p[46]) || 0) * 100000000, f21: (parseFloat(p[45]) || 0) * 100000000,
-            f23: parseFloat(p[47]) || 0, f43: parseFloat(p[44]) || 0, f50: parseFloat(p[48]) || 0,
             f12: code, f14: p[1] || '',
             f15: parseFloat(p[33]) || 0, f16: parseFloat(p[34]) || 0,
             f17: parseFloat(p[5]) || 0, f18: parseFloat(p[4]) || 0,
@@ -591,29 +641,6 @@ export class ProxyService {
         const r = await httpGetJson(`https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=f62&fs=${fs}&fields=${fields}`, 'https://quote.eastmoney.com/center/boardlist.html');
         const diff = r?.data?.diff || [];
         this.json(res, 200, { data: { diff } });
-        return;
-      }
-
-      // 个股日线资金流历史（选股报告用）- 近N日主力净流入
-      if (targetUrl.startsWith('/api/stock-fflow-day')) {
-        const code = toCleanCode(toSinaCode((parsed.query.code as string) || ''));
-
-      // 东方财富详情行情（完整字段）- 用于详情页
-      } else if (targetUrl.startsWith('/api/stock-detail-quote')) {
-        const code = toCleanCode((parsed.query.code as string) || '');
-        const secid = (/^(60|68|90|11|13|50|56|51|58)/.test(code) ? '1.' : '0.') + code;
-        const fields = 'f2,f3,f4,f5,f6,f8,f9,f12,f14,f15,f16,f17,f18,f20,f21,f23,f43,f50,f57,f58,f71,f116,f117,f162,f167,f170';
-        const r = await httpGetJson(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=${fields}`, 'https://quote.eastmoney.com/');
-        const d = r?.data || {};
-        this.json(res, 200, { data: {
-          f2: d.f2 || 0, f3: d.f3 || 0, f4: d.f4 || 0,
-          f5: (d.f5 || 0) * 100, f6: (d.f6 || 0) * 10000, f8: d.f8 || 0,
-          f9: d.f9 || 0, f12: d.f12 || code, f14: d.f14 || '',
-          f15: d.f15 || 0, f16: d.f16 || 0, f17: d.f17 || 0, f18: d.f18 || 0,
-          f20: d.f20 || 0, f21: d.f21 || 0, f23: d.f23 || 0,
-          f43: d.f43 || 0, f50: d.f50 || 0,
-          f116: d.f116 || 0, f117: d.f117 || 0,
-        } });
         return;
       }
 

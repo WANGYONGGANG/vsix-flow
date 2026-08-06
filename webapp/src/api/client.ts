@@ -29,6 +29,7 @@ async function request<T = any>(path: string, init?: RequestInit): Promise<T | n
 
 export const api = {
   quote: (codes: string[]) => request<any>(`/api/quote?codes=${codes.join(',')}`),
+  quoteDetail: (code: string) => request<any>(`/api/quote-detail?code=${code}`),
   marketOverview: () => request<any>('/api/market-overview'),
   marketOverviewDetail: () => request<any>('/api/market-overview-detail'),
   kline: (code: string, period = 'day', limit?: number, fq = 'qfq') =>

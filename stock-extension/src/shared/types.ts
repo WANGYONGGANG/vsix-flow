@@ -13,6 +13,14 @@ export interface StockItem {
   turnoverRate: number;
   marketCap: number;
   amplitude: number;
+  pe: number;
+  pb: number;
+  floatCap: number;
+  isSHConnect: boolean;
+  isSZConnect: boolean;
+  isMargin: boolean;
+  marginBalance: number;
+  industry: string;
 }
 
 export interface FundItem {
