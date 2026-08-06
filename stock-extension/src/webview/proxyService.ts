@@ -880,6 +880,7 @@ export class ProxyService {
         const pitch = parseFloat(parsed.query.pitch as string) || 0;
         if (!text) { this.json(res, 400, { error: 'text required' }); return; }
         try {
+          console.log(`[TTS] voice=${voice} rate=${rate} pitch=${pitch} text=${text.slice(0, 30)}...`);
           const tts = new MsEdgeTTS();
           await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
           const { audioStream } = tts.toStream(text, {
@@ -888,12 +889,14 @@ export class ProxyService {
           });
           const chunks: Buffer[] = [];
           await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(() => { reject(new Error('TTS timeout after 10s')); }, 10000);
             audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
-            audioStream.on('end', () => resolve());
-            audioStream.on('error', (err: any) => reject(err));
+            audioStream.on('end', () => { clearTimeout(timer); resolve(); });
+            audioStream.on('error', (err: any) => { clearTimeout(timer); reject(err); });
           });
           tts.close();
           const buf = Buffer.concat(chunks);
+          console.log(`[TTS] success, ${buf.length} bytes`);
           res.writeHead(200, {
             'Access-Control-Allow-Origin': '*',
             'Content-Type': 'audio/mpeg',
@@ -901,6 +904,7 @@ export class ProxyService {
           });
           res.end(buf);
         } catch (err: any) {
+          console.log(`[TTS] failed: ${err?.message || err}`);
           this.json(res, 500, { error: 'TTS failed: ' + (err?.message || 'unknown') });
         }
         return;
