@@ -368,13 +368,19 @@ export default function App() {
   const showSidebar = path === '/'; // 只有首页才显示左侧 12 Tab 侧边栏
   const showBack = inDetail && !isSettings;
 
+  const goBack = () => {
+    let from = '/';
+    try { from = sessionStorage.getItem('stockDetailFrom') || '/'; } catch { /* ignore */ }
+    navigate(from);
+  };
+
   return (
     <div className="app-shell">
       {/* 顶部栏 — 东财红底，紧凑：左 logo+时间 / 右 搜索+AI */}
       <div className="topbar topbar-compact">
         <div className="topbar-left">
           {showBack ? (
-            <button className="icon-btn" aria-label="返回" onClick={() => navigate('/')} title="返回">
+            <button className="icon-btn" aria-label="返回" onClick={goBack} title="返回">
               <IconBack />
             </button>
           ) : (

@@ -204,8 +204,20 @@ export default function HomePage({
             className={'voice-fab' + (voiceOn ? ' on' : '')}
             onClick={toggleVoice}
             title="语音播报最新一条"
+            aria-label="语音播报"
           >
-            {voiceOn ? '🔊' : '🔇'}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 5 L6 9 H3 v6 h3 l5 4 z" fill="currentColor" stroke="none" />
+              {voiceOn && (
+                <g>
+                  <path d="M15.5 8.5 a5 5 0 0 1 0 7" fill="none" />
+                  <path d="M18.5 6 a8 8 0 0 1 0 12" fill="none" />
+                </g>
+              )}
+              {!voiceOn && (
+                <path d="M16 9 l5 6 M21 9 l-5 6" fill="none" />
+              )}
+            </svg>
           </button>
         )}
         {loading && !data && <div className="loading">加载中…</div>}

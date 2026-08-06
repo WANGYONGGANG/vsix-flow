@@ -21,6 +21,11 @@ export function useRouter() {
 
   const navigate = useCallback((to: string) => {
     const next = to.startsWith('/') ? to : `/${to}`;
+    const cur = readHash();
+    // 进入详情页时记录来源，供详情页返回使用
+    if (to.startsWith('/stock/') && !cur.startsWith('/stock/')) {
+      try { sessionStorage.setItem('stockDetailFrom', cur); } catch { /* ignore */ }
+    }
     if (readHash() === next) return;
     window.location.hash = '#' + next;
     window.scrollTo(0, 0);

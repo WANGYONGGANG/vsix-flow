@@ -404,19 +404,43 @@ td:last-child, th:last-child { padding-right: 14px; }
 
 /* ========= STOCK DETAIL ========= */
 .detail-top { padding: 12px 14px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.back-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 10px; border-radius: 4px;
-  background: var(--accent-soft); font-size: 12px; margin-bottom: 8px; color: var(--accent);
-}
-.detail-hdr { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
-.detail-hdr .nm { font-size: 18px; font-weight: 700; color: var(--fg); }
-.detail-hdr .cd { font-size: 12px; color: var(--fg-dim); font-family: ui-monospace, monospace; }
-.detail-price { font-size: 30px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.detail-tag { display: inline-block; padding: 2px 10px; border-radius: 2px; font-size: 13px; margin-top: 4px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 第一行：名称 + 代码 + 标签 */
+.detail-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.detail-name-row .nm { font-size: 17px; font-weight: 700; color: var(--fg); }
+.detail-name-row .cd { font-size: 12px; color: var(--fg-dim); font-family: ui-monospace, monospace; }
+.detail-name-row .tag-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); }
+
+/* 第二行：左大价格 + 右今开/最高/最低 */
+.detail-price-row { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 6px; }
+.price-left { flex-shrink: 0; }
+.price-big { font-size: 38px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.price-meta { display: flex; gap: 14px; flex: 1; padding-top: 6px; }
+.meta-item { display: flex; flex-direction: column; gap: 2px; }
+.meta-lbl { font-size: 11px; color: var(--fg-dim); }
+.meta-val { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 第三行：涨跌幅 + 换手 + 总手 + 金额 */
+.detail-info-row { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
+.info-main { display: flex; align-items: baseline; gap: 4px; }
+.info-big { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.info-pct { font-size: 12px; font-weight: 600; }
+.info-extra { display: flex; gap: 14px; flex-wrap: wrap; }
+.info-extra span { font-size: 12px; color: var(--fg-2); }
+.info-extra span i { font-style: normal; color: var(--fg-dim); margin-right: 3px; }
+.info-extra span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+
+/* 第四行：总值 + 流值 + 市盈 + 更多 */
+.detail-more-row { display: flex; align-items: center; gap: 14px; padding-top: 6px; border-top: 1px solid var(--border); }
+.detail-more-row span { font-size: 12px; color: var(--fg-2); }
+.detail-more-row span i { font-style: normal; color: var(--fg-dim); margin-right: 3px; }
+.detail-more-row span b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+.more-btn { margin-left: auto; color: var(--accent); cursor: pointer; font-size: 12px !important; padding: 4px 8px; border-radius: 4px; }
+.more-btn:hover { background: var(--accent-soft); }
+
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1px;
   background: var(--border);
   border-radius: 8px;
@@ -455,7 +479,12 @@ td:last-child, th:last-child { padding-right: 14px; }
 .detail-tabs { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--border); background: var(--card); }
 .detail-tab { padding: 10px 16px; color: var(--fg-2); font-size: 14px; border-bottom: 2px solid transparent; }
 .detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-.detail-panel { flex: 1; overflow-y: auto; padding: 10px 14px calc(20px + var(--safe-bottom)); }
+.detail-panel { flex-shrink: 0; padding: 10px 14px calc(20px + var(--safe-bottom)); }
+
+/* 详情页整体可滚动：图表区保持最小高度，资讯/公告区域自然撑开不固底 */
+.page.detail-page { overflow-y: auto; }
+.page.detail-page > div { flex-shrink: 0; }
+.page.detail-page .kl-chart-wrap { min-height: 340px; }
 
 /* ========= NEWS ========= */
 .news-item {
@@ -490,16 +519,18 @@ td:last-child, th:last-child { padding-right: 14px; }
 .dist-bar { width: 60%; min-width: 4px; border-radius: 2px 2px 0 0; }
 .dist-bar-lbl { font-size: 8px; opacity: .5; margin-top: 3px; white-space: nowrap; }
 
-/* ========= 语音播报悬浮按钮（tab内右上角） ========= */
+/* ========= 语音播报悬浮按钮（tab下方右上角，不遮挡 tab 操作） ========= */
 .voice-fab {
-  position: fixed; top: 50px; right: 12px; z-index: 50;
-  width: 36px; height: 36px; border-radius: 50%;
+  position: fixed; top: calc(44px + var(--safe-top) + 40px + 8px); right: 12px; z-index: 50;
+  width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: var(--card); color: var(--accent);
   box-shadow: var(--shadow);
-  font-size: 18px; line-height: 1;
+  line-height: 1;
+  border: 1px solid var(--border);
 }
-.voice-fab.on { background: var(--accent); color: #fff; }
+.voice-fab svg { width: 18px; height: 18px; }
+.voice-fab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .voice-fab:active { transform: scale(.92); }
 
 /* ========= FORM / SETTINGS — 东财风格（label 左，控件右） ========= */

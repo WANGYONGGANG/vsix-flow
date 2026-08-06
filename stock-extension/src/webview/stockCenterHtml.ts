@@ -64,17 +64,37 @@ td:first-child,th:first-child{text-align:left}
 .detail-back{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:4px;border:none;background:var(--card);color:var(--fg);font-size:12px;cursor:pointer;margin-bottom:10px}
 .detail-back:hover{background:#1a1e24}
 .detail-card{background:var(--card);border-radius:8px;padding:16px;margin-bottom:10px}
-.detail-hdr{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
-.detail-hdr .nm{font-size:16px;font-weight:600;color:#fff}
-.detail-hdr .cd{font-size:11px;opacity:.5}
-.detail-price{font-size:28px;font-weight:700;margin-bottom:2px}
-.detail-tag{display:inline-block;padding:2px 10px;border-radius:4px;font-size:12px}
-.detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;margin-top:12px;font-size:12px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
-.detail-cell{padding:8px 10px;border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
-.detail-cell:nth-child(4n){border-right:none}
-.detail-cell:nth-last-child(-n+4){border-bottom:none}
+.detail-name-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.detail-name-row .nm{font-size:15px;font-weight:600;color:#fff}
+.detail-name-row .cd{font-size:11px;opacity:.5}
+.detail-name-row .tag-tag{font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(232,179,57,.15);color:#e8b339}
+.detail-price-row{display:flex;align-items:flex-start;gap:14px;margin-bottom:6px}
+.price-left{flex-shrink:0}
+.price-big{font-size:32px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.price-meta{display:flex;gap:12px;flex:1;padding-top:4px}
+.meta-item{display:flex;flex-direction:column;gap:2px}
+.meta-lbl{font-size:10px;opacity:.5}
+.meta-val{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.detail-info-row{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.info-main{display:flex;align-items:baseline;gap:4px}
+.info-big{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.info-pct{font-size:11px;font-weight:600}
+.info-extra{display:flex;gap:12px;flex-wrap:wrap}
+.info-extra span{font-size:11px;opacity:.7}
+.info-extra span i{font-style:normal;opacity:.5;margin-right:2px}
+.info-extra span b{font-weight:600;color:#ddd;font-variant-numeric:tabular-nums}
+.detail-more-row{display:flex;align-items:center;gap:12px;padding-top:6px;border-top:1px solid var(--border)}
+.detail-more-row span{font-size:11px;opacity:.7}
+.detail-more-row span i{font-style:normal;opacity:.5;margin-right:2px}
+.detail-more-row span b{font-weight:600;color:#ddd;font-variant-numeric:tabular-nums}
+.more-btn{margin-left:auto;color:var(--accent);cursor:pointer;font-size:11px;padding:3px 6px;border-radius:3px}
+.more-btn:hover{background:rgba(232,179,57,.1)}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-top:8px;font-size:11px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.detail-cell{padding:6px 8px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);background:var(--card)}
+.detail-cell:nth-child(3n){border-right:none}
+.detail-cell:nth-last-child(-n+3){border-bottom:none}
 .detail-cell .lbl{font-size:10px;opacity:.5;margin-bottom:2px}
-.detail-cell .val{font-size:13px;font-weight:500}
+.detail-cell .val{font-size:12px;font-weight:500}
 .kl-toolbar{display:flex;align-items:center;gap:6px;margin-top:12px;margin-bottom:6px;flex-wrap:wrap}
 .kl-pbtn{padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--fg);font-size:11px;cursor:pointer}
 .kl-pbtn.active{background:var(--up);color:#fff;border-color:var(--up)}
@@ -105,10 +125,11 @@ td:first-child,th:first-child{text-align:left}
 .kl-sub-hdr{display:flex;align-items:center;justify-content:space-between;padding:2px 8px 0;font-size:10px;opacity:.6}
 .kl-sub-hdr button{background:none;border:none;color:var(--fg);opacity:.5;cursor:pointer;font-size:10px;padding:0 4px}
 .kl-sub-hdr button:hover{opacity:1}
-.voice-toggle{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--fg);font-size:10px;cursor:pointer;flex-shrink:0;transition:all .2s}
-.voice-toggle.on{border-color:var(--accent);color:var(--accent);background:rgba(232,179,57,.1)}
-.voice-toggle:hover{opacity:.8}
-.voice-icon{font-size:12px}
+/* 语音播报悬浮按钮（tab 下方右上角，不挤压 tab） */
+.voice-fab{position:fixed;top:36px;right:12px;z-index:50;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--card);color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.4);border:1px solid var(--border);cursor:pointer;transition:all .2s}
+.voice-fab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.voice-fab:hover{opacity:.85}
+.voice-fab svg{width:16px;height:16px}
 .kl-sub canvas{width:100%;display:block}
 .kl-more{text-align:center;padding:3px 0;font-size:10px;color:var(--accent);cursor:pointer;border-top:1px solid var(--border);margin-top:4px}
 .kl-more:hover{opacity:.8}
@@ -208,6 +229,7 @@ td:first-child,th:first-child{text-align:left}
 </head>
 <body>
 <div class="tab-bar" id="tabBar"></div>
+<button id="voiceFab" class="voice-fab" style="display:none" title="语音播报"></button>
 <div class="content" id="content"><div class="loading">加载中...</div></div>
 <script>window._proxyPort=${proxyPort};</script>
 <script src="${scriptUri}"></script>

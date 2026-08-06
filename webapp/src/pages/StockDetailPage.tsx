@@ -27,6 +27,8 @@ export default function StockDetailPage({ code }: { code: string }) {
 
   const [quote, setQuote] = useState<any>(null);
   const [klinePeriod, setKlinePeriod] = useState<string>('intraday');
+  const [showMore, setShowMore] = useState(false);
+  const toggleMore = () => setShowMore(v => !v);
   const [klineRows, setKlineRows] = useState<string[]>([]);
   const [kline120Rows, setKline120Rows] = useState<string[]>([]);
   const [intraday, setIntraday] = useState<{ minutes: string[]; preClose: number; ticks: any[]; orderBook: any } | null>(null);
@@ -38,7 +40,6 @@ export default function StockDetailPage({ code }: { code: string }) {
   const [mobileSideOpen, setMobileSideOpen] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth < 480 : false);
   const tickRef = useRef<any>(null);
-  const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 480);
@@ -281,46 +282,70 @@ export default function StockDetailPage({ code }: { code: string }) {
     />
   );
 
+  function goBack() {
+    let from = '/';
+    try { from = sessionStorage.getItem('stockDetailFrom') || '/'; } catch { /* ignore */ }
+    navigate(from);
+  }
+
   return (
-    <div
-      className="page"
-      onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
-      onTouchEnd={(e) => {
-        if (touchStartX.current === null) return;
-        const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-        if (deltaX > 50) navigate('/');
-        touchStartX.current = null;
-      }}
-    >
-      {/* 顶部：价格 */}
+    <div className="page detail-page">
+      {/* 顶部：价格（仿东方财富布局） */}
       <div className="detail-top">
-        <div className="detail-hdr">
+        {/* 第一行：名称 + 代码 */}
+        <div className="detail-name-row">
           <span className="nm">{escapeHtml(nm)}</span>
           <span className="cd">{codeN}</span>
+          <span className="tag-tag">沪股通</span>
         </div>
-        <div className={'detail-price ' + (up ? 'text-up' : 'text-down')}>{price.toFixed(2)}</div>
-        <div>
-          <span className={'detail-tag ' + (up ? 'tag-up' : 'tag-down')}>
-            {upSign(chg)}{chg.toFixed(2)} ({upSign(rate)}{rate.toFixed(2)}%)
-          </span>
+        {/* 第二行：左大价格 + 右今开/最高/最低 */}
+        <div className="detail-price-row">
+          <div className="price-left">
+            <span className={'price-big ' + (up ? 'text-up' : 'text-down')}>{price.toFixed(2)}</span>
+          </div>
+          <div className="price-meta">
+            <div className="meta-item"><span className="meta-lbl">今开</span><span className="meta-val">{Number(s?.open || 0).toFixed(2)}</span></div>
+            <div className="meta-item"><span className="meta-lbl">最高</span><span className="meta-val text-up">{Number(s?.high || 0).toFixed(2)}</span></div>
+            <div className="meta-item"><span className="meta-lbl">最低</span><span className="meta-val text-down">{Number(s?.low || 0).toFixed(2)}</span></div>
+          </div>
         </div>
-        <div className="detail-grid">
-          {[
-            ['昨收', Number(s?.preClose || 0).toFixed(2), ''],
-            ['开盘', Number(s?.open || 0).toFixed(2), ''],
-            ['最高', Number(s?.high || 0).toFixed(2), 'text-up'],
-            ['最低', Number(s?.low || 0).toFixed(2), 'text-down'],
-            ['成交量', fmtYi((Number(s?.volume || 0))), ''],
-            ['成交额', fmtYi(Number(s?.amount || 0)), ''],
-            ['换手率', Number(s?.turnoverRate || 0).toFixed(2) + '%', ''],
-            ['涨跌额', (upSign(chg) + chg.toFixed(2)), up ? 'text-up' : 'text-down'],
-          ].map(([lbl, val, cls], i) => (
-            <div key={i} className="detail-cell">
-              <div className="lbl">{lbl}</div>
-              <div className={'val ' + cls}>{val}</div>
-            </div>
-          ))}
+        {/* 第三行：涨跌幅 + 换手 + 总手 + 金额 */}
+        <div className="detail-info-row">
+          <div className="info-main">
+            <span className={'info-big ' + (up ? 'text-up' : 'text-down')}>{upSign(chg)}{chg.toFixed(2)}</span>
+            <span className={'info-pct ' + (up ? 'text-up' : 'text-down')}>({upSign(rate)}{rate.toFixed(2)}%)</span>
+          </div>
+          <div className="info-extra">
+            <span><i>换手</i><b>{Number(s?.turnoverRate || 0).toFixed(2)}%</b></span>
+            <span><i>总手</i><b>{fmtYi(Number(s?.volume || 0))}</b></span>
+            <span><i>金额</i><b>{fmtYi(Number(s?.amount || 0))}</b></span>
+          </div>
         </div>
+        {/* 第四行：总值 + 流值 + 市盈 + 更多 */}
+        <div className="detail-more-row">
+          <span><i>总值</i><b>{fmtYi(Number(s?.totalMarketCap || 0))}</b></span>
+          <span><i>流值</i><b>{fmtYi(Number(s?.circMarketCap || 0))}</b></span>
+          <span><i>市盈</i><b>{Number(s?.peTTM || 0).toFixed(2)}</b></span>
+          <span className="more-btn" onClick={toggleMore}>{showMore ? '收起 ▲' : '更多 ▼'}</span>
+        </div>
+        {/* 展开：昨收 + 涨跌额等 */}
+        {showMore && (
+          <div className="detail-grid">
+            {[
+              ['昨收', Number(s?.preClose || 0).toFixed(2), ''],
+              ['涨跌额', upSign(chg) + chg.toFixed(2), up ? 'text-up' : 'text-down'],
+              ['量比', Number(s?.volumeRatio || 0).toFixed(2), ''],
+              ['振幅', Number(s?.amplitude || 0).toFixed(2) + '%', ''],
+              ['换手率', Number(s?.turnoverRate || 0).toFixed(2) + '%', ''],
+              ['市盈率', Number(s?.peTTM || 0).toFixed(2), ''],
+            ].map(([lbl, val, cls], i) => (
+              <div key={i} className="detail-cell">
+                <div className="lbl">{lbl}</div>
+                <div className={'val ' + cls}>{val}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* K线工具栏 */}
@@ -396,7 +421,7 @@ export default function StockDetailPage({ code }: { code: string }) {
         <button className={inWatch ? 'btn-del' : 'btn-back'} onClick={() => inWatch ? delWatch(realCode) : addWatch(realCode)}>
           {inWatch ? '删除自选' : '加入自选'}
         </button>
-        <button className="btn-back" onClick={() => navigate('/')}>返回行情</button>
+        <button className="btn-back" onClick={goBack}>返回</button>
       </div>
 
       {/* 逐笔 Modal */}
