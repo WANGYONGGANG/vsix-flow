@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
+import * as https from 'https';
 import { getStockCenterHtml } from './stockCenterHtml';
 import { getProxyPort } from '../shared/proxyPort';
 import { StockReportViewProvider } from './stockReportProvider';
@@ -181,21 +182,18 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         this._reportPanel?.refresh();
       } else if (msg.type === 'agentChat' && msg.text) {
         try {
-          const lm = vscode.lm as any;
-          if (lm && typeof lm.sendChatRequest === 'function') {
-            const chatRequest = await lm.sendChatRequest(
-              [{ role: 'user', content: msg.text }],
-              {},
-              new vscode.CancellationTokenSource().token
-            );
-            let result = '';
-            for await (const chunk of chatRequest.text) {
-              result += chunk;
-            }
-            webviewView.webview.postMessage({ type: 'agentResponse', text: result });
-          } else {
-            webviewView.webview.postMessage({ type: 'agentResponse', text: 'AI 模型暂不可用，请在设置中配置模型' });
+          const config = vscode.workspace.getConfiguration('stock-ext');
+          const aiModels = config.get<any[]>('aiModels') || [];
+          const activeModelId = msg.modelId || config.get<string>('activeAIModelId') || '';
+          const activeModel = aiModels.find((m: any) => m.id === activeModelId) || aiModels[0];
+          
+          if (!activeModel || !activeModel.baseURL || !activeModel.apiKey || !activeModel.model) {
+            webviewView.webview.postMessage({ type: 'agentResponse', text: '⚠️ 尚未配置 AI 模型，请前往设置页配置模型。配置后即可使用 AI 对话功能。' });
+            return;
           }
+
+          const result = await this.callAIChat(activeModel, msg.text);
+          webviewView.webview.postMessage({ type: 'agentResponse', text: result });
         } catch (err: any) {
           webviewView.webview.postMessage({ type: 'agentResponse', text: '错误: ' + (err.message || '请求失败') });
         }
@@ -390,6 +388,62 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
       type: 'setColors',
       riseColor: riseColor ?? config.get<string>('riseColor') ?? '',
       fallColor: fallColor ?? config.get<string>('fallColor') ?? '',
+    });
+  }
+
+  private async callAIChat(model: { baseURL: string; apiKey: string; model: string; temperature?: number }, text: string): Promise<string> {
+    const baseURL = model.baseURL.replace(/\/+$/, '');
+    const upstream = `${baseURL}/chat/completions`;
+    
+    const messages = [
+      { role: 'system', content: '你是 StockAI，一个 A 股行情分析助手。回答简洁，不要提供具体投资建议，使用中文。' },
+      { role: 'user', content: text }
+    ];
+    
+    const payload = JSON.stringify({
+      model: model.model,
+      messages,
+      stream: false,
+      temperature: model.temperature ?? 0.7,
+    });
+
+    return new Promise<string>((resolve, reject) => {
+      const urlObj = new URL(upstream);
+      const options: https.RequestOptions = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${model.apiKey}`,
+          'Content-Length': Buffer.byteLength(payload),
+        },
+        timeout: 120_000,
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.error) {
+              reject(new Error(String(json.error)));
+            } else {
+              const content = json.choices?.[0]?.message?.content || '';
+              resolve(content || '(无响应)');
+            }
+          } catch (e) {
+            reject(new Error('解析响应失败'));
+          }
+        });
+      });
+
+      req.on('error', (e) => reject(e));
+      req.on('timeout', () => { req.destroy(); reject(new Error('请求超时')); });
+      req.write(payload);
+      req.end();
     });
   }
 }
