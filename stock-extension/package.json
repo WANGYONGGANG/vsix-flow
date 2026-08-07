@@ -487,7 +487,7 @@
         "stock-ext.apiBaseUrl": {
           "type": "string",
           "default": "",
-          "description": "云端 API 基址（Vercel 部署地址，如 https://stockext.vercel.app，配置后将不再依赖本地代理服务）"
+          "description": "云端 API 基址（配置后将不再依赖本地代理服务）"
         },
         "stock-ext.aiModels": {
           "type": "array",

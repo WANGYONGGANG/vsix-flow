@@ -46,6 +46,7 @@ export const DEFAULT_SETTINGS = {
   pollOnlyDuringAStockHours: false,
   aiModels: [],
   activeAIModelId: null,
+  formulas: [],
   voiceBroadcast: false,
   stocksRemind: {},
   remindSwitch: 1,

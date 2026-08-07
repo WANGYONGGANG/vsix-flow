@@ -8,6 +8,8 @@ import { useSettings } from '../store/useSettings';
 import { api } from '../api/client';
 import KLineChart from '../components/KLineChart';
 import ChipsChart from '../components/ChipsChart';
+import FormulaEditor from '../components/FormulaEditor';
+import { Formula, executeFormula, FormulaResult, KLineData } from '../lib/FormulaEngine';
 import {
   fmtYi, upSign, mapEmDiffToStockItem, escapeHtml, normalizeCode,
 } from '../../local-shared/utils';
@@ -18,7 +20,7 @@ type SideTab = 'orderbook' | 'ticks' | 'chips';
 
 export default function StockDetailPage({ code }: { code: string }) {
   const { navigate } = useRouter();
-  const { settings, addWatch, delWatch } = useSettings();
+  const { settings, addWatch, delWatch, formulas, updateFormulas } = useSettings();
   const [realCode, name] = useMemo(() => {
     const c = normalizeCode(code.split('?')[0]);
     const q = new URLSearchParams(code.includes('?') ? code.split('?')[1] : '');
@@ -38,6 +40,9 @@ export default function StockDetailPage({ code }: { code: string }) {
   const [mobileSideOpen, setMobileSideOpen] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth < 480 : false);
   const tickRef = useRef<any>(null);
+  const [showFormulaEditor, setShowFormulaEditor] = useState<boolean>(false);
+  const [activeFormula, setActiveFormula] = useState<Formula | null>(null);
+  const [formulaResult, setFormulaResult] = useState<FormulaResult | null>(null);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 480);
@@ -70,7 +75,7 @@ export default function StockDetailPage({ code }: { code: string }) {
     if (diff[0]) {
       const n = diff[0];
       // 东财财务字段不稳定（限流返回空），为0时保留上次值避免闪烁
-      setQuote(prev => {
+      setQuote((prev: any) => {
         if (prev) {
           if (!Number(n.f9)) n.f9 = prev.f9;
           if (!Number(n.f23)) n.f23 = prev.f23;
@@ -109,6 +114,47 @@ export default function StockDetailPage({ code }: { code: string }) {
   async function loadKline120() {
     const r = await api.kline(realCode, 'day', 120);
     setKline120Rows(r?.data?.klines || []);
+  }
+
+  // 计算公式指标
+  useEffect(() => {
+    if (!activeFormula || !klineRows.length) {
+      setFormulaResult(null);
+      return;
+    }
+    try {
+      const data: KLineData[] = klineRows.map(row => {
+        const p = row.split(',');
+        return {
+          date: p[0],
+          open: +p[1],
+          close: +p[2],
+          high: +p[3],
+          low: +p[4],
+          vol: +(p[5] || 0),
+        };
+      });
+      const result = executeFormula(activeFormula, data);
+      setFormulaResult(result);
+    } catch (e) {
+      console.error('Formula execution error:', e);
+      setFormulaResult(null);
+    }
+  }, [activeFormula, klineRows]);
+
+  function handleFormulaChange(formulas: Formula[]) {
+    updateFormulas(formulas);
+    // 如果当前激活的公式被删除或修改，更新激活公式
+    if (activeFormula) {
+      const updated = formulas.find(f => f.id === activeFormula.id);
+      if (updated && updated.enabled) {
+        setActiveFormula(updated);
+      } else {
+        setActiveFormula(formulas.find(f => f.enabled) || null);
+      }
+    } else {
+      setActiveFormula(formulas.find(f => f.enabled) || null);
+    }
   }
 
   async function loadSubTab(tab: SubTab) {
@@ -291,6 +337,7 @@ export default function StockDetailPage({ code }: { code: string }) {
       intraday={intraday || undefined}
       riseColor={settings.riseColor}
       fallColor={settings.fallColor}
+      customIndicator={formulaResult || undefined}
     />
   );
 
@@ -376,6 +423,13 @@ export default function StockDetailPage({ code }: { code: string }) {
           <button key={p.id} className={'kl-pbtn' + (klinePeriod === p.id ? ' active' : '')}
             onClick={() => loadKline(p.id)}>{p.label}</button>
         ))}
+        <button
+          className={'kl-pbtn' + (activeFormula ? ' active' : '')}
+          onClick={() => setShowFormulaEditor(true)}
+          style={{ marginLeft: 'auto' }}
+        >
+          📐 指标
+        </button>
       </div>
 
       {/* K线主图 + 侧边栏 */}
@@ -474,6 +528,15 @@ export default function StockDetailPage({ code }: { code: string }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 公式编辑器 Modal */}
+      {showFormulaEditor && (
+        <FormulaEditor
+          formulas={formulas}
+          onChange={handleFormulaChange}
+          onClose={() => setShowFormulaEditor(false)}
+        />
       )}
     </div>
   );

@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_SETTINGS } from '../../local-shared/constants';
-import { AppSettings, AIModelConfig, WatchEntry } from '../../local-shared/types';
+import { AppSettings, AIModelConfig, WatchEntry, FormulaConfig } from '../../local-shared/types';
 import { normalizeCode, uid } from '../../local-shared/utils';
 
 const STORAGE_KEY = 'stockext.settings.v1';
@@ -176,10 +176,18 @@ export function useSettings() {
     } catch { return false; }
   };
 
+  // ======== 公式指标 ========
+  const formulas = useMemo(() => settings.formulas || [], [settings.formulas]);
+  
+  const updateFormulas = useCallback((newFormulas: FormulaConfig[]) => {
+    update({ formulas: newFormulas });
+  }, [update]);
+
   return {
     settings, update, save,
     addWatch, delWatch, moveWatch, reorderWatch, getWatchCodes,
     saveAIModel, deleteAIModel, setActiveAIModel, activeAIModel,
+    formulas, updateFormulas,
     exportJSON, importJSON,
     watchlist,
   };

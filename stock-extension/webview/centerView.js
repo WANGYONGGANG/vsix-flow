@@ -31,10 +31,11 @@ function applySettingsColors(cfg){
   r.style.setProperty('--down',_fallColor||THEMES[_currentTheme].down);
 }
 var TABS=[
-  {id:'market_overview',label:'概况'},{id:'fundFlow',label:'资金'},{id:'em_news',label:'新闻'},
+  {id:'market_overview',label:'概况'},{id:'watchlist',label:'自选'},{id:'agent',label:'AI助手'},
+  {id:'fundFlow',label:'资金'},{id:'em_news',label:'新闻'},
   {id:'realtime_news',label:'快讯'},{id:'sector_limit',label:'板块'},{id:'limit_leader',label:'龙头'},
   {id:'strong_sector',label:'强板'},{id:'dragon_tiger',label:'龙虎'},{id:'yesterday_limit',label:'涨停'},
-  {id:'alert',label:'异动'},{id:'hot_stocks',label:'热股'},{id:'watchlist',label:'自选'},{id:'agent',label:'AI助手'},{id:'settings',label:'设置'},
+  {id:'alert',label:'异动'},{id:'hot_stocks',label:'热股'},{id:'settings',label:'设置'},
 ];
 var CHG_TYPES={4:'秒板',8:'封板',16:'打开涨停',32:'大笔买入',64:'大笔卖出',128:'大笔买入',8193:'火箭发射',8194:'快速反弹',8201:'加速上涨',8202:'高台跳水',8203:'加速下跌',8204:'大笔卖出',8207:'大幅上升',8208:'大幅下降',8209:'封涨停',8210:'封跌停',8211:'打开涨停',8212:'打开跌停',8213:'创历史新高',8214:'创历史新低',8215:'竞价上涨',8216:'竞价下跌'};
 var currentTab='market_overview';
@@ -330,6 +331,9 @@ function renderAgentTab(){
       var bubbleColor=isUser?'#fff':'#cbd5e1';
       var borderR=isUser?'6px 12px 2px 12px':'12px 6px 12px 2px';
       html+='<div style="max-width:80%;padding:9px 13px;border-radius:'+borderR+';font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-word;flex:0 1 auto;background:'+bubbleBg+';color:'+bubbleColor+'">'+esc(m.text)+'</div>';
+      if(!isUser&&!isLoading&&m.text&&m.text.indexOf('公式代码：')>=0){
+        html+='<button onclick="_saveAIFeatureFormula(this,'+i+')" style="margin-top:6px;padding:5px 12px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:6px;color:#60a5fa;font-size:11px;cursor:pointer">📋 保存为公式</button>';
+      }
     }
     html+='</div>';
   }
@@ -610,7 +614,6 @@ function renderSettings(data){
     {key:'riseColor',label:'涨的颜色',type:'color',def:'#ff4d4f'},
     {key:'fallColor',label:'跌的颜色',type:'color',def:'#23c343'},
     {key:'hideStatusBar',label:'隐藏状态栏',type:'checkbox',def:false},
-    {key:'hideStatusBarIcon',label:'隐藏状态栏图标',type:'checkbox',def:false},
     {key:'opacity',label:'面板透明度',type:'range',def:1,min:0.1,max:1,step:0.1},
     {key:'voiceBroadcast',label:'自动语音播报',type:'checkbox',def:false},
   ];
@@ -1421,6 +1424,7 @@ function renderStockDetail(s){
   html+='<button class="kl-pbtn" data-period="week">周K</button>';
   html+='<button class="kl-pbtn" data-period="month">月K</button>';
   html+='<button class="kl-add" id="klAddSub">+ 副图</button>';
+  html+='<button class="kl-add" id="openFormulaEditor" style="margin-left:auto">📐 指标</button>';
   html+='</div>';
   html+='<div class="kl-chart-wrap" id="klChartWrap">';
   html+='<div class="kl-chart" id="klChart">';
@@ -1570,6 +1574,7 @@ var _klCanvases={};
 var _intradayCache={data:[],preClose:0,totalMin:240};
 var _intradayGeo=null;var _crossIdx=-1;var _klineGeo=null;
 var _idView={s:0,e:240};var _idMinSpan=30;var _idMaxSpan=240;
+var _formulas=[];var _activeFormula=null;var _formulaResult=null;
 function parseKline(rows){
   var d=[];
   for(var i=0;i<rows.length;i++){
@@ -1785,6 +1790,11 @@ function drawMain(canvas,data){
     ctx.fillText(labels[m],padL+m*44,padT+10);
   }
   _klineGeo={start:start,gap:gap,padL:padL,padT:padT,cH:cH,minP:minP,pR:pR,H:H,W:W,vis:vis};
+  
+  // 绘制主图叠加指标
+  if(_activeFormula&&_activeFormula.type==='main'&&_formulaResult){
+    drawCustomIndicator(ctx,W,H,data,start,gap,padL,padT,cH,minP,pR,true);
+  }
 }
 function drawVol(canvas,data){
   var dpr=window.devicePixelRatio||1;
@@ -2691,7 +2701,633 @@ window.addEventListener('message',function(e){
       if(_refreshTimer){clearInterval(_refreshTimer);_refreshTimer=null}
       _refreshTimer=setInterval(function(){if(!_inDetail)vscode.postMessage({type:'switchTab',tab:'watchlist'})},5000);
     }
-    resetContentStyle();
+     resetContentStyle();
     openStockDetail(msg.code,msg.name||'');
+  }
+});
+
+// ============ 公式引擎 ============
+var FormulaEngine=(function(){
+  var CURRENT_DATA=[];
+  var VARS={};
+  
+  function setData(data){CURRENT_DATA=data;}
+  function getVar(name){
+    if(VARS[name])return VARS[name];
+    var u=name.toUpperCase();
+    switch(u){
+      case 'CLOSE':case 'C':return CURRENT_DATA.map(function(d){return d.close});
+      case 'OPEN':case 'O':return CURRENT_DATA.map(function(d){return d.open});
+      case 'HIGH':case 'H':return CURRENT_DATA.map(function(d){return d.high});
+      case 'LOW':case 'L':return CURRENT_DATA.map(function(d){return d.low});
+      case 'VOL':case 'V':return CURRENT_DATA.map(function(d){return d.vol});
+      case 'AMOUNT':case 'AMO':return CURRENT_DATA.map(function(d){return d.amount||d.vol*d.close});
+      default:return CURRENT_DATA.map(function(){return 0});
+    }
+  }
+  
+  function MA(data,n){
+    var r=[];
+    for(var i=0;i<data.length;i++){
+      if(i<n-1){r.push(NaN);continue;}
+      var s=0;for(var j=i-n+1;j<=i;j++)s+=data[j];
+      r.push(s/n);
+    }
+    return r;
+  }
+  function EMA(data,n){
+    var r=[],k=2/(n+1);
+    for(var i=0;i<data.length;i++){
+      if(i===0){r.push(data[0]);continue;}
+      r.push(data[i]*k+r[i-1]*(1-k));
+    }
+    return r;
+  }
+  function SMA(data,n,m){
+    m=m||1;var r=[];
+    for(var i=0;i<data.length;i++){
+      if(i===0){r.push(data[0]);continue;}
+      r.push((data[i]*m+r[i-1]*(n-m))/n);
+    }
+    return r;
+  }
+  function HHV(data,n){
+    var r=[];
+    for(var i=0;i<data.length;i++){
+      var max=-Infinity;
+      for(var j=Math.max(0,i-n+1);j<=i;j++)if(data[j]>max)max=data[j];
+      r.push(max===-Infinity?NaN:max);
+    }
+    return r;
+  }
+  function LLV(data,n){
+    var r=[];
+    for(var i=0;i<data.length;i++){
+      var min=Infinity;
+      for(var j=Math.max(0,i-n+1);j<=i;j++)if(data[j]<min)min=data[j];
+      r.push(min===Infinity?NaN:min);
+    }
+    return r;
+  }
+  function REF(data,n){
+    var r=[];
+    for(var i=0;i<data.length;i++){
+      var idx=i-Math.round(n);
+      r.push(idx>=0?data[idx]:NaN);
+    }
+    return r;
+  }
+  function SUM(data,n){
+    var r=[];
+    for(var i=0;i<data.length;i++){
+      var s=0;
+      for(var j=Math.max(0,i-n+1);j<=i;j++)s+=data[j];
+      r.push(s);
+    }
+    return r;
+  }
+  function COUNT(cond,n){
+    var r=[];
+    for(var i=0;i<cond.length;i++){
+      var cnt=0;
+      for(var j=Math.max(0,i-n+1);j<=i;j++)if(cond[j])cnt++;
+      r.push(cnt);
+    }
+    return r;
+  }
+  function EVERY(cond,n){
+    var r=[];
+    for(var i=0;i<cond.length;i++){
+      var ok=true;
+      for(var j=Math.max(0,i-n+1);j<=i;j++)if(!cond[j]){ok=false;break;}
+      r.push(ok?1:0);
+    }
+    return r;
+  }
+  function EXIST(cond,n){
+    var r=[];
+    for(var i=0;i<cond.length;i++){
+      var ok=false;
+      for(var j=Math.max(0,i-n+1);j<=i;j++)if(cond[j]){ok=true;break;}
+      r.push(ok?1:0);
+    }
+    return r;
+  }
+  function BARSLAST(cond){
+    var r=[],last=-1;
+    for(var i=0;i<cond.length;i++){
+      if(cond[i])last=i;
+      r.push(last>=0?i-last:NaN);
+    }
+    return r;
+  }
+  function CROSS(a,b){
+    var r=[];
+    for(var i=0;i<a.length;i++){
+      if(i===0){r.push(0);continue;}
+      r.push(a[i-1]<=b[i-1]&&a[i]>b[i]?1:0);
+    }
+    return r;
+  }
+  function CROSSDOWN(a,b){
+    var r=[];
+    for(var i=0;i<a.length;i++){
+      if(i===0){r.push(0);continue;}
+      r.push(a[i-1]>=b[i-1]&&a[i]<b[i]?1:0);
+    }
+    return r;
+  }
+  function IF(cond,a,b){return cond.map(function(c,i){return c?a[i]:b[i]});}
+  function ABS(data){return data.map(function(d){return Math.abs(d)});}
+  function MAX(a,b){return a.map(function(v,i){return Math.max(v,b[i])});}
+  function MIN(a,b){return a.map(function(v,i){return Math.min(v,b[i])});}
+  function STD(data,n){
+    var ma=MA(data,n),r=[];
+    for(var i=0;i<data.length;i++){
+      if(i<n-1){r.push(NaN);continue;}
+      var s=0;
+      for(var j=i-n+1;j<=i;j++)s+=Math.pow(data[j]-ma[i],2);
+      r.push(Math.sqrt(s/n));
+    }
+    return r;
+  }
+  function AVEDEV(data,n){
+    var ma=MA(data,n),r=[];
+    for(var i=0;i<data.length;i++){
+      if(i<n-1){r.push(NaN);continue;}
+      var s=0;
+      for(var j=i-n+1;j<=i;j++)s+=Math.abs(data[j]-ma[i]);
+      r.push(s/n);
+    }
+    return r;
+  }
+  function SLOPE(data,n){
+    var r=[];
+    for(var i=0;i<data.length;i++){
+      if(i<n-1){r.push(NaN);continue;}
+      var sumX=0,sumY=0,sumXY=0,sumX2=0;
+      for(var j=0;j<n;j++){
+        var x=j,y=data[i-n+1+j];
+        sumX+=x;sumY+=y;sumXY+=x*y;sumX2+=x*x;
+      }
+      var denom=n*sumX2-sumX*sumX;
+      r.push(denom===0?0:(n*sumXY-sumX*sumY)/denom);
+    }
+    return r;
+  }
+  
+  var FUNCTIONS={
+    MA:MA,EMA:EMA,SMA:SMA,HHV:HHV,LLV:LLV,REF:REF,SUM:SUM,
+    COUNT:COUNT,EVERY:EVERY,EXIST:EXIST,BARSLAST:BARSLAST,
+    CROSS:CROSS,CROSSDOWN:CROSSDOWN,IF:IF,IFF:IF,
+    ABS:ABS,MAX:MAX,MIN:MIN,STD:STD,AVEDEV:AVEDEV,SLOPE:SLOPE
+  };
+  
+  function tokenize(expr){
+    var tokens=[],i=0;
+    while(i<expr.length){
+      var ch=expr[i];
+      if(/\s/.test(ch)){i++;continue;}
+      if(/[0-9.]/.test(ch)){
+        var num='';
+        while(i<expr.length&&/[0-9.]/.test(expr[i]))num+=expr[i++];
+        tokens.push({type:'number',value:num});
+      }else if(/[a-zA-Z_]/.test(ch)){
+        var id='';
+        while(i<expr.length&&/[a-zA-Z0-9_]/.test(expr[i]))id+=expr[i++];
+        tokens.push({type:'identifier',value:id.toUpperCase()});
+      }else if(ch==='('){tokens.push({type:'lparen',value:'('});i++;}
+      else if(ch===')'){tokens.push({type:'rparen',value:')'});i++;}
+      else if(ch===','){tokens.push({type:'comma',value:','});i++;}
+      else if('+-*/<>=!&|'.indexOf(ch)>=0){
+        var op=ch;i++;
+        if(i<expr.length&&(expr[i]==='='||expr[i]==='>'||expr[i]==='<'))op+=expr[i++];
+        tokens.push({type:'operator',value:op});
+      }else{i++;}
+    }
+    return tokens;
+  }
+  
+  function Parser(tokens){this.tokens=tokens;this.pos=0;}
+  Parser.prototype.peek=function(){return this.tokens[this.pos];};
+  Parser.prototype.next=function(){return this.tokens[this.pos++];};
+  Parser.prototype.expect=function(type){
+    var t=this.next();
+    if(t.type!==type)throw new Error('Expected '+type+', got '+t.type);
+    return t;
+  };
+  Parser.prototype.parse=function(){return this.parseExpr();};
+  Parser.prototype.parseExpr=function(){return this.parseComparison();};
+  Parser.prototype.parseComparison=function(){
+    var left=this.parseAddSub();
+    while(this.peek()&&this.peek().type==='operator'&&['=','!=','>','<','>=','<='].indexOf(this.peek().value)>=0){
+      var op=this.next().value;var right=this.parseAddSub();
+      left={type:'binary',op:op,left:left,right:right};
+    }
+    return left;
+  };
+  Parser.prototype.parseAddSub=function(){
+    var left=this.parseMulDiv();
+    while(this.peek()&&this.peek().type==='operator'&&(this.peek().value==='+'||this.peek().value==='-')){
+      var op=this.next().value;var right=this.parseMulDiv();
+      left={type:'binary',op:op,left:left,right:right};
+    }
+    return left;
+  };
+  Parser.prototype.parseMulDiv=function(){
+    var left=this.parseUnary();
+    while(this.peek()&&this.peek().type==='operator'&&(this.peek().value==='*'||this.peek().value==='/')){
+      var op=this.next().value;var right=this.parseUnary();
+      left={type:'binary',op:op,left:left,right:right};
+    }
+    return left;
+  };
+  Parser.prototype.parseUnary=function(){
+    if(this.peek()&&this.peek().type==='operator'&&this.peek().value==='-'){
+      this.next();
+      return{type:'negate',left:this.parsePrimary()};
+    }
+    return this.parsePrimary();
+  };
+  Parser.prototype.parsePrimary=function(){
+    var t=this.peek();
+    if(!t)throw new Error('Unexpected end of expression');
+    if(t.type==='number'){this.next();return{type:'number',value:parseFloat(t.value)};}
+    if(t.type==='identifier'){
+      this.next();var name=t.value;
+      if(this.peek()&&this.peek().type==='lparen'){
+        this.next();var args=[];
+        if(!this.peek()||this.peek().type!=='rparen'){
+          args.push(this.parseExpr());
+          while(this.peek()&&this.peek().type==='comma'){this.next();args.push(this.parseExpr());}
+        }
+        this.expect('rparen');
+        return{type:'call',name:name,args:args};
+      }
+      return{type:'variable',name:name};
+    }
+    if(t.type==='lparen'){
+      this.next();var expr=this.parseExpr();this.expect('rparen');
+      return expr;
+    }
+    throw new Error('Unexpected token: '+t.type+' '+t.value);
+  };
+  
+  function evalAST(node){
+    switch(node.type){
+      case 'number':return CURRENT_DATA.map(function(){return node.value;});
+      case 'variable':return getVar(node.name);
+      case 'negate':return evalAST(node.left).map(function(v){return -v;});
+      case 'binary':
+        var left=evalAST(node.left),right=evalAST(node.right);
+        switch(node.op){
+          case '+':return left.map(function(v,i){return v+right[i];});
+          case '-':return left.map(function(v,i){return v-right[i];});
+          case '*':return left.map(function(v,i){return v*right[i];});
+          case '/':return left.map(function(v,i){return right[i]===0?NaN:v/right[i];});
+          case '=':case '==':return left.map(function(v,i){return v===right[i]?1:0;});
+          case '!=':return left.map(function(v,i){return v!==right[i]?1:0;});
+          case '>':return left.map(function(v,i){return v>right[i]?1:0;});
+          case '<':return left.map(function(v,i){return v<right[i]?1:0;});
+          case '>=':return left.map(function(v,i){return v>=right[i]?1:0;});
+          case '<=':return left.map(function(v,i){return v<=right[i]?1:0;});
+          default:return left.map(function(){return NaN;});
+        }
+      case 'call':
+        var args=node.args.map(evalAST);
+        var fn=FUNCTIONS[node.name];
+        if(!fn)throw new Error('Unknown function: '+node.name);
+        return fn.apply(null,args);
+      default:return CURRENT_DATA.map(function(){return NaN;});
+    }
+  }
+  
+  function execute(code,data){
+    setData(data);VARS={};
+    var statements=code.split(/[;\n]+/).filter(function(s){return s.trim()});
+    for(var si=0;si<statements.length;si++){
+      var trimmed=statements[si].trim();
+      if(!trimmed)continue;
+      var assignMatch=trimmed.match(/^([A-Z_][A-Z0-9_]*)\s*:=\s*(.+)$/i)||trimmed.match(/^([A-Z_][A-Z0-9_]*)\s*:\s*(.+)$/i);
+      if(assignMatch){
+        var varName=assignMatch[1].toUpperCase();
+        var expr=assignMatch[2];
+        try{
+          var tokens=tokenize(expr);
+          var parser=new Parser(tokens);
+          var ast=parser.parse();
+          VARS[varName]=evalAST(ast);
+        }catch(e){console.error('Formula error:',trimmed,e);}
+      }else{
+        try{
+          var tokens=tokenize(trimmed);
+          var parser=new Parser(tokens);
+          var ast=parser.parse();
+          var values=evalAST(ast);
+          var firstKey=Object.keys(VARS)[0];
+          if(!firstKey)VARS['RESULT']=values;
+        }catch(e){console.error('Formula error:',trimmed,e);}
+      }
+    }
+    return VARS;
+  }
+  
+  function validate(code){
+    try{
+      var statements=code.split(/[;\n]+/).filter(function(s){return s.trim()});
+      for(var si=0;si<statements.length;si++){
+        var trimmed=statements[si].trim();
+        if(!trimmed)continue;
+        var expr=trimmed.indexOf(':=')>=0?trimmed.split(':=')[1]:trimmed.split(':')[1]||trimmed;
+        var tokens=tokenize(expr);
+        var parser=new Parser(tokens);
+        parser.parse();
+      }
+      return{valid:true};
+    }catch(e){
+      return{valid:false,error:e.message};
+    }
+  }
+  
+  return{execute:execute,validate:validate};
+})();
+
+// ============ 预设公式 ============
+var PRESET_FORMULAS=[
+  {id:'ma',name:'MA 均线',code:'MA5:=MA(CLOSE,5);\nMA10:=MA(CLOSE,10);\nMA20:=MA(CLOSE,20);',type:'main',lines:[{label:'MA5',color:'#e8b339'},{label:'MA10',color:'#36a2eb'},{label:'MA20',color:'#cc65fe'}]},
+  {id:'boll',name:'BOLL 布林带',code:'MID:=MA(CLOSE,20);\nUPPER:=MID+2*STD(CLOSE,20);\nLOWER:=MID-2*STD(CLOSE,20);',type:'main',lines:[{label:'MID',color:'#e8b339'},{label:'UPPER',color:'#36a2eb'},{label:'LOWER',color:'#cc65fe'}]},
+  {id:'macd',name:'MACD',code:'DIF:=EMA(CLOSE,12)-EMA(CLOSE,26);\nDEA:=EMA(DIF,9);\nMACD:(DIF-DEA)*2;',type:'sub',lines:[{label:'DIF',color:'#36a2eb'},{label:'DEA',color:'#e8b393'},{label:'MACD',color:'#cc65fe'}]},
+  {id:'kdj',name:'KDJ',code:'RSV:=(CLOSE-LLV(LOW,9))/(HHV(HIGH,9)-LLV(LOW,9))*100;\nK:=SMA(RSV,3,1);\nD:=SMA(K,3,1);\nJ:=3*K-2*D;',type:'sub',lines:[{label:'K',color:'#36a2eb'},{label:'D',color:'#e8b393'},{label:'J',color:'#cc65fe'}]},
+  {id:'rsi',name:'RSI',code:'LC:=REF(CLOSE,1);\nRSI6:SMA(MAX(CLOSE-LC,0),6,1)/SMA(ABS(CLOSE-LC),6,1)*100;\nRSI12:SMA(MAX(CLOSE-LC,0),12,1)/SMA(ABS(CLOSE-LC),12,1)*100;',type:'sub',lines:[{label:'RSI6',color:'#36a2eb'},{label:'RSI12',color:'#e8b393'}]},
+  {id:'cci',name:'CCI',code:'TP:=(HIGH+LOW+CLOSE)/3;\nCCI:(TP-MA(TP,14))/(0.015*AVEDEV(TP,14));',type:'sub',lines:[{label:'CCI',color:'#36a2eb'}]},
+  {id:'wr',name:'WR 威廉',code:'WR:=-100*(HHV(HIGH,14)-CLOSE)/(HHV(HIGH,14)-LLV(LOW,14));',type:'sub',lines:[{label:'WR',color:'#36a2eb'}]},
+  {id:'bias',name:'BIAS 乖离率',code:'BIAS6:(CLOSE-MA(CLOSE,6))/MA(CLOSE,6)*100;\nBIAS12:(CLOSE-MA(CLOSE,12))/MA(CLOSE,12)*100;',type:'sub',lines:[{label:'BIAS6',color:'#36a2eb'},{label:'BIAS12',color:'#e8b393'}]},
+  {id:'vol',name:'VOL 成交量',code:'VOLMA5:MA(VOL,5);\nVOLMA10:MA(VOL,10);',type:'sub',lines:[{label:'VOLMA5',color:'#36a2eb'},{label:'VOLMA10',color:'#e8b393'}]},
+];
+
+// ============ 公式编辑器 ============
+function _saveAIFeatureFormula(btn,msgIdx){
+  var msg=_agentMsgs[msgIdx];
+  if(!msg||!msg.text)return;
+  var text=msg.text;
+  var codeBlock='';
+  var codeMatch=text.match(/公式代码[：:]\s*\n([\s\S]*?)(?:\n\n|\n[^\n]*：|$)/);
+  if(codeMatch){codeBlock=codeMatch[1].trim();}
+  else{
+    var lines=text.split('\n');var inCode=false;var codeLines=[];
+    for(var i=0;i<lines.length;i++){
+      var ln=lines[i].trim();
+      if(/[A-Z_][A-Z0-9_]*\s*:=/i.test(ln)||/[A-Z_][A-Z0-9_]*\s*:[^=]/.test(ln)){inCode=true;}
+      if(inCode){if(ln)codeLines.push(ln);else if(codeLines.length>0)break;}
+    }
+    codeBlock=codeLines.join('\n');
+  }
+  if(!codeBlock){alert('未检测到公式代码，请让AI重新生成');return;}
+  var isMain=/主图/.test(text);
+  var nameMatch=text.match(/(?:指标名称|公式名称)[：:]\s*(.+)/);
+  var name=nameMatch?nameMatch[1].trim():'AI公式';
+  if(!name||name.length>20)name='AI公式';
+  var lines=[];
+  var stmts=codeBlock.split(/[;\n]+/).filter(function(s){return s.trim()});
+  for(var i=0;i<stmts.length;i++){
+    var match=stmts[i].trim().match(/^([A-Z_][A-Z0-9_]*)\s*:=/i)||stmts[i].trim().match(/^([A-Z_][A-Z0-9_]*)\s*:/i);
+    if(match&&stmts[i].indexOf(':')>=0&&stmts[i].indexOf(':=')<0){
+      lines.push({label:match[1].toUpperCase(),color:['#36a2eb','#e8b393','#cc65fe','#23c343','#ff4d4f'][lines.length%5]});
+    }
+  }
+  if(lines.length===0)lines=[{label:'RESULT',color:'#36a2eb'}];
+  _formulas.push({id:'ai_'+Date.now(),name:name,code:codeBlock,type:isMain?'main':'sub',lines:lines,enabled:true,usage:text.substring(0,200)});
+  btn.textContent='✅ 已保存';btn.style.color='#23c343';btn.disabled=true;
+  openFormulaEditor();
+}
+function _toggleFormula(idx){
+  var f=_formulas[idx];
+  f.enabled=!f.enabled;
+  if(f.enabled){
+    _activeFormula=f;
+    applyFormula();
+  }else if(_activeFormula&&_activeFormula.id===f.id){
+    _activeFormula=null;_formulaResult=null;
+    drawKline(_kl.data||[]);
+  }
+  openFormulaEditor();
+}
+function _addPreset(idx,btn){
+  var p=PRESET_FORMULAS[idx];
+  if(!p)return;
+  var exists=_formulas.some(function(f){return f.id===p.id});
+  if(exists)return;
+  _formulas.push({id:p.id,name:p.name,code:p.code,type:p.type,lines:JSON.parse(JSON.stringify(p.lines)),enabled:true});
+  btn.textContent='已添加';btn.style.color='#666';btn.disabled=true;
+  var tip=document.createElement('div');
+  tip.textContent='+ 已添加';tip.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#23c343;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;z-index:10000;pointer-events:none;transition:opacity .4s';
+  document.body.appendChild(tip);
+  setTimeout(function(){tip.style.opacity='0';setTimeout(function(){tip.remove()},400)},800);
+}
+function aiWriteFormula(){
+  var m=document.getElementById('formulaManagerModal');
+  if(m)m.remove();
+  var html='<div id="aiFormulaModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)this.remove()">';
+  html+='<div onclick="event.stopPropagation()" style="width:520px;max-width:95vw;background:#1a1d24;border-radius:12px;border:1px solid #3a3d44;box-shadow:0 8px 32px rgba(0,0,0,.5)">';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #2a2d34"><span style="color:#fff;font-size:15px;font-weight:600">AI 写公式</span><button onclick="document.getElementById(\'aiFormulaModal\').remove()" style="background:none;border:none;color:#999;font-size:20px;cursor:pointer;line-height:1">x</button></div>';
+  html+='<div style="padding:16px">';
+  html+='<div style="font-size:13px;color:#ccc;margin-bottom:12px">描述你需要的指标公式，AI会帮你生成代码</div>';
+  html+='<textarea id="aiFormulaDesc" rows="4" placeholder="例如：5日和10日均线金叉死叉提示&#10;MACD顶底背离&#10;量价齐升选股" style="width:100%;padding:10px;background:#22252c;border:1px solid #3a3d44;border-radius:8px;color:#fff;font-size:13px;resize:vertical;outline:none;line-height:1.5;box-sizing:border-box"></textarea>';
+  html+='<div style="display:flex;gap:8px;margin-top:12px">';
+  html+='<button id="aiFormulaSend" style="flex:1;padding:10px;background:#36a2eb;border:none;border-radius:8px;color:#fff;font-size:14px;cursor:pointer">发送给 AI</button>';
+  html+='<button style="flex:1;padding:10px;background:#2a2d34;border:none;border-radius:8px;color:#999;font-size:14px;cursor:pointer" onclick="document.getElementById(\'aiFormulaModal\').remove()">取消</button>';
+  html+='</div></div></div></div>';
+  var div=document.createElement('div');
+  div.innerHTML=html;
+  document.body.appendChild(div.firstElementChild);
+  document.getElementById('aiFormulaSend').addEventListener('click',function(){
+    var desc=document.getElementById('aiFormulaDesc').value.trim();
+    if(!desc)return;
+    document.getElementById('aiFormulaModal').remove();
+    _agentMsgs.push({role:'user',text:'[公式助手] 请帮我写一个通达信公式指标：'+desc+'\n\n要求：\n1. 每行一个赋值语句，用分号结尾\n2. 输出线用 变量名:表达式 格式\n3. 赋值变量用 变量名:=表达式 格式\n4. 请在最后说明是主图叠加还是副图指标\n5. 请在代码前用"公式代码："标记'});
+    _agentLoading=true;
+    switchTab('agent');
+    vscode.postMessage({type:'agentChat',text:'[公式助手] 请帮我写一个通达信公式指标：'+desc+'\n\n要求：\n1. 每行一个赋值语句，用分号结尾\n2. 输出线用 变量名:表达式 格式\n3. 赋值变量用 变量名:=表达式 格式\n4. 请在最后说明是主图叠加还是副图指标\n5. 请在代码前用"公式代码："标记',modelId:_activeModelId});
+  });
+  document.getElementById('aiFormulaDesc').focus();
+}
+function openFormulaEditor(){
+  var html='<div id="formulaManagerModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)this.remove()">';
+  html+='<div onclick="event.stopPropagation()" style="width:500px;max-width:90vw;max-height:85vh;background:#1a1d24;border-radius:12px;border:1px solid #3a3d44;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5)">';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #2a2d34;flex-shrink:0"><span style="color:#fff;font-size:15px;font-weight:600">公式指标管理</span><button onclick="document.getElementById(\'formulaManagerModal\').remove()" style="background:none;border:none;color:#999;font-size:20px;cursor:pointer;line-height:1">x</button></div>';
+  html+='<div style="padding:12px;overflow-y:auto;flex:1">';
+  
+  // 我的公式
+  html+='<div style="font-size:12px;color:#999;margin-bottom:8px">我的公式</div>';
+  if(_formulas.length===0){
+    html+='<div style="font-size:12px;color:#666;padding:8px 0">暂无自定义公式</div>';
+  }
+  for(var i=0;i<_formulas.length;i++){
+    var f=_formulas[i];
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#22252c;border-radius:6px;margin-bottom:6px">';
+    html+='<div style="display:flex;align-items:center;gap:8px">';
+    html+='<span style="width:8px;height:8px;border-radius:50%;background:'+(f.enabled?'#23c343':'#666')+';cursor:pointer" onclick="_toggleFormula('+i+')"></span>';
+    html+='<span style="color:#fff;font-size:13px">'+f.name+'</span>';
+    html+='<span style="font-size:11px;color:#666;background:#2a2d34;padding:2px 6px;border-radius:4px">'+(f.type==='main'?'主图':'副图')+'</span>';
+    html+='</div>';
+    html+='<div style="display:flex;gap:8px">';
+    html+='<button style="background:none;border:none;color:#36a2eb;font-size:12px;cursor:pointer" onclick="editFormula('+i+')">编辑</button>';
+    html+='<button style="background:none;border:none;color:#ff4d4f;font-size:12px;cursor:pointer" onclick="_formulas.splice('+i+',1);openFormulaEditor()">删除</button>';
+    html+='</div></div>';
+  }
+  
+  // 预设指标
+  html+='<div style="font-size:12px;color:#999;margin:12px 0 8px">预设指标</div>';
+  for(var i=0;i<PRESET_FORMULAS.length;i++){
+    var p=PRESET_FORMULAS[i];
+    var added=_formulas.some(function(f){return f.id===p.id});
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#22252c;border-radius:6px;margin-bottom:6px">';
+    html+='<div style="display:flex;align-items:center;gap:8px">';
+    html+='<span style="color:#fff;font-size:13px">'+p.name+'</span>';
+    html+='<span style="font-size:11px;color:#666;background:#2a2d34;padding:2px 6px;border-radius:4px">'+(p.type==='main'?'主图':'副图')+'</span>';
+    html+='</div>';
+    html+='<button style="background:none;border:none;color:'+(added?'#666':'#36a2eb')+';font-size:12px;cursor:pointer" '+(added?'disabled':'')+' onclick="_addPreset('+i+',this)">'+(added?'已添加':'添加')+'</button>';
+    html+='</div>';
+  }
+  
+  // 新建公式按钮
+  html+='<div style="display:flex;gap:8px;margin-top:12px">';
+  html+='<button style="flex:1;padding:12px;background:#22252c;border:1px dashed #3a3d44;border-radius:8px;color:#999;font-size:14px;cursor:pointer" onclick="editFormula(-1)">+ 新建公式</button>';
+  html+='<button style="flex:1;padding:12px;background:#22252c;border:1px dashed #36a2eb;border-radius:8px;color:#36a2eb;font-size:14px;cursor:pointer" onclick="aiWriteFormula()">AI 写公式</button>';
+  html+='</div>';
+  
+  html+='</div></div></div>';
+  var div=document.createElement('div');
+  div.innerHTML=html;
+  var modal=div.firstElementChild;
+  document.body.appendChild(modal);
+}
+
+function editFormula(idx){
+  var formula=idx>=0?_formulas[idx]:{name:'',code:'',type:'sub',lines:[{label:'RESULT',color:'#36a2eb'}],usage:''};
+  var html='<div id="formulaEditModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)this.remove()">';
+  html+='<div onclick="event.stopPropagation()" style="width:600px;max-width:95vw;max-height:90vh;background:#1a1d24;border-radius:12px;border:1px solid #3a3d44;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5)">';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #2a2d34;flex-shrink:0"><span style="color:#fff;font-size:15px;font-weight:600">'+(idx>=0?'编辑公式':'新建公式')+'</span><button onclick="document.getElementById(\'formulaEditModal\').remove()" style="background:none;border:none;color:#999;font-size:20px;cursor:pointer;line-height:1">x</button></div>';
+  html+='<div style="padding:12px">';
+  
+  html+='<div style="margin-bottom:12px"><label style="font-size:12px;color:#999;display:block;margin-bottom:4px">公式名称</label>';
+  html+='<input id="formulaName" value="'+formula.name+'" style="width:100%;padding:8px 12px;background:#22252c;border:1px solid #3a3d44;border-radius:6px;color:#fff;font-size:14px;outline:none"></div>';
+  
+  html+='<div style="margin-bottom:12px"><label style="font-size:12px;color:#999;display:block;margin-bottom:4px">图表类型</label>';
+  html+='<div style="display:flex;gap:16px"><label style="font-size:13px;color:#ccc;cursor:pointer"><input type="radio" name="formulaType" value="main" '+(formula.type==='main'?'checked':'')+'> 主图叠加</label>';
+  html+='<label style="font-size:13px;color:#ccc;cursor:pointer"><input type="radio" name="formulaType" value="sub" '+(formula.type==='sub'?'checked':'')+'> 副图指标</label></div></div>';
+  
+  html+='<div style="margin-bottom:12px"><label style="font-size:12px;color:#999;display:block;margin-bottom:4px">公式代码</label>';
+  html+='<textarea id="formulaCode" rows="8" style="width:100%;padding:8px 12px;background:#22252c;border:1px solid #3a3d44;border-radius:6px;color:#fff;font-size:13px;font-family:monospace;resize:vertical;outline:none;line-height:1.5">'+formula.code+'</textarea>';
+  html+='<div style="margin-top:6px;font-size:11px;color:#666">支持函数: MA,EMA,SMA,HHV,LLV,REF,SUM,COUNT,EVERY,EXIST,BARSLAST,CROSS,CROSSDOWN,IF,ABS,MAX,MIN,STD,AVEDEV,SLOPE<br>变量: CLOSE(C),OPEN(O),HIGH(H),LOW(L),VOL(V)</div></div>';
+  
+  html+='<div style="margin-bottom:12px"><label style="font-size:12px;color:#999;display:block;margin-bottom:4px">用法注释</label>';
+  html+='<textarea id="formulaUsage" rows="3" placeholder="描述公式的用法和含义，例如：当DIF上穿DEA时产生买入信号..." style="width:100%;padding:8px 12px;background:#22252c;border:1px solid #3a3d44;border-radius:6px;color:#fff;font-size:13px;resize:vertical;outline:none;line-height:1.5">'+(formula.usage||'')+'</textarea></div>';
+  
+  html+='<div style="display:flex;gap:12px">';
+  html+='<button style="flex:1;padding:10px;background:#36a2eb;border:none;border-radius:6px;color:#fff;font-size:14px;cursor:pointer" onclick="saveFormula('+idx+')">保存</button>';
+  html+='<button style="flex:1;padding:10px;background:#2a2d34;border:none;border-radius:6px;color:#999;font-size:14px;cursor:pointer" onclick="document.getElementById(\'formulaEditModal\').remove()">取消</button>';
+  html+='</div></div></div></div>';
+  
+  var div=document.createElement('div');
+  div.innerHTML=html;
+  document.body.appendChild(div.firstElementChild);
+}
+
+function saveFormula(idx){
+  var name=document.getElementById('formulaName').value.trim();
+  var code=document.getElementById('formulaCode').value.trim();
+  var type=document.querySelector('input[name="formulaType"]:checked').value;
+  var usage=document.getElementById('formulaUsage').value.trim();
+  
+  if(!name||!code){alert('名称和公式不能为空');return;}
+  
+  var validation=FormulaEngine.validate(code);
+  if(!validation.valid){alert('公式语法错误: '+validation.error);return;}
+  
+  var lines=[];
+  var statements=code.split(/[;\n]+/).filter(function(s){return s.trim()});
+  for(var i=0;i<statements.length;i++){
+    var match=statements[i].trim().match(/^([A-Z_][A-Z0-9_]*)\s*:=/i)||statements[i].trim().match(/^([A-Z_][A-Z0-9_]*)\s*:/i);
+    if(match&&statements[i].indexOf(':')>=0&&statements[i].indexOf(':=')<0){
+      lines.push({label:match[1].toUpperCase(),color:['#36a2eb','#e8b393','#cc65fe','#23c343','#ff4d4f'][lines.length%5]});
+    }
+  }
+  if(lines.length===0)lines=[{label:'RESULT',color:'#36a2eb'}];
+  
+  if(idx>=0){
+    _formulas[idx].name=name;
+    _formulas[idx].code=code;
+    _formulas[idx].type=type;
+    _formulas[idx].lines=lines;
+    _formulas[idx].usage=usage;
+  }else{
+    _formulas.push({id:'custom_'+Date.now(),name:name,code:code,type:type,lines:lines,enabled:true,usage:usage});
+  }
+  
+  var m=document.getElementById('formulaEditModal');
+  if(m)m.remove();
+  openFormulaEditor();
+}
+
+// 应用公式
+function applyFormula(){
+  if(!_activeFormula||!_kl.data.length){_formulaResult=null;drawKline(_kl.data||[]);return;}
+  try{
+    _formulaResult=FormulaEngine.execute(_activeFormula.code,_kl.data);
+    drawKline(_kl.data);
+  }catch(e){console.error('Formula error:',e);_formulaResult=null;drawKline(_kl.data||[]);}
+}
+
+// 绘制自定义指标
+function drawCustomIndicator(ctx,W,H,data,start,gap,padL,padT,cH,minP,pR,isMain){
+  if(!_formulaResult||!_activeFormula)return;
+  
+  var lines=_activeFormula.lines;
+  for(var li=0;li<lines.length;li++){
+    var lineDef=lines[li];
+    var values=_formulaResult[lineDef.label];
+    if(!values)continue;
+    
+    ctx.strokeStyle=lineDef.color;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    var started=false;
+    
+    for(var i=0;i<Math.floor(W-padL-padR/gap)+2;i++){
+      var gi=start+i;
+      if(gi>=values.length)break;
+      var v=values[gi];
+      if(isNaN(v)||v===null)continue;
+      
+      var x=padL+gap*(i-(start%1))+gap/2;
+      var y;
+      if(isMain){
+        y=padT+cH*(1-(v-minP)/pR);
+      }else{
+        // 副图独立范围
+        var minV=Infinity,maxV=-Infinity;
+        for(var j=0;j<values.length;j++){
+          if(!isNaN(values[j])&&values[j]!==null){
+            if(values[j]<minV)minV=values[j];
+            if(values[j]>maxV)maxV=values[j];
+          }
+        }
+        if(minV===Infinity||maxV===Infinity)continue;
+        var vRange=maxV-minP||1;
+        minV-=vRange*0.1;maxV+=vRange*0.1;
+        y=padT+cH*(1-(v-minV)/(maxV-minV));
+      }
+      
+      if(!started){ctx.moveTo(x,y);started=true}else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+}
+
+// 绑定指标按钮
+document.addEventListener('click',function(e){
+  if(e.target.id==='openFormulaEditor'){
+    openFormulaEditor();
   }
 });

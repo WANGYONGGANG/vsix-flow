@@ -127,6 +127,16 @@ export interface AIChatMessage {
   content: string;
 }
 
+// 公式指标配置
+export interface FormulaConfig {
+  id: string;
+  name: string;
+  code: string;
+  type: 'main' | 'sub';
+  lines: { label: string; color: string }[];
+  enabled: boolean;
+}
+
 export interface AppSettings {
   // 自选
   stockPortfolio: StockPortfolio;
@@ -140,6 +150,8 @@ export interface AppSettings {
   // AI
   aiModels: AIModelConfig[];
   activeAIModelId: string | null;
+  // 公式指标
+  formulas: FormulaConfig[];
   // 其他
   voiceBroadcast: boolean;
   stocksRemind: RemindConfig;

@@ -1,9 +1,10 @@
 // ============================================
-// K 线 Canvas 渲染组件（MA/Vol/MACD/RSI + 分时）
+// K 线 Canvas 渲染组件（MA/Vol/MACD/RSI + 分时 + 自定义指标）
 // 从 VSCode 扩展 stockCenterHtml.ts 移植 + 适配移动端
 // ============================================
 
 import { useEffect, useRef, useState } from 'react';
+import { FormulaResult } from '../lib/FormulaEngine';
 
 export interface KLineProps {
   rows: string[];        // K线：time,open,close,high,low,vol  （CSV 字符串数组）
@@ -16,6 +17,7 @@ export interface KLineProps {
   riseColor?: string;
   fallColor?: string;
   mainHeight?: number;
+  customIndicator?: FormulaResult; // 自定义指标
 }
 
 type Row = { date: string; open: number; close: number; high: number; low: number; vol: number };
@@ -80,12 +82,13 @@ const SUB_OPTIONS: { id: string; label: string }[] = [
   { id: 'rsi', label: 'RSI' },
 ];
 
-export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fallColor = '#23c343', mainHeight }: KLineProps) {
+export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fallColor = '#23c343', mainHeight, customIndicator }: KLineProps) {
   const mainRef = useRef<HTMLCanvasElement>(null);
   const volRef = useRef<HTMLCanvasElement>(null);
   const amountRef = useRef<HTMLCanvasElement>(null);
   const macdRef = useRef<HTMLCanvasElement>(null);
   const rsiRef = useRef<HTMLCanvasElement>(null);
+  const customRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [subs, setSubs] = useState<string[]>(['vol']);
   const scrollRef = useRef<{ scroll: number }>({ scroll: 0 });
@@ -95,6 +98,7 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
     amount: amountRef,
     macd: macdRef,
     rsi: rsiRef,
+    custom: customRef,
   };
 
   useEffect(() => { render(); });
@@ -127,7 +131,13 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
       const ctx = main.getContext('2d')!;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (intraday) drawIntraday(ctx, W, mainH, intraday, riseColor, fallColor);
-      else drawMain(ctx, W, mainH, data, riseColor, fallColor, scrollRef.current);
+      else {
+        drawMain(ctx, W, mainH, data, riseColor, fallColor, scrollRef.current);
+        // 主图叠加指标
+        if (customIndicator?.type === 'main' && customIndicator.lines.length > 0) {
+          drawCustomIndicator(ctx, W, mainH, data, customIndicator, scrollRef.current, true);
+        }
+      }
     }
 
     for (const sid of subs) {
@@ -148,6 +158,10 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
         if (!intraday) drawMACD(sctx, W, subH, data, riseColor, fallColor, scrollRef.current);
       } else if (sid === 'rsi') {
         if (!intraday) drawRSI(sctx, W, subH, data, scrollRef.current);
+      } else if (sid === 'custom') {
+        if (!intraday && customIndicator?.type === 'sub') {
+          drawCustomIndicator(sctx, W, subH, data, customIndicator, scrollRef.current, false);
+        }
       }
     }
   }
@@ -212,6 +226,19 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
             </span>
           </div>
           <canvas className="kl-canvas" ref={rsiRef} style={{ width: '100%', display: 'block' }} />
+        </div>
+      )}
+      {customIndicator?.type === 'sub' && subs.includes('custom') && (
+        <div className="kl-sub" style={{ borderTop: '1px solid #1f2124', position: 'relative' }}>
+          <div className="kl-sub-hdr" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 8px 0', fontSize: '10px', opacity: 0.6 }}>
+            <span style={{ color: '#666' }}>
+              {customIndicator.lines.map((l, i) => (
+                <span key={i} style={{ color: l.color, marginRight: 6 }}>{l.label}</span>
+              ))}
+              <span>{customIndicator.name}</span>
+            </span>
+          </div>
+          <canvas className="kl-canvas" ref={customRef} style={{ width: '100%', display: 'block' }} />
         </div>
       )}
     </div>
@@ -574,6 +601,129 @@ function drawIntradayAmount(ctx: CanvasRenderingContext2D, W: number, H: number,
   }
   ctx.fillStyle = '#666'; ctx.font = '9px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
   ctx.fillText(formatAmount(maxV), padL - 4, padT + 4);
+}
+
+// ---------- 自定义指标 ----------
+function drawCustomIndicator(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  data: Row[],
+  indicator: FormulaResult,
+  scrollS: { scroll: number },
+  isMain: boolean
+) {
+  if (!indicator.lines.length || !indicator.lines[0].values.length) return;
+  
+  const padL = 46, padR = 8, padT = isMain ? 6 : 4, padB = isMain ? 18 : 4;
+  const cW = W - padL - padR, cH = H - padT - padB;
+  const gap = cW / 60;
+  const totalBars = Math.floor(cW / gap);
+  const start = Math.floor(scrollS.scroll);
+  
+  if (isMain) {
+    // 主图叠加：使用 K 线的价格范围
+    let minP = Infinity, maxP = -Infinity;
+    for (const d of data) { if (d.low < minP) minP = d.low; if (d.high > maxP) maxP = d.high; }
+    const pR = maxP - minP || 1;
+    const ext = pR * 0.08; minP -= ext; maxP += ext;
+    
+    // 绘制指标线
+    for (const line of indicator.lines) {
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      let started = false;
+      
+      for (let i = 0; i < totalBars + 2; i++) {
+        const gi = start + i;
+        if (gi >= line.values.length) break;
+        const v = line.values[gi];
+        if (isNaN(v) || v === null) continue;
+        
+        const x = padL + gap * (i - (start % 1)) + gap / 2;
+        const y = padT + cH * (1 - (v - minP) / (maxP - minP));
+        
+        if (!started) { ctx.moveTo(x, y); started = true; }
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  } else {
+    // 副图：独立范围
+    ctx.fillStyle = '#12151a';
+    ctx.fillRect(0, 0, W, H);
+    
+    let minV = Infinity, maxV = -Infinity;
+    for (const line of indicator.lines) {
+      for (let i = start; i < Math.min(line.values.length, start + totalBars + 2); i++) {
+        const v = line.values[i];
+        if (!isNaN(v) && v !== null) {
+          if (v < minV) minV = v;
+          if (v > maxV) maxV = v;
+        }
+      }
+    }
+    
+    if (minV === Infinity || maxV === -Infinity) return;
+    
+    // 添加边距
+    const vRange = maxV - minV || 1;
+    minV -= vRange * 0.1;
+    maxV += vRange * 0.1;
+    const vSpan = maxV - minV;
+    
+    // 绘制网格
+    ctx.strokeStyle = '#1f2124';
+    ctx.lineWidth = 0.5;
+    ctx.fillStyle = '#666';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    
+    for (let i = 0; i <= 2; i++) {
+      const y = padT + cH * i / 2;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(W - padR, y);
+      ctx.stroke();
+      const val = maxV - (vSpan * i) / 2;
+      ctx.fillText(val.toFixed(2), padL - 4, y);
+    }
+    
+    // 绘制指标线
+    for (const line of indicator.lines) {
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      let started = false;
+      
+      for (let i = 0; i < totalBars + 2; i++) {
+        const gi = start + i;
+        if (gi >= line.values.length) break;
+        const v = line.values[gi];
+        if (isNaN(v) || v === null) continue;
+        
+        const x = padL + gap * (i - (start % 1)) + gap / 2;
+        const y = padT + cH * (1 - (v - minV) / vSpan);
+        
+        if (!started) { ctx.moveTo(x, y); started = true; }
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    
+    // 绘制指标名称
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    let offsetX = padL;
+    for (const line of indicator.lines) {
+      ctx.fillStyle = line.color;
+      ctx.fillText(line.label, offsetX, padT + 4);
+      offsetX += ctx.measureText(line.label).width + 10;
+    }
+  }
 }
 
 function hexA(hex: string, a: number): string {

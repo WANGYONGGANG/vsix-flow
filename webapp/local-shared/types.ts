@@ -18,6 +18,17 @@ export interface AIModelConfig {
 }
 export interface AIChatMessage { role: 'system' | 'user' | 'assistant'; content: string; }
 export interface WatchEntry { code: string; name?: string; }
+
+// 公式指标配置
+export interface FormulaConfig {
+  id: string;
+  name: string;
+  code: string;
+  type: 'main' | 'sub';
+  lines: { label: string; color: string }[];
+  enabled: boolean;
+}
+
 export interface WebhookConfig {
   url: string;
   enabled: boolean;
@@ -37,6 +48,7 @@ export interface AppSettings {
   pollOnlyDuringAStockHours: boolean;
   aiModels: AIModelConfig[];
   activeAIModelId: string | null;
+  formulas: FormulaConfig[];
   voiceBroadcast: boolean;
   stocksRemind: Record<string, any>;
   remindSwitch: number;
