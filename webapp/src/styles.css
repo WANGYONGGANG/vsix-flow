@@ -226,6 +226,50 @@ input, select, textarea { font-family: inherit; color: inherit; }
   50% { box-shadow: 0 0 0 8px rgba(250, 219, 20, 0); }
 }
 
+/* ========= 顶部子 Tab 栏（HomePage 内） ========= */
+.tab-bar-mobile {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex-shrink: 0;
+}
+
+.tab-bar-mobile::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: var(--fg-3);
+  font-size: 15px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+.tb-ic {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* ========= 底部 TabBar — 深色专业 ========= */
 .tab-bar {
   flex-shrink: 0;
@@ -259,6 +303,12 @@ input, select, textarea { font-family: inherit; color: inherit; }
 }
 
 .tab-item svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2;
+}
+
+.tb-ic {
   width: 24px;
   height: 24px;
   stroke-width: 2;
