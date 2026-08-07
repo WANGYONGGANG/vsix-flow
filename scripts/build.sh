@@ -1,22 +1,25 @@
 #!/bin/bash
 set -e
 
-cd "$(dirname "$0")/.."
+echo "=== Installing dependencies ==="
+npm install
+cd webapp && npm install --legacy-peer-deps && cd ..
 
-# Install dependencies
-npm install 2>/dev/null
-cd webapp && npm install --legacy-peer-deps 2>/dev/null && cd ..
-
-# Build webapp
+echo "=== Building webapp ==="
 cd webapp && npx vite build && cd ..
 
-# Prepare dist directory at root
-rm -rf dist
-cp -r webapp/dist dist
+echo "=== Copying webapp dist to root ==="
+# Copy webapp dist files to root for Vercel static serving
+cp -r webapp/dist/* ./
 
-# Bundle API function into dist/api/
-mkdir -p dist/api
-npx esbuild api/index.ts --bundle --platform=node --target=node20 --format=cjs \
-  --outfile=dist/api/index.js --external:@vercel/node
+echo "=== Bundling API function ==="
+npx esbuild api/index.ts \
+  --bundle \
+  --platform=node \
+  --target=node20 \
+  --format=cjs \
+  --outfile=api/index.js \
+  --external:@vercel/node
 
-echo "Build complete: dist/ (static) + dist/api/index.js (function)"
+echo "=== Build complete ==="
+echo "Static files at root, API function at api/index.js"
