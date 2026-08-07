@@ -370,11 +370,13 @@ function sendAgentMsg(){
 }
 function sendAgentQuick(action){
   if(_agentLoading)return;
-  if(noAgentModel()&&!_noModelWarned){promptNoModel();_agentMsgs.push({role:'user',text:'/'+action});renderAgentTab();return}
-  if(noAgentModel()){_agentMsgs.push({role:'user',text:'/'+action});renderAgentTab();return}
-  _agentMsgs.push({role:'user',text:'/'+action});
+  var text='/'+action;
+  if(action==='explain'&&_detailCode){text+=' code='+_detailCode;}
+  if(noAgentModel()&&!_noModelWarned){promptNoModel();_agentMsgs.push({role:'user',text:text});renderAgentTab();return}
+  if(noAgentModel()){_agentMsgs.push({role:'user',text:text});renderAgentTab();return}
+  _agentMsgs.push({role:'user',text:text});
   _agentLoading=true;renderAgentTab();
-  vscode.postMessage({type:'agentChat',text:'/'+action,modelId:_activeModelId});
+  vscode.postMessage({type:'agentChat',text:text,modelId:_activeModelId});
 }
 function openStockReport(){
   vscode.postMessage({type:'openReport'});

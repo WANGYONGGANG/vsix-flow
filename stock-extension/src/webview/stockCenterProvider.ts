@@ -192,7 +192,18 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
             return;
           }
 
-          const result = await this.callAIChat(activeModel, msg.text);
+          let prompt = msg.text;
+          if (msg.text === '/summary') {
+            prompt = await this.buildSummaryPrompt();
+          } else if (msg.text === '/portfolio') {
+            prompt = await this.buildPortfolioPrompt();
+          } else if (msg.text.startsWith('/explain')) {
+            const codeMatch = msg.text.match(/code=(\w+)/);
+            const code = codeMatch ? codeMatch[1] : '';
+            prompt = code ? await this.buildExplainPrompt(code) : '请分析当前选中的股票。请先在自选列表中选择一只股票。';
+          }
+
+          const result = await this.callAIChat(activeModel, prompt);
           webviewView.webview.postMessage({ type: 'agentResponse', text: result });
         } catch (err: any) {
           webviewView.webview.postMessage({ type: 'agentResponse', text: '错误: ' + (err.message || '请求失败') });
@@ -389,6 +400,59 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
       riseColor: riseColor ?? config.get<string>('riseColor') ?? '',
       fallColor: fallColor ?? config.get<string>('fallColor') ?? '',
     });
+  }
+
+  private async buildSummaryPrompt(): Promise<string> {
+    const r = await proxyGet('/api/em-news?page=1&pageSize=15');
+    const list = r?.data?.list || [];
+    const lines = list.slice(0, 10).map((n: any, i: number) => `${i + 1}. [${n.showtime || n.time || ''}] ${n.title || ''}`).join('\n');
+    return `最近市场快讯：\n${lines || '(暂无数据)'}\n\n请提炼关键信息，帮我解读今日市场情绪。`;
+  }
+
+  private async buildPortfolioPrompt(): Promise<string> {
+    const config = vscode.workspace.getConfiguration('stock-ext');
+    const portfolio: any = config.get('stockPortfolio') || {};
+    const groups: { codes?: string[] }[] = portfolio.groups && portfolio.groups.length ? portfolio.groups : [{ codes: [] }];
+    const codes = groups.flatMap((g) => g.codes || []);
+    if (!codes.length) return '我的自选股有哪些？请提示我添加自选股。';
+    
+    const r = await proxyGet(`/api/quote?codes=${codes.join(',')}`);
+    const diff = r?.data?.diff || [];
+    const lines = diff.map((d: any) => {
+      const name = d.f14 || '';
+      const code = d.f12 || '';
+      const price = d.f3 || 0;
+      const changeRate = d.f4 || 0;
+      const sign = changeRate >= 0 ? '+' : '';
+      return `- ${name}(${code})：${price} ${sign}${changeRate.toFixed(2)}%`;
+    }).join('\n');
+    return `这是我当前的自选股行情：\n${lines || '(暂无数据)'}\n\n请给出点评与近期关注点。`;
+  }
+
+  private async buildExplainPrompt(code: string): Promise<string> {
+    const r = await proxyGet(`/api/quote-detail?code=${code}`);
+    const diff = r?.data?.diff || [];
+    if (!diff.length) return `请分析股票 ${code} 的基本面和技术面情况。`;
+    
+    const stock = diff[0];
+    const name = stock.f14 || '';
+    const price = stock.f3 || 0;
+    const changeRate = stock.f4 || 0;
+    const high = stock.f15 || 0;
+    const low = stock.f16 || 0;
+    const volume = stock.f5 || 0;
+    const amount = stock.f6 || 0;
+    const turnoverRate = stock.f8 || 0;
+    const pe = stock.f9 || 0;
+    const pb = stock.f23 || 0;
+    
+    return `请分析股票 ${name}(${code})：
+最新价：${price}，涨跌幅：${changeRate >= 0 ? '+' : ''}${changeRate.toFixed(2)}%
+最高：${high}，最低：${low}
+成交量：${volume}，成交额：${amount}
+换手率：${turnoverRate}%，市盈率：${pe}，市净率：${pb}
+
+请从基本面、技术面、资金面等方面进行分析，给出操作建议。`;
   }
 
   private async callAIChat(model: { baseURL: string; apiKey: string; model: string; temperature?: number }, text: string): Promise<string> {
