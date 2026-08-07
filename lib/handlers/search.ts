@@ -1,7 +1,7 @@
 // 股票代码/名称搜索（东方财富 suggest 真实接口）
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from './_shared/response';
-import { httpGetJson } from './_shared/http';
+import { json, handleOptions, getQuery } from '../shared/response';
+import { httpGetJson } from '../shared/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;

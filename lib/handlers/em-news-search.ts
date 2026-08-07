@@ -1,7 +1,7 @@
 // 新闻搜索：东财 search JSONP，失败回退到东财资讯列表 + 新浪滚动新闻，保证 Web 端有数据
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from './_shared/response';
-import { httpsGetText, httpGetJson, stripJsonp } from './_shared/http';
+import { json, handleOptions, getQuery } from '../shared/response';
+import { httpsGetText, httpGetJson, stripJsonp } from '../shared/http';
 
 /** 从东财搜索 JSONP 抽取结果列表 */
 function tryEastmoneyJsonp(text: string, pageSize: number): any[] {

@@ -3,8 +3,8 @@
 // 东方财富 ulist.np/get：振幅/市盈/市净/总市值/流通市值（定时刷新）
 // 东方财富 stock/get：行业
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from './_shared/response';
-import { httpGetJson, httpsGetText, toTencentCode, toCleanCode, tencentTextToDiff } from './_shared/http';
+import { json, handleOptions, getQuery } from '../shared/response';
+import { httpGetJson, httpsGetText, toTencentCode, toCleanCode, tencentTextToDiff } from '../shared/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;

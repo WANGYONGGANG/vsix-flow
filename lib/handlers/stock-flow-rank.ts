@@ -1,7 +1,7 @@
 // 个股资金流排名（按主力净流入排序）- 选股报告阶段一数据源
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from './_shared/response';
-import { httpGetJson } from './_shared/http';
+import { json, handleOptions, getQuery } from '../shared/response';
+import { httpGetJson } from '../shared/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;

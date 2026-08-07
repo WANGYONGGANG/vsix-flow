@@ -13,9 +13,9 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "_shared/*": ["./api/_shared/*"],
-      "@vercel/node": ["./api/_shared/vercel-node-shim.ts"]
+      "_shared/*": ["./lib/shared/*"],
+      "@vercel/node": ["./lib/shared/vercel-node-shim.ts"]
     }
   },
-  "include": ["api/**/*.ts", "scripts/**/*.ts"]
+  "include": ["api/**/*.ts", "lib/**/*.ts", "scripts/**/*.ts"]
 }

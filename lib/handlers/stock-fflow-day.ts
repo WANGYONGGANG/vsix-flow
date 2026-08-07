@@ -1,7 +1,7 @@
 // 个股日度资金流（最近 N 日主力/散户/中单/大单/超大单净流入）
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from './_shared/response';
-import { httpGetJson, toSinaCode } from './_shared/http';
+import { json, handleOptions, getQuery } from '../shared/response';
+import { httpGetJson, toSinaCode } from '../shared/http';
 
 function secidOf(code: string): string {
   const c = String(code).replace(/^(sh|sz|bj)/i, '');

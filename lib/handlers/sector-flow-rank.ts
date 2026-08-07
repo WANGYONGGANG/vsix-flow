@@ -1,7 +1,7 @@
 // 板块资金流排名 - 选股报告阶段二数据源（行业 t=2 / 概念 t=1）
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from './_shared/response';
-import { httpGetJson } from './_shared/http';
+import { json, handleOptions, getQuery } from '../shared/response';
+import { httpGetJson } from '../shared/http';
 
 // 新浪板块名 -> 东财通用中类名 的粗略映射（避免报告中出现「new_xxx」）
 const SINA_NAME_MAP: Record<string, string> = {

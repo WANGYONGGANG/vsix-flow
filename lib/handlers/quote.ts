@@ -1,7 +1,7 @@
 // /api/quote & /api/market-overview 合并（同一段逻辑）
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from './_shared/response';
-import { httpsGetText, toTencentCode, tencentTextToDiff } from './_shared/http';
+import { json, handleOptions, getQuery } from '../shared/response';
+import { httpsGetText, toTencentCode, tencentTextToDiff } from '../shared/http';
 
 const MARKET_INDEX_CODES = 'sh000001,sz399001,sz399006,sh000016,sh000688,sh000300,sz399005';
 

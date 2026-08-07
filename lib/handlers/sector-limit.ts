@@ -1,7 +1,7 @@
 // 板块排行 / 东方财富板块涨幅排行（与 sector-flow-rank 同源，按涨幅排序）
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions } from './_shared/response';
-import { httpGetJson } from './_shared/http';
+import { json, handleOptions } from '../shared/response';
+import { httpGetJson } from '../shared/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;

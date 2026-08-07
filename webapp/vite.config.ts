@@ -142,7 +142,7 @@ function parseCookies(req: Connect.IncomingMessage): any {
 }
 
 function vercelFunctionsPlugin(rootDir: string): Plugin {
-  const apiDir = path.resolve(rootDir, 'api');
+  const apiDir = path.resolve(rootDir, 'lib', 'handlers');
 
   const mw: Connect.NextHandleFunction = async (req, res, next) => {
     const url = req.url || '/';
@@ -221,8 +221,8 @@ function vercelFunctionsPlugin(rootDir: string): Plugin {
 }
 
 const ROOT = process.cwd();
-console.log('[vite] API dir resolved:', path.resolve(ROOT, '..', 'api'));
-console.log('[vite] API routes:\n  ' + listApiRoutes(path.resolve(ROOT, '..', 'api')).join('\n  '));
+console.log('[vite] Handlers dir resolved:', path.resolve(ROOT, '..', 'lib', 'handlers'));
+console.log('[vite] API routes:\n  ' + listApiRoutes(path.resolve(ROOT, '..', 'lib', 'handlers')).join('\n  '));
 
 export default defineConfig({
   plugins: [

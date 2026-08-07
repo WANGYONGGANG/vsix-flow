@@ -1,7 +1,7 @@
 // 市场概况详情：三市成交额、昨日涨停表现、涨跌分布
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions } from './_shared/response';
-import { httpsGetText, httpGetJson, toTencentCode, tencentTextToDiff } from './_shared/http';
+import { json, handleOptions } from '../shared/response';
+import { httpsGetText, httpGetJson, toTencentCode, tencentTextToDiff } from '../shared/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;

@@ -5,11 +5,15 @@
   "buildCommand": "cd webapp && npm run build",
   "outputDirectory": "webapp/dist",
   "functions": {
-    "api/**/*.ts": {
+    "api/index.ts": {
       "runtime": "@vercel/node@4",
       "maxDuration": 30
     }
   },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/((?!assets|api|favicon|sw\\.js|workbox|manifest|robots\\.txt).*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",
@@ -24,9 +28,5 @@
         { "key": "Service-Worker-Allowed", "value": "/" }
       ]
     }
-  ],
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/:path*" },
-    { "source": "/((?!assets|api|favicon|sw\\.js|workbox|manifest|robots\\.txt).*)", "destination": "/index.html" }
   ]
 }

@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = Number(process.env.PORT || 19101);
-const API_DIR = path.resolve(__dirname, '..', 'api');
+const API_DIR = path.resolve(__dirname, '..', 'lib', 'handlers');
 
 const CACHE = new Map();
 

@@ -1,7 +1,7 @@
 // 个股 F10 子页（公司概况/股东/行业）
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { json, handleOptions, getQuery } from './_shared/response';
-import { httpGetJson, toSinaCode, toCleanCode } from './_shared/http';
+import { json, handleOptions, getQuery } from '../shared/response';
+import { httpGetJson, toSinaCode, toCleanCode } from '../shared/http';
 
 function fmtHoldNum(v: unknown): string {
   const n = Number(v || 0);
