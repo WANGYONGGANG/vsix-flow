@@ -1,4 +1,15 @@
 {
+  "version": 2,
+  "buildCommand": "bash scripts/build.sh",
+  "installCommand": "npm install && cd webapp && npm install --legacy-peer-deps",
+  "outputDirectory": "dist",
+  "functions": {
+    "dist/api/index.js": {
+      "runtime": "@vercel/node@4",
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }

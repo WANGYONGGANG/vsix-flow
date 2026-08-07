@@ -1,23 +1,22 @@
 #!/bin/bash
 set -e
+
 cd "$(dirname "$0")/.."
 
-echo "=== Installing root dependencies ==="
-npm install --silent 2>/dev/null || true
+# Install dependencies
+npm install 2>/dev/null
+cd webapp && npm install --legacy-peer-deps 2>/dev/null && cd ..
 
-echo "=== Installing webapp dependencies ==="
-cd webapp
-pnpm install --no-frozen-lockfile --silent 2>/dev/null || npm install --legacy-peer-deps --silent 2>/dev/null
+# Build webapp
+cd webapp && npx vite build && cd ..
 
-echo "=== Building webapp ==="
-npx vite build
-
-echo "=== Copying dist to root ==="
-cd ..
+# Prepare dist directory at root
 rm -rf dist
-cp -r webapp/dist ./dist
+cp -r webapp/dist dist
 
-echo "=== Bundling API function ==="
-npx esbuild api/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/api/index.js --external:@vercel/node 2>/dev/null || cp api/index.js dist/api/index.js 2>/dev/null || true
+# Bundle API function into dist/api/
+mkdir -p dist/api
+npx esbuild api/index.ts --bundle --platform=node --target=node20 --format=cjs \
+  --outfile=dist/api/index.js --external:@vercel/node
 
-echo "=== Build complete ==="
+echo "Build complete: dist/ (static) + dist/api/index.js (function)"
