@@ -127,6 +127,12 @@ export default function HomePage({
     }
   }
 
+  // 切换 tab 时清除旧数据，避免显示上一个 tab 的内容
+  useEffect(() => {
+    setData(null);
+    setLoading(true);
+  }, [tab]);
+
   // 轮询：概况 / 自选 / 快讯 / 异动
   useEffect(() => {
     load();

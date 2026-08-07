@@ -12,7 +12,6 @@ import { api } from './api/client';
 
 const BOTTOM_NAV = [
   { to: '/', label: '行情', icon: 'chart' },
-  { to: '/report', label: '选股', icon: 'report' },
   { to: '/ai', label: 'AI', icon: 'ai' },
   { to: '/settings', label: '我的', icon: 'user' },
 ];
@@ -412,11 +411,11 @@ export default function App() {
           {isHome && (
             <button
               className="icon-btn"
-              aria-label="AI 助手"
-              title="向 AI 提问市场走势"
-              onClick={() => navigate('/ai')}
+              aria-label="选股报告"
+              title="选股报告"
+              onClick={() => navigate('/report')}
             >
-              <IconSparkle />
+              <IconNavReport active={false} />
             </button>
           )}
         </div>
