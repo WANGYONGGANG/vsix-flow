@@ -521,7 +521,7 @@ function SAR_FUNC(n: number, step: number, max: number): number[] {
 }
 
 // ============ 支撑/压力 ============
-function 支撑线(n: number): number[] {
+function支撑线(n: number): number[] {
   const r: number[] = [];
   for (let i = 0; i < CURRENT_DATA.length; i++) {
     const start = Math.max(0, i - n + 1);
@@ -534,7 +534,7 @@ function 支撑线(n: number): number[] {
   return r;
 }
 
-function 压力线(n: number): number[] {
+function压力线(n: number): number[] {
   const r: number[] = [];
   for (let i = 0; i < CURRENT_DATA.length; i++) {
     const start = Math.max(0, i - n + 1);
@@ -600,7 +600,7 @@ function FILTER(cond: number[], n: number): number[] {
   return r;
 }
 
-function CAPITAL(): number[] {
+function CAPITAL: number[] {
   return CURRENT_DATA.map(() => 100000000);
 }
 
