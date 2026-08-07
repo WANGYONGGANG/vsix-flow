@@ -273,6 +273,13 @@ export default defineConfig({
             url: '/?tab=flash',
             icons: [{ src: 'icon-192.png', sizes: '192x192' }],
           },
+          {
+            name: '分享应用',
+            short_name: '分享',
+            description: '分享 StockExt 给好友',
+            url: '/?action=share',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
         ],
         share_target: {
           action: '/share',

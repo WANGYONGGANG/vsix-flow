@@ -86,6 +86,27 @@ export default function HomePage({
 
   useEffect(() => { if (tab !== initialTab) setTab(initialTab); /* sync external control */ }, [initialTab]);
 
+  // 处理桌面快捷方式的 URL 参数
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    if (action === 'share') {
+      if (navigator.share) {
+        navigator.share({
+          title: 'StockExt 行情中心',
+          text: '实时 A 股行情，支持自选股、资金流向、快讯、异动提醒',
+          url: window.location.origin,
+        }).catch(() => {});
+      } else {
+        navigator.clipboard?.writeText(window.location.origin).then(() => {
+          alert('链接已复制到剪贴板');
+        });
+      }
+      // 清除 URL 参数
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   function speakText(text: string) {
     if (!text) return;
     if (!('speechSynthesis' in window)) return;
@@ -198,7 +219,7 @@ export default function HomePage({
             key={t.id}
             title={t.tip}
             className={'tab-btn' + (tab === t.id ? ' active' : '')}
-            onClick={() => setTab(t.id)}
+            onClick={() => { setTab(t.id); setData(null); }}
           >
             <span className="tb-ic"><TabIcon name={t.icon} active={tab === t.id} /></span>
             <span>{t.label}</span>
