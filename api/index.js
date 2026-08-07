@@ -4131,113 +4131,59 @@ async function handler4(req, res) {
   json(res, 200, { data: { minutes: rows, preClose: qt[4] || 0 } });
 }
 
-// lib/handlers/em-news.ts
+// lib/handlers/search.ts
 async function handler5(req, res) {
   if (handleOptions(req, res)) return;
-  const page = getQuery(req, "page", "1");
-  const pageSize = getQuery(req, "pageSize", "50");
-  const r = await httpGetJson(`http://newsapi.eastmoney.com/kuaixun/v2/api/list?pageSize=${pageSize}&pageIndex=${page}`);
-  json(res, 200, { data: { list: r?.news || [] } });
+  const kw = decodeURIComponent(getQuery(req, "kw")).trim();
+  if (!kw) {
+    json(res, 200, { data: { list: [] } });
+    return;
+  }
+  const token = "D43BF722C8E33BDC906FB84D85E326E8";
+  const url2 = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=14&token=${token}`;
+  const r = await httpGetJson(url2, "https://quote.eastmoney.com/");
+  const arr = r?.QuotationCodeTable?.Data || [];
+  const list = arr.map((d) => {
+    const code = d.Code || "";
+    const mkt = d.MarketinGbk;
+    let prefix = "sh";
+    if (mkt === 0) prefix = "sz";
+    else if (mkt === 9) prefix = "bj";
+    else if (/^(60|68|90|11|13|50|56|51|58)/.test(code)) prefix = "sh";
+    else if (/^(00|30|20|12|15|16|18|159)/.test(code)) prefix = "sz";
+    else if (/^(43|83|87|92|88)/.test(code)) prefix = "bj";
+    return {
+      code: prefix + code,
+      display_code: code,
+      name: d.Name || "",
+      market: d.Market || mkt,
+      type: d.Indicator || d.SecurityTypeName || ""
+    };
+  }).filter((x) => x.code && x.name);
+  json(res, 200, { data: { list } });
 }
 
-// lib/handlers/em-news-search.ts
-function tryEastmoneyJsonp(text, pageSize) {
-  const jsonData = stripJsonp(text);
-  const arr = jsonData?.result?.cmsArticleWebOld || [];
-  if (!Array.isArray(arr) || !arr.length) return [];
-  return arr.slice(0, pageSize).map((a) => ({
-    title: a.title || "",
-    content: String(a.content || "").replace(/<[^>]+>/g, "").slice(0, 120),
-    url: a.articleUrl || "",
-    time: a.date || "",
-    source: a.mediaName || "\u4E1C\u65B9\u8D22\u5BCC",
-    showtime: a.date || ""
-  }));
-}
-function fallbackFromEastmoneyKuaiXun(raw, pageSize) {
-  const news = raw?.news || raw?.data?.list || raw?.list || [];
-  if (!Array.isArray(news) || !news.length) return [];
-  return news.slice(0, pageSize).map((n) => ({
-    title: n.title || n.Art_Title || "",
-    content: String(n.digest || n.content || n.simdigest || "").replace(/<[^>]+>/g, "").slice(0, 120),
-    url: n.url_w || n.url_m || n.url_unique || "",
-    time: n.showtime || n.ordertime || "",
-    source: n.Art_Media_Name || n.source || "\u4E1C\u65B9\u8D22\u5BCC\u5FEB\u8BAF",
-    showtime: n.showtime || n.ordertime || ""
-  }));
-}
-async function trySinaRoll(pageSize) {
-  try {
-    const r = await httpGetJson(
-      `https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=${pageSize}&page=1&r=${Math.random()}`,
-      "https://finance.sina.com.cn/"
-    );
-    const items = r?.result?.data || [];
-    if (!Array.isArray(items) || !items.length) return [];
-    return items.slice(0, pageSize).map((x) => ({
-      title: x.title || "",
-      content: String(x.summary || x.intro || "").replace(/<[^>]+>/g, "").slice(0, 120),
-      url: x.url || x.wapurl || "",
-      time: x.ctime ? new Date(Number(x.ctime) * 1e3).toISOString().replace("T", " ").slice(0, 19) : x.datetime || "",
-      source: x.author || x.media_name || "\u65B0\u6D6A\u8D22\u7ECF",
-      showtime: x.ctime ? new Date(Number(x.ctime) * 1e3).toISOString().replace("T", " ").slice(0, 19) : x.datetime || ""
-    }));
-  } catch {
-    return [];
-  }
-}
+// lib/handlers/hot-stocks.ts
+var HOT = "sh600519,sz000858,sh601318,sh600036,sz300750,sh688981,sz000001,sh601899,sz002594,sh600900";
 async function handler6(req, res) {
   if (handleOptions(req, res)) return;
-  const keyword = getQuery(req, "keyword", "A\u80A1 \u80A1\u5E02");
-  const pageIndex = getQuery(req, "page", "1");
-  const pageSize = Math.max(5, Math.min(100, parseInt(getQuery(req, "pageSize", "30")) || 30));
-  let list = [];
-  try {
-    const param = JSON.stringify({
-      uid: "",
-      keyword,
-      type: ["cmsArticleWebOld"],
-      client: "web",
-      clientType: "web",
-      clientVersion: "curr",
-      param: {
-        cmsArticleWebOld: {
-          searchScope: "default",
-          sort: "default",
-          pageIndex: Number(pageIndex),
-          pageSize,
-          preTag: "",
-          postTag: ""
-        }
-      }
-    });
-    const body = await httpsGetText(
-      `https://search-api-web.eastmoney.com/search/jsonp?cb=x&param=${encodeURIComponent(param)}`,
-      "https://www.eastmoney.com/"
-    );
-    list = tryEastmoneyJsonp(body, pageSize);
-  } catch {
-  }
-  if (!list.length) {
-    try {
-      const kx = await httpGetJson(
-        `http://newsapi.eastmoney.com/kuaixun/v2/api/list?pageSize=${pageSize}&pageIndex=1`,
-        "https://www.eastmoney.com/"
-      );
-      list = fallbackFromEastmoneyKuaiXun(kx, pageSize);
-    } catch {
-    }
-  }
-  if (!list.length) {
-    list = await trySinaRoll(pageSize);
-  }
-  list = list.filter((x) => String(x.title || "").trim().length > 0);
-  json(res, 200, { data: { list } });
+  const text = await httpsGetText(`https://qt.gtimg.cn/q=${HOT}`, "https://finance.qq.com/");
+  json(res, 200, { data: { diff: tencentTextToDiff(text) } });
+}
+
+// lib/handlers/lhb.ts
+var COLUMNS = "SECURITY_CODE,SECURITY_NAME_ABBR,CLOSE_PRICE,CHANGE_RATE,EXPLAIN,EXPLANATION,TRADE_DATE,BILLBOARD_NET_AMT,BUY_SEAT,SELL_SEAT,ACCUM_AMOUNT,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT";
+async function handler7(req, res) {
+  if (handleOptions(req, res)) return;
+  const r = await httpGetJson(
+    `https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DAILYBILLBOARD_DETAILSNEW&columns=${COLUMNS}&pageNumber=1&pageSize=30&sortColumns=TRADE_DATE&sortTypes=-1&source=WEB&client=WEB`
+  );
+  json(res, 200, { data: { list: r?.result?.data || [] } });
 }
 
 // lib/handlers/market-overview.ts
 var MARKET_INDEX_CODES2 = "sh000001,sz399001,sz399006,sh000016,sh000688,sh000300,sz399005";
-async function handler7(req, res) {
+async function handler8(req, res) {
   if (handleOptions(req, res)) return;
   const codes = MARKET_INDEX_CODES2.split(",").filter(Boolean).map(toTencentCode).join(",");
   const text = await httpsGetText(`https://qt.gtimg.cn/q=${codes}`, "https://finance.qq.com/");
@@ -4246,7 +4192,7 @@ async function handler7(req, res) {
 }
 
 // lib/handlers/market-overview-detail.ts
-async function handler8(req, res) {
+async function handler9(req, res) {
   if (handleOptions(req, res)) return;
   let shAmt = 0, szAmt = 0, cybAmt = 0;
   try {
@@ -4362,27 +4308,9 @@ async function handler8(req, res) {
   });
 }
 
-// lib/handlers/hot-stocks.ts
-var HOT = "sh600519,sz000858,sh601318,sh600036,sz300750,sh688981,sz000001,sh601899,sz002594,sh600900";
-async function handler9(req, res) {
-  if (handleOptions(req, res)) return;
-  const text = await httpsGetText(`https://qt.gtimg.cn/q=${HOT}`, "https://finance.qq.com/");
-  json(res, 200, { data: { diff: tencentTextToDiff(text) } });
-}
-
-// lib/handlers/lhb.ts
-var COLUMNS = "SECURITY_CODE,SECURITY_NAME_ABBR,CLOSE_PRICE,CHANGE_RATE,EXPLAIN,EXPLANATION,TRADE_DATE,BILLBOARD_NET_AMT,BUY_SEAT,SELL_SEAT,ACCUM_AMOUNT,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT";
-async function handler10(req, res) {
-  if (handleOptions(req, res)) return;
-  const r = await httpGetJson(
-    `https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DAILYBILLBOARD_DETAILSNEW&columns=${COLUMNS}&pageNumber=1&pageSize=30&sortColumns=TRADE_DATE&sortTypes=-1&source=WEB&client=WEB`
-  );
-  json(res, 200, { data: { list: r?.result?.data || [] } });
-}
-
 // lib/handlers/stock-changes.ts
 var TYPES = "8201,8202,8193,4,32,64,8207,8209,8211,8213,8215,8204,8203,8194,8,16,128,8208,8210,8212,8214,8216";
-async function handler11(req, res) {
+async function handler10(req, res) {
   if (handleOptions(req, res)) return;
   const ut = "7eea3edcaed734bea9cbfc24409ed989";
   const r = await httpGetJson(
@@ -4392,193 +4320,112 @@ async function handler11(req, res) {
   json(res, 200, { data: { list: r?.data?.allstock || [] } });
 }
 
-// lib/handlers/sector-limit.ts
+// lib/handlers/em-news.ts
+async function handler11(req, res) {
+  if (handleOptions(req, res)) return;
+  const page = getQuery(req, "page", "1");
+  const pageSize = getQuery(req, "pageSize", "50");
+  const r = await httpGetJson(`http://newsapi.eastmoney.com/kuaixun/v2/api/list?pageSize=${pageSize}&pageIndex=${page}`);
+  json(res, 200, { data: { list: r?.news || [] } });
+}
+
+// lib/handlers/em-news-search.ts
+function tryEastmoneyJsonp(text, pageSize) {
+  const jsonData = stripJsonp(text);
+  const arr = jsonData?.result?.cmsArticleWebOld || [];
+  if (!Array.isArray(arr) || !arr.length) return [];
+  return arr.slice(0, pageSize).map((a) => ({
+    title: a.title || "",
+    content: String(a.content || "").replace(/<[^>]+>/g, "").slice(0, 120),
+    url: a.articleUrl || "",
+    time: a.date || "",
+    source: a.mediaName || "\u4E1C\u65B9\u8D22\u5BCC",
+    showtime: a.date || ""
+  }));
+}
+function fallbackFromEastmoneyKuaiXun(raw, pageSize) {
+  const news = raw?.news || raw?.data?.list || raw?.list || [];
+  if (!Array.isArray(news) || !news.length) return [];
+  return news.slice(0, pageSize).map((n) => ({
+    title: n.title || n.Art_Title || "",
+    content: String(n.digest || n.content || n.simdigest || "").replace(/<[^>]+>/g, "").slice(0, 120),
+    url: n.url_w || n.url_m || n.url_unique || "",
+    time: n.showtime || n.ordertime || "",
+    source: n.Art_Media_Name || n.source || "\u4E1C\u65B9\u8D22\u5BCC\u5FEB\u8BAF",
+    showtime: n.showtime || n.ordertime || ""
+  }));
+}
+async function trySinaRoll(pageSize) {
+  try {
+    const r = await httpGetJson(
+      `https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=${pageSize}&page=1&r=${Math.random()}`,
+      "https://finance.sina.com.cn/"
+    );
+    const items = r?.result?.data || [];
+    if (!Array.isArray(items) || !items.length) return [];
+    return items.slice(0, pageSize).map((x) => ({
+      title: x.title || "",
+      content: String(x.summary || x.intro || "").replace(/<[^>]+>/g, "").slice(0, 120),
+      url: x.url || x.wapurl || "",
+      time: x.ctime ? new Date(Number(x.ctime) * 1e3).toISOString().replace("T", " ").slice(0, 19) : x.datetime || "",
+      source: x.author || x.media_name || "\u65B0\u6D6A\u8D22\u7ECF",
+      showtime: x.ctime ? new Date(Number(x.ctime) * 1e3).toISOString().replace("T", " ").slice(0, 19) : x.datetime || ""
+    }));
+  } catch {
+    return [];
+  }
+}
 async function handler12(req, res) {
   if (handleOptions(req, res)) return;
-  const fs = "m:90+t:2+f:!50";
-  const fields = "f2,f3,f4,f12,f14,f20,f62,f66,f104,f105,f204,f205";
-  const ut = "fa5fd1943c7b386f172d6893dbfba10b";
-  const r = await httpGetJson(
-    `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=${encodeURIComponent(fs)}&fields=${fields}&ut=${ut}`,
-    "https://data.eastmoney.com/"
-  );
-  let diff = r?.data?.diff || [];
-  if (!diff.length) {
-    const sina = await httpGetJson(
-      "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_bkzj_bk?page=1&num=50&sort=netamount&asc=0&fenlei=0",
-      "https://finance.sina.com.cn/"
-    );
-    const arr = Array.isArray(sina) ? sina : [];
-    for (const b of arr) {
-      const avgChg = Number(b.avg_changeratio || 0);
-      diff.push({
-        f12: String(b.category || b.name || ""),
-        f14: String(b.name || ""),
-        f3: Number((avgChg * 100).toFixed(2)),
-        f62: Number(b.netamount || 0),
-        f104: null,
-        f105: null
-      });
-    }
-  }
-  json(res, 200, { data: { diff } });
-}
-
-// lib/handlers/sector-flow-rank.ts
-var SINA_NAME_MAP = {
-  new_dzxx: "\u7535\u5B50\u4FE1\u606F",
-  new_dzqj: "\u7535\u5B50\u5668\u4EF6",
-  new_ysjs: "\u6709\u8272\u91D1\u5C5E",
-  new_jxhy: "\u673A\u68B0\u884C\u4E1A",
-  new_hghy: "\u5316\u5DE5\u884C\u4E1A",
-  new_blhy: "\u73BB\u7483\u884C\u4E1A",
-  new_fdsb: "\u53D1\u7535\u8BBE\u5907",
-  new_qczz: "\u6C7D\u8F66\u5236\u9020",
-  new_fdc: "\u623F\u5730\u4EA7",
-  new_mthy: "\u7164\u70AD\u884C\u4E1A",
-  new_yhhy: "\u94F6\u884C",
-  new_jrhy: "\u91D1\u878D\u884C\u4E1A",
-  new_zzsmy: "\u5546\u4E1A\u8D38\u6613",
-  new_sphy: "\u98DF\u54C1\u884C\u4E1A",
-  new_ylyy: "\u533B\u836F\u751F\u7269",
-  new_jdhy: "\u5BB6\u7535\u884C\u4E1A",
-  new_txhyl: "\u901A\u4FE1\u884C\u4E1A",
-  new_wlyh: "\u4E92\u8054\u7F51",
-  new_jsj: "\u8BA1\u7B97\u673A",
-  new_xc: "\u4F20\u5A92",
-  new_nyhy: "\u519C\u4E1A",
-  new_sghy: "\u94A2\u94C1\u884C\u4E1A",
-  new_shhy: "\u77F3\u5316\u884C\u4E1A",
-  new_yysw: "\u533B\u836F\u5546\u4E1A",
-  new_fzhy: "\u7EBA\u7EC7\u670D\u88C5",
-  new_zhhy: "\u7EFC\u5408\u884C\u4E1A",
-  new_gzyl: "\u516C\u7528\u4E8B\u4E1A",
-  new_jtys: "\u4EA4\u901A\u8FD0\u8F93",
-  new_ylbz: "\u533B\u7597\u5668\u68B0",
-  new_hbhj: "\u73AF\u4FDD",
-  new_dqhy: "\u7535\u5668\u884C\u4E1A",
-  new_hxqc: "\u6C7D\u8F66\u6574\u8F66",
-  gn_hwgn: "\u534E\u4E3A\u6982\u5FF5",
-  gn_gqjl: "\u80A1\u6743\u6FC0\u52B1",
-  gn_zchc: "\u667A\u6167\u57CE\u5E02",
-  gn_rjgc: "\u56FD\u4EA7\u8F6F\u4EF6",
-  gn_zlby: "\u9502\u7535\u6C60",
-  gn_xny: "\u65B0\u80FD\u6E90",
-  gn_xnyc: "\u65B0\u80FD\u6E90\u8F66",
-  gn_bdcl: "\u534A\u5BFC\u4F53",
-  gn_yjy: "\u5143\u5B87\u5B99",
-  gn_xg: "\u65B0\u80A1",
-  gn_cx: "\u6B21\u65B0\u80A1",
-  gn_zxb: "\u4E2D\u5C0F\u677F",
-  gn_cyb: "\u521B\u4E1A\u677F",
-  gn_kcb: "\u79D1\u521B\u677F",
-  gn_st: "ST\u677F\u5757",
-  gn_lt: "\u9F99\u5934"
-};
-function friendlyName(sinaName, rawKey) {
-  if (sinaName && /[\u4e00-\u9fa5]/.test(sinaName)) return sinaName;
-  if (SINA_NAME_MAP[rawKey]) return SINA_NAME_MAP[rawKey];
-  return sinaName || rawKey;
-}
-async function handler13(req, res) {
-  if (handleOptions(req, res)) return;
-  const t = parseInt(getQuery(req, "t", "2")) || 2;
-  const pz = Math.max(1, Math.min(100, parseInt(getQuery(req, "pz", "30")) || 30));
-  const fs = t === 1 ? "m:90+t:3+f:!50" : "m:90+t:2+f:!50";
-  const fields = "f2,f3,f4,f12,f14,f20,f62,f66,f104,f105,f204,f205";
-  const ut = "fa5fd1943c7b386f172d6893dbfba10b";
-  const r = await httpGetJson(
-    `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=f62&fs=${encodeURIComponent(fs)}&fields=${fields}&ut=${ut}`,
-    "https://data.eastmoney.com/"
-  );
-  let diff = r?.data?.diff || [];
-  if (!diff.length) {
-    const fenlei = t === 1 ? 1 : 0;
-    const sina = await httpGetJson(
-      `https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_bkzj_bk?page=1&num=${pz}&sort=netamount&asc=0&fenlei=${fenlei}`,
-      "https://finance.sina.com.cn/"
-    );
-    const arr = Array.isArray(sina) ? sina : [];
-    for (const b of arr) {
-      const key = String(b.category || "");
-      const name = friendlyName(String(b.name || ""), key);
-      const avgChg = Number(b.avg_changeratio || 0);
-      const net = Number(b.netamount || 0);
-      const tsName = String(b.ts_name || "");
-      const tsRatio = Number(b.ts_changeratio || 0) * 100;
-      diff.push({
-        f12: key || name,
-        f14: name,
-        f3: Number((avgChg * 100).toFixed(2)),
-        // 涨跌幅(%)
-        // 以下字段新浪没有提供，一律 null，不做任何估算
-        f2: b.avg_trade != null ? Number(b.avg_trade) : null,
-        f4: null,
-        f20: b.turnover != null ? Number(b.turnover) * 1e8 : null,
-        // 新浪 turnover 单位是亿，真实换算
-        f62: net,
-        f66: null,
-        f104: null,
-        f105: null,
-        f204: tsName && tsRatio ? `${tsName}${tsRatio >= 9.9 ? " \u6DA8\u505C" : ` \u9886\u6DA8 ${tsRatio.toFixed(1)}%`}` : "",
-        f205: null
-      });
-    }
-    diff.sort((a, b) => (Number(b.f62) || 0) - (Number(a.f62) || 0));
-    diff = diff.slice(0, pz);
-  }
-  json(res, 200, { data: { diff } });
-}
-
-// lib/handlers/sina-bkzj.ts
-async function handler14(req, res) {
-  if (handleOptions(req, res)) return;
-  const fenlei = getQuery(req, "fenlei", "1");
-  const txt = await httpsGetText(
-    `https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_bkzj_bk?page=1&num=50&sort=netamount&asc=0&fenlei=${fenlei}`,
-    "https://finance.sina.com.cn/"
-  );
+  const keyword = getQuery(req, "keyword", "A\u80A1 \u80A1\u5E02");
+  const pageIndex = getQuery(req, "page", "1");
+  const pageSize = Math.max(5, Math.min(100, parseInt(getQuery(req, "pageSize", "30")) || 30));
+  let list = [];
   try {
-    json(res, 200, { data: { list: JSON.parse(txt) } });
+    const param = JSON.stringify({
+      uid: "",
+      keyword,
+      type: ["cmsArticleWebOld"],
+      client: "web",
+      clientType: "web",
+      clientVersion: "curr",
+      param: {
+        cmsArticleWebOld: {
+          searchScope: "default",
+          sort: "default",
+          pageIndex: Number(pageIndex),
+          pageSize,
+          preTag: "",
+          postTag: ""
+        }
+      }
+    });
+    const body = await httpsGetText(
+      `https://search-api-web.eastmoney.com/search/jsonp?cb=x&param=${encodeURIComponent(param)}`,
+      "https://www.eastmoney.com/"
+    );
+    list = tryEastmoneyJsonp(body, pageSize);
   } catch {
-    json(res, 200, { data: { list: [] } });
   }
-}
-
-// lib/handlers/search.ts
-async function handler15(req, res) {
-  if (handleOptions(req, res)) return;
-  const kw = decodeURIComponent(getQuery(req, "kw")).trim();
-  if (!kw) {
-    json(res, 200, { data: { list: [] } });
-    return;
+  if (!list.length) {
+    try {
+      const kx = await httpGetJson(
+        `http://newsapi.eastmoney.com/kuaixun/v2/api/list?pageSize=${pageSize}&pageIndex=1`,
+        "https://www.eastmoney.com/"
+      );
+      list = fallbackFromEastmoneyKuaiXun(kx, pageSize);
+    } catch {
+    }
   }
-  const token = "D43BF722C8E33BDC906FB84D85E326E8";
-  const url2 = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=14&token=${token}`;
-  const r = await httpGetJson(url2, "https://quote.eastmoney.com/");
-  const arr = r?.QuotationCodeTable?.Data || [];
-  const list = arr.map((d) => {
-    const code = d.Code || "";
-    const mkt = d.MarketinGbk;
-    let prefix = "sh";
-    if (mkt === 0) prefix = "sz";
-    else if (mkt === 9) prefix = "bj";
-    else if (/^(60|68|90|11|13|50|56|51|58)/.test(code)) prefix = "sh";
-    else if (/^(00|30|20|12|15|16|18|159)/.test(code)) prefix = "sz";
-    else if (/^(43|83|87|92|88)/.test(code)) prefix = "bj";
-    return {
-      code: prefix + code,
-      display_code: code,
-      name: d.Name || "",
-      market: d.Market || mkt,
-      type: d.Indicator || d.SecurityTypeName || ""
-    };
-  }).filter((x) => x.code && x.name);
+  if (!list.length) {
+    list = await trySinaRoll(pageSize);
+  }
+  list = list.filter((x) => String(x.title || "").trim().length > 0);
   json(res, 200, { data: { list } });
 }
 
 // lib/handlers/stock-news.ts
-async function handler16(req, res) {
+async function handler13(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const pageSize = getQuery(req, "pageSize", "10");
@@ -4607,7 +4454,7 @@ async function handler16(req, res) {
 }
 
 // lib/handlers/stock-notice.ts
-async function handler17(req, res) {
+async function handler14(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const r = await httpsGetText(
@@ -4632,7 +4479,7 @@ function fmtAmt(v) {
   if (n >= 1e4) return (n / 1e4).toFixed(2) + "\u4E07";
   return n.toFixed(2);
 }
-async function handler18(req, res) {
+async function handler15(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const r = await httpGetJson(
@@ -4675,7 +4522,7 @@ function fmtHoldNum(v) {
 function prefixOf(code) {
   return /^(60|68|90|11|13|50|56|51|58)/.test(code) ? "SH" : "SZ";
 }
-async function handler19(req, res) {
+async function handler16(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const sub = getQuery(req, "sub", "essential");
@@ -4741,8 +4588,39 @@ async function handler19(req, res) {
   json(res, 200, { data: { items: [] } });
 }
 
+// lib/handlers/stock-holder.ts
+async function handler17(req, res) {
+  if (handleOptions(req, res)) return;
+  const raw = getQuery(req, "code");
+  const code = String(raw || "").replace(/^(sh|sz|bj)/i, "");
+  if (!code) {
+    json(res, 200, { data: { list: [] } });
+    return;
+  }
+  const url2 = `https://datacenter-web.eastmoney.com/api/data/v1/get?sortColumns=END_DATE&sortTypes=-1&pageSize=10&pageNumber=1&reportName=RPT_F10_EH_HOLDERNUM&columns=ALL&filter=(SECURITY_CODE%3D%22${encodeURIComponent(code)}%22)`;
+  const r = await httpGetJson(url2, "https://emweb.securities.eastmoney.com/");
+  const rows = r?.result?.data || [];
+  const list = rows.map((x) => {
+    const hn = x.HOLDER_NUM ?? x.HOLDERNUM ?? null;
+    const pre = x.PRE_HOLDER_NUM ?? x.PREHOLDERNUM ?? null;
+    const ratio = hn != null && pre != null && pre > 0 ? (Number(hn) - Number(pre)) / Number(pre) * 100 : NaN;
+    return {
+      endDate: x.END_DATE || x.REPORT_DATE || "",
+      holderNum: Number(hn) || 0,
+      preHolderNum: Number(pre) || 0,
+      holderNumRatio: isNaN(ratio) ? 0 : ratio,
+      closePrice: Number(x.CLOSE_PRICE || x.CLOSE || 0),
+      avgHolding: Number(x.AVG_HOLDING_NUM || x.AVG_HOLD || 0),
+      totalShare: Number(x.TOTAL_SHARES || x.TOTAL_A_SHARES || 0),
+      // 报告期兼容字段名
+      reportDate: x.REPORT_DATE || x.END_DATE || ""
+    };
+  });
+  json(res, 200, { data: { list } });
+}
+
 // lib/handlers/stock-flow-rank.ts
-async function handler20(req, res) {
+async function handler18(req, res) {
   if (handleOptions(req, res)) return;
   const pz = Math.max(1, Math.min(400, parseInt(getQuery(req, "pz", "100")) || 100));
   const fs = "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2";
@@ -4874,7 +4752,7 @@ async function fallbackFromSina(code, lmt) {
   }
   return list.slice(0, lmt);
 }
-async function handler21(req, res) {
+async function handler19(req, res) {
   if (handleOptions(req, res)) return;
   const code = getQuery(req, "code");
   const lmt = Math.max(1, Math.min(120, parseInt(getQuery(req, "lmt", "30")) || 30));
@@ -4915,35 +4793,157 @@ async function handler21(req, res) {
   json(res, 200, { data: { list } });
 }
 
-// lib/handlers/stock-holder.ts
+// lib/handlers/sector-flow-rank.ts
+var SINA_NAME_MAP = {
+  new_dzxx: "\u7535\u5B50\u4FE1\u606F",
+  new_dzqj: "\u7535\u5B50\u5668\u4EF6",
+  new_ysjs: "\u6709\u8272\u91D1\u5C5E",
+  new_jxhy: "\u673A\u68B0\u884C\u4E1A",
+  new_hghy: "\u5316\u5DE5\u884C\u4E1A",
+  new_blhy: "\u73BB\u7483\u884C\u4E1A",
+  new_fdsb: "\u53D1\u7535\u8BBE\u5907",
+  new_qczz: "\u6C7D\u8F66\u5236\u9020",
+  new_fdc: "\u623F\u5730\u4EA7",
+  new_mthy: "\u7164\u70AD\u884C\u4E1A",
+  new_yhhy: "\u94F6\u884C",
+  new_jrhy: "\u91D1\u878D\u884C\u4E1A",
+  new_zzsmy: "\u5546\u4E1A\u8D38\u6613",
+  new_sphy: "\u98DF\u54C1\u884C\u4E1A",
+  new_ylyy: "\u533B\u836F\u751F\u7269",
+  new_jdhy: "\u5BB6\u7535\u884C\u4E1A",
+  new_txhyl: "\u901A\u4FE1\u884C\u4E1A",
+  new_wlyh: "\u4E92\u8054\u7F51",
+  new_jsj: "\u8BA1\u7B97\u673A",
+  new_xc: "\u4F20\u5A92",
+  new_nyhy: "\u519C\u4E1A",
+  new_sghy: "\u94A2\u94C1\u884C\u4E1A",
+  new_shhy: "\u77F3\u5316\u884C\u4E1A",
+  new_yysw: "\u533B\u836F\u5546\u4E1A",
+  new_fzhy: "\u7EBA\u7EC7\u670D\u88C5",
+  new_zhhy: "\u7EFC\u5408\u884C\u4E1A",
+  new_gzyl: "\u516C\u7528\u4E8B\u4E1A",
+  new_jtys: "\u4EA4\u901A\u8FD0\u8F93",
+  new_ylbz: "\u533B\u7597\u5668\u68B0",
+  new_hbhj: "\u73AF\u4FDD",
+  new_dqhy: "\u7535\u5668\u884C\u4E1A",
+  new_hxqc: "\u6C7D\u8F66\u6574\u8F66",
+  gn_hwgn: "\u534E\u4E3A\u6982\u5FF5",
+  gn_gqjl: "\u80A1\u6743\u6FC0\u52B1",
+  gn_zchc: "\u667A\u6167\u57CE\u5E02",
+  gn_rjgc: "\u56FD\u4EA7\u8F6F\u4EF6",
+  gn_zlby: "\u9502\u7535\u6C60",
+  gn_xny: "\u65B0\u80FD\u6E90",
+  gn_xnyc: "\u65B0\u80FD\u6E90\u8F66",
+  gn_bdcl: "\u534A\u5BFC\u4F53",
+  gn_yjy: "\u5143\u5B87\u5B99",
+  gn_xg: "\u65B0\u80A1",
+  gn_cx: "\u6B21\u65B0\u80A1",
+  gn_zxb: "\u4E2D\u5C0F\u677F",
+  gn_cyb: "\u521B\u4E1A\u677F",
+  gn_kcb: "\u79D1\u521B\u677F",
+  gn_st: "ST\u677F\u5757",
+  gn_lt: "\u9F99\u5934"
+};
+function friendlyName(sinaName, rawKey) {
+  if (sinaName && /[\u4e00-\u9fa5]/.test(sinaName)) return sinaName;
+  if (SINA_NAME_MAP[rawKey]) return SINA_NAME_MAP[rawKey];
+  return sinaName || rawKey;
+}
+async function handler20(req, res) {
+  if (handleOptions(req, res)) return;
+  const t = parseInt(getQuery(req, "t", "2")) || 2;
+  const pz = Math.max(1, Math.min(100, parseInt(getQuery(req, "pz", "30")) || 30));
+  const fs = t === 1 ? "m:90+t:3+f:!50" : "m:90+t:2+f:!50";
+  const fields = "f2,f3,f4,f12,f14,f20,f62,f66,f104,f105,f204,f205";
+  const ut = "fa5fd1943c7b386f172d6893dbfba10b";
+  const r = await httpGetJson(
+    `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=f62&fs=${encodeURIComponent(fs)}&fields=${fields}&ut=${ut}`,
+    "https://data.eastmoney.com/"
+  );
+  let diff = r?.data?.diff || [];
+  if (!diff.length) {
+    const fenlei = t === 1 ? 1 : 0;
+    const sina = await httpGetJson(
+      `https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_bkzj_bk?page=1&num=${pz}&sort=netamount&asc=0&fenlei=${fenlei}`,
+      "https://finance.sina.com.cn/"
+    );
+    const arr = Array.isArray(sina) ? sina : [];
+    for (const b of arr) {
+      const key = String(b.category || "");
+      const name = friendlyName(String(b.name || ""), key);
+      const avgChg = Number(b.avg_changeratio || 0);
+      const net = Number(b.netamount || 0);
+      const tsName = String(b.ts_name || "");
+      const tsRatio = Number(b.ts_changeratio || 0) * 100;
+      diff.push({
+        f12: key || name,
+        f14: name,
+        f3: Number((avgChg * 100).toFixed(2)),
+        // 涨跌幅(%)
+        // 以下字段新浪没有提供，一律 null，不做任何估算
+        f2: b.avg_trade != null ? Number(b.avg_trade) : null,
+        f4: null,
+        f20: b.turnover != null ? Number(b.turnover) * 1e8 : null,
+        // 新浪 turnover 单位是亿，真实换算
+        f62: net,
+        f66: null,
+        f104: null,
+        f105: null,
+        f204: tsName && tsRatio ? `${tsName}${tsRatio >= 9.9 ? " \u6DA8\u505C" : ` \u9886\u6DA8 ${tsRatio.toFixed(1)}%`}` : "",
+        f205: null
+      });
+    }
+    diff.sort((a, b) => (Number(b.f62) || 0) - (Number(a.f62) || 0));
+    diff = diff.slice(0, pz);
+  }
+  json(res, 200, { data: { diff } });
+}
+
+// lib/handlers/sector-limit.ts
+async function handler21(req, res) {
+  if (handleOptions(req, res)) return;
+  const fs = "m:90+t:2+f:!50";
+  const fields = "f2,f3,f4,f12,f14,f20,f62,f66,f104,f105,f204,f205";
+  const ut = "fa5fd1943c7b386f172d6893dbfba10b";
+  const r = await httpGetJson(
+    `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=${encodeURIComponent(fs)}&fields=${fields}&ut=${ut}`,
+    "https://data.eastmoney.com/"
+  );
+  let diff = r?.data?.diff || [];
+  if (!diff.length) {
+    const sina = await httpGetJson(
+      "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_bkzj_bk?page=1&num=50&sort=netamount&asc=0&fenlei=0",
+      "https://finance.sina.com.cn/"
+    );
+    const arr = Array.isArray(sina) ? sina : [];
+    for (const b of arr) {
+      const avgChg = Number(b.avg_changeratio || 0);
+      diff.push({
+        f12: String(b.category || b.name || ""),
+        f14: String(b.name || ""),
+        f3: Number((avgChg * 100).toFixed(2)),
+        f62: Number(b.netamount || 0),
+        f104: null,
+        f105: null
+      });
+    }
+  }
+  json(res, 200, { data: { diff } });
+}
+
+// lib/handlers/sina-bkzj.ts
 async function handler22(req, res) {
   if (handleOptions(req, res)) return;
-  const raw = getQuery(req, "code");
-  const code = String(raw || "").replace(/^(sh|sz|bj)/i, "");
-  if (!code) {
+  const fenlei = getQuery(req, "fenlei", "1");
+  const txt = await httpsGetText(
+    `https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_bkzj_bk?page=1&num=50&sort=netamount&asc=0&fenlei=${fenlei}`,
+    "https://finance.sina.com.cn/"
+  );
+  try {
+    json(res, 200, { data: { list: JSON.parse(txt) } });
+  } catch {
     json(res, 200, { data: { list: [] } });
-    return;
   }
-  const url2 = `https://datacenter-web.eastmoney.com/api/data/v1/get?sortColumns=END_DATE&sortTypes=-1&pageSize=10&pageNumber=1&reportName=RPT_F10_EH_HOLDERNUM&columns=ALL&filter=(SECURITY_CODE%3D%22${encodeURIComponent(code)}%22)`;
-  const r = await httpGetJson(url2, "https://emweb.securities.eastmoney.com/");
-  const rows = r?.result?.data || [];
-  const list = rows.map((x) => {
-    const hn = x.HOLDER_NUM ?? x.HOLDERNUM ?? null;
-    const pre = x.PRE_HOLDER_NUM ?? x.PREHOLDERNUM ?? null;
-    const ratio = hn != null && pre != null && pre > 0 ? (Number(hn) - Number(pre)) / Number(pre) * 100 : NaN;
-    return {
-      endDate: x.END_DATE || x.REPORT_DATE || "",
-      holderNum: Number(hn) || 0,
-      preHolderNum: Number(pre) || 0,
-      holderNumRatio: isNaN(ratio) ? 0 : ratio,
-      closePrice: Number(x.CLOSE_PRICE || x.CLOSE || 0),
-      avgHolding: Number(x.AVG_HOLDING_NUM || x.AVG_HOLD || 0),
-      totalShare: Number(x.TOTAL_SHARES || x.TOTAL_A_SHARES || 0),
-      // 报告期兼容字段名
-      reportDate: x.REPORT_DATE || x.END_DATE || ""
-    };
-  });
-  json(res, 200, { data: { list } });
 }
 
 // lib/handlers/zt-pool.ts
@@ -5072,35 +5072,31 @@ var ROUTES = {
   "/api/quote-detail": handler2,
   "/api/kline": handler3,
   "/api/intraday": handler4,
-  "/api/em-news": handler5,
-  "/api/em-news-search": handler6,
-  "/api/market-overview": handler7,
-  "/api/market-overview-detail": handler8,
-  "/api/hot-stocks": handler9,
-  "/api/lhb": handler10,
-  "/api/stock-changes": handler11,
-  "/api/sector-limit": handler12,
-  "/api/sector-flow-rank": handler13,
-  "/api/sina-bkzj": handler14,
-  "/api/search": handler15,
-  "/api/stock-news": handler16,
-  "/api/stock-notice": handler17,
-  "/api/stock-finance": handler18,
-  "/api/stock-essential": handler19,
-  "/api/stock-profile": handler19,
-  "/api/stock-flow-rank": handler20,
-  "/api/stock-fflow-day": handler21,
-  "/api/stock-holder": handler22,
+  "/api/search": handler5,
+  "/api/hot-stocks": handler6,
+  "/api/lhb": handler7,
+  "/api/market-overview": handler8,
+  "/api/market-overview-detail": handler9,
+  "/api/stock-changes": handler10,
+  "/api/em-news": handler11,
+  "/api/em-news-search": handler12,
+  "/api/stock-news": handler13,
+  "/api/stock-notice": handler14,
+  "/api/stock-finance": handler15,
+  "/api/stock-profile": handler16,
+  "/api/stock-essential": handler16,
+  "/api/stock-holder": handler17,
+  "/api/stock-flow-rank": handler18,
+  "/api/stock-fflow-day": handler19,
+  "/api/sector-flow-rank": handler20,
+  "/api/sector-limit": handler21,
+  "/api/sina-bkzj": handler22,
   "/api/zt-pool": handler23,
   "/api/ai/chat": handler24
 };
 async function handler25(req, res) {
   if (req.method === "OPTIONS") {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.status(204).end("");
-    return;
+    return handleOptions(res);
   }
   const pathname = (req.url || "/").split("?")[0];
   const fn = ROUTES[pathname];
