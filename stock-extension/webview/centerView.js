@@ -299,7 +299,6 @@ function renderAgentTab(){
   html+='<div style="display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto">';
   html+='<button onclick="sendAgentQuick(\'summary\')" style="display:inline-flex;align-items:center;gap:4px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#a5b4fc;cursor:pointer;white-space:nowrap">📊 摘要快讯</button>';
   html+='<button onclick="sendAgentQuick(\'portfolio\')" style="display:inline-flex;align-items:center;gap:4px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#c4b5fd;cursor:pointer;white-space:nowrap">💼 自选概览</button>';
-  html+='<button onclick="sendAgentQuick(\'explain\')" style="display:inline-flex;align-items:center;gap:4px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#86efac;cursor:pointer;white-space:nowrap">🔍 解读标的</button>';
   html+='<button onclick="openStockReport()" style="display:inline-flex;align-items:center;gap:4px;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#fdba74;cursor:pointer;white-space:nowrap">📈 选股报告</button>';
   html+='</div>';
   // Messages area
@@ -371,10 +370,12 @@ function sendAgentMsg(){
 function sendAgentQuick(action){
   if(_agentLoading)return;
   var text='/'+action;
-  if(action==='explain'&&_detailCode){text+=' code='+_detailCode;}
-  if(noAgentModel()&&!_noModelWarned){promptNoModel();_agentMsgs.push({role:'user',text:text});renderAgentTab();return}
-  if(noAgentModel()){_agentMsgs.push({role:'user',text:text});renderAgentTab();return}
-  _agentMsgs.push({role:'user',text:text});
+  var displayText=text;
+  if(action==='summary')displayText='📊 摘要快讯';
+  else if(action==='portfolio')displayText='💼 自选概览';
+  if(noAgentModel()&&!_noModelWarned){promptNoModel();_agentMsgs.push({role:'user',text:displayText});renderAgentTab();return}
+  if(noAgentModel()){_agentMsgs.push({role:'user',text:displayText});renderAgentTab();return}
+  _agentMsgs.push({role:'user',text:displayText});
   _agentLoading=true;renderAgentTab();
   vscode.postMessage({type:'agentChat',text:text,modelId:_activeModelId});
 }
