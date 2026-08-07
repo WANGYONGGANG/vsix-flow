@@ -71,3 +71,4 @@ tmp/
 coverage/
 *.lcov
 .nyc_output/
+!api/index.js
