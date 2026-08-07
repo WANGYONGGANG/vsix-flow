@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useSettings } from './store/useSettings';
 import { useRouter } from './router/useRouter';
 import HomePage, { TABS, TabId, TabIcon } from './pages/HomePage';
@@ -9,6 +9,13 @@ import AIModelEditorPage from './pages/AIModelEditorPage';
 import ReportPage from './pages/ReportPage';
 import { isAStockTradingHours } from '../local-shared/constants';
 import { api } from './api/client';
+
+// PWA 安装提示
+let deferredPrompt: any = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
 
 const BOTTOM_NAV = [
   { to: '/', label: '行情', icon: 'chart' },
@@ -252,6 +259,34 @@ export default function App() {
   // 行情首页当前 tab（桌面端用左侧栏控制，小屏仍用横滚 tab-bar 内部控制）
   const [homeTab, setHomeTab] = useState<TabId>('market_overview');
   const [showSearch, setShowSearch] = useState(false);
+  const [showInstall, setShowInstall] = useState(false);
+
+  // 检查是否可以安装 PWA
+  useEffect(() => {
+    const checkInstall = () => {
+      if (deferredPrompt) {
+        setShowInstall(true);
+      }
+    };
+    // 延迟检查，确保 beforeinstallprompt 事件已触发
+    const timer = setTimeout(checkInstall, 1000);
+    window.addEventListener('beforeinstallprompt', checkInstall);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('beforeinstallprompt', checkInstall);
+    };
+  }, []);
+
+  // 安装 PWA
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstall(false);
+    }
+    deferredPrompt = null;
+  };
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30 * 1000);
@@ -445,6 +480,18 @@ export default function App() {
             >
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
+              </svg>
+            </button>
+          )}
+          {showInstall && (
+            <button
+              className="icon-btn install-btn"
+              aria-label="安装到桌面"
+              title="安装到桌面"
+              onClick={handleInstall}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
               </svg>
             </button>
           )}
