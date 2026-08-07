@@ -50,6 +50,9 @@ logs/
 *.ipr
 *.iws
 
+# ===== Preview =====
+.preview
+
 # ===== OS =====
 Thumbs.db
 ehthumbs.db
