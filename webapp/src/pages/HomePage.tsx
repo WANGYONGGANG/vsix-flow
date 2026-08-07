@@ -19,6 +19,7 @@ export type { TabId };
 
 const TABS: { id: TabId; label: string; icon: string; tip?: string }[] = [
   { id: 'market_overview', label: '概况', icon: 'overview', tip: '指数涨跌家数/三市成交' },
+  { id: 'watchlist',      label: '自选', icon: 'watch', tip: '我的自选股，支持拖拽排序' },
   { id: 'fundFlow',       label: '资金', icon: 'fund', tip: '板块资金流入流出 TOP10' },
   { id: 'em_news',        label: '新闻', icon: 'news', tip: '财经新闻搜索' },
   { id: 'realtime_news',  label: '快讯', icon: 'flash', tip: '实时财经快讯（可播报）' },
@@ -29,7 +30,6 @@ const TABS: { id: TabId; label: string; icon: string; tip?: string }[] = [
   { id: 'yesterday_limit',label: '涨停', icon: 'limit', tip: '今日涨停全池/封板时间' },
   { id: 'alert',          label: '异动', icon: 'alert', tip: '盘中异动实时提醒（可播报）' },
   { id: 'hot_stocks',     label: '热股', icon: 'hot', tip: '热门/热门股票排行' },
-  { id: 'watchlist',      label: '自选', icon: 'watch', tip: '我的自选股，支持拖拽排序' },
 ];
 export { TABS };
 
@@ -138,10 +138,12 @@ export default function HomePage({
   function schedule() {
     if (tickRef.current) clearInterval(tickRef.current);
     const pollOnly = settings.pollOnlyDuringAStockHours;
+    // 自选和概况刷新更快（3秒），其他5秒
+    const interval = ['watchlist', 'market_overview'].includes(tab) ? 3000 : 5000;
     tickRef.current = setInterval(() => {
       if (pollOnly && !isAStockTradingHours()) return;
       if (['market_overview', 'watchlist', 'realtime_news', 'alert'].includes(tab)) load();
-    }, Math.max(3000, settings.pollIntervalMs || 5000));
+    }, Math.max(2000, settings.pollIntervalMs || interval));
   }
 
   async function load() {
@@ -221,6 +223,7 @@ export default function HomePage({
           </button>
         )}
         {loading && !data && <div className="loading">加载中…</div>}
+        {!loading && !data && tab === 'market_overview' && <div className="loading">暂无指数数据</div>}
 
         {tab === 'market_overview' && <MarketOverview data={data} onNavigate={navigate} />}
         {tab === 'fundFlow' && <FundFlow data={data} onNavigate={navigate} />}
@@ -266,7 +269,7 @@ function MarketOverview({ data, onNavigate }: any) {
   const trade: any = d.trade || {};
   const yzt: any = d.yesterdayZt || {};
   const dist: any = d.distribution || null;
-  if (!diff.length) return <div className="loading">暂无指数数据</div>;
+  if (!diff.length) return null;
   const open = (code: string, name: string) => onNavigate(`/stock/${code}?name=${encodeURIComponent(name)}`);
 
   // 找到 涨停/跌停 数（如果 counts 里有）

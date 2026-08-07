@@ -161,18 +161,18 @@ input, select, textarea { font-family: inherit; color: inherit; }
 
 /* ========= 移动端横向 Tab — 东财风格（下划线） ========= */
 .tab-bar-mobile {
-  display: flex; gap: 0; padding: 0 6px;
+  display: flex; gap: 0; padding: 0 8px;
   overflow-x: auto; flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   scrollbar-width: none;
   background: var(--bg-2);
-  height: 40px; align-items: center;
+  height: 44px; align-items: center;
 }
 .tab-bar-mobile::-webkit-scrollbar { display: none; }
 .tab-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 0 12px; height: 40px;
-  color: var(--fg-2); font-size: 13px;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 0 16px; height: 44px;
+  color: var(--fg-2); font-size: 14px; font-weight: 500;
   white-space: nowrap; flex-shrink: 0;
   position: relative;
   transition: color .12s;
@@ -185,7 +185,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 }
 .tab-btn.active::after {
   content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 20px; height: 2px; border-radius: 1px;
+  width: 24px; height: 2px; border-radius: 1px;
   background: var(--accent);
 }
 
@@ -299,7 +299,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .card {
   background: var(--card);
   border-radius: 0;
-  padding: 12px 14px;
+  padding: 14px 16px;
   margin-bottom: 8px;
   border: none;
   border-bottom: 1px solid var(--border);
@@ -307,7 +307,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .card:active { background: var(--border-2); }
 
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); }
-.grid-3 > * { background: var(--card); padding: 10px 8px; }
+.grid-3 > * { background: var(--card); padding: 12px 10px; }
 @media (max-width: 480px) { .grid-3 { gap: 1px; } }
 
 /* ========= TYPOGRAPHY ========= */
@@ -332,17 +332,17 @@ th { color: var(--fg-dim); font-weight: 400; font-size: 12px; background: var(--
 td:first-child, th:first-child { text-align: left; padding-left: 14px; }
 td:last-child, th:last-child { padding-right: 14px; }
 .tbl-nowrap td, .tbl-nowrap th { white-space: nowrap; }
-.stock-row { cursor: pointer; }
+.stock-row { cursor: pointer; padding: 14px 16px; }
 .stock-row:active { background: var(--accent-soft); }
 
-.tag { display: inline-block; padding: 1px 6px; border-radius: 2px; font-size: 11px; font-weight: 600; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; font-weight: 600; }
 .tag-up { background: var(--up-soft); color: var(--up); }
 .tag-down { background: var(--down-soft); color: var(--down); }
 .tag-accent { background: var(--accent-soft); color: var(--accent); }
 
 .section-title {
-  font-size: 13px; font-weight: 600; color: var(--fg);
-  margin: 12px 14px 6px; padding-left: 8px;
+  font-size: 14px; font-weight: 600; color: var(--fg);
+  margin: 16px 16px 8px; padding-left: 10px;
   border-left: 3px solid var(--accent);
   line-height: 1;
 }
@@ -355,7 +355,7 @@ td:last-child, th:last-child { padding-right: 14px; }
 }
 .wl-card {
   position: relative;
-  background: var(--card); padding: 12px 14px;
+  background: var(--card); padding: 14px 16px;
   transition: transform .18s cubic-bezier(.2,0,.2,1);
   z-index: 1;
 }
