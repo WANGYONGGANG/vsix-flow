@@ -725,10 +725,6 @@ function HotStocks({ data, onNavigate }: any) {
 function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: any) {
   const diff: any[] = data?.data?.diff || [];
   const dragElRef = useRef<any>(null);
-  const [swipedCode, setSwipedCode] = useState<string | null>(null);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const longPressTimer = useRef<any>(null);
   const [menuCode, setMenuCode] = useState<string | null>(null);
 
   function getDragAfter(container: HTMLElement, y: number) {
@@ -747,36 +743,6 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
     reorderWatch(codes);
   }
 
-  function handleTouchStart(e: React.TouchEvent, code: string) {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    // 长按显示菜单
-    longPressTimer.current = setTimeout(() => {
-      setMenuCode(code);
-      setSwipedCode(null);
-    }, 600);
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    const deltaX = e.touches[0].clientX - touchStartX.current;
-    const deltaY = e.touches[0].clientY - touchStartY.current;
-    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-    }
-  }
-
-  function handleTouchEnd(e: React.TouchEvent, code: string) {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-    if (Math.abs(deltaX) > Math.abs(deltaY) && deltaX < -50) {
-      setSwipedCode(code);
-      setMenuCode(null);
-    } else if (deltaX > 30) {
-      setSwipedCode(null);
-    }
-  }
-
   if (!diff.length) {
     return (
       <>
@@ -789,7 +755,6 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
     <>
       {diff.map((x) => {
         const s = mapEmDiffToStockItem(x); const up = s.changeRate >= 0;
-        const isSwiped = swipedCode === s.code;
         return (
           <div
             className="wl-card-wrap"
@@ -820,18 +785,9 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
             }}
             style={{ cursor: 'grab' }}
           >
-            {/* 左滑露出的删除按钮 */}
-            <button
-              className="wl-swipe-del"
-              onClick={(e) => { e.stopPropagation(); onDel(s.code); setSwipedCode(null); }}
-            >删除</button>
             <div
-              className={'wl-card' + (isSwiped ? ' swiped' : '')}
-              onTouchStart={(e) => handleTouchStart(e, s.code)}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={(e) => handleTouchEnd(e, s.code)}
+              className="wl-card"
               onClick={() => {
-                if (isSwiped) { setSwipedCode(null); return; }
                 onNavigate(`/stock/${s.code}?name=${encodeURIComponent(s.name)}`);
               }}
             >
@@ -848,6 +804,10 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
                     {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
                   </span>
                 </div>
+                <button
+                  className="wl-menu-btn"
+                  onClick={(e) => { e.stopPropagation(); setMenuCode(s.code); }}
+                >⋮</button>
               </div>
             </div>
           </div>
@@ -855,7 +815,7 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
       })}
       <button className="wl-add-btn" onClick={onAdd}>+ 添加自选股</button>
 
-      {/* 长按菜单 */}
+      {/* 菜单 */}
       {menuCode && (
         <div className="modal-mask" onClick={() => setMenuCode(null)}>
           <div className="wl-menu" onClick={(e) => e.stopPropagation()}>
