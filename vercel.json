@@ -1,10 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install",
+  "buildCommand": "echo 'dist pre-built'",
   "outputDirectory": "webapp/dist",
   "functions": {
     "api/index.ts": {
-      "runtime": "@vercel/node@4",
-      "maxDuration": 30
+      "includeFiles": "lib/**/*.ts"
     }
   },
   "rewrites": [
