@@ -284,20 +284,17 @@ function MarketOverview({ data, onNavigate }: any) {
 
   return (
     <>
-      {/* 三大指数 — 东财风格大卡片 */}
-      <div className="idx-banner">
+      {/* 三大指数 — 东财风格卡片 */}
+      <div className="index-cards">
         {diff.slice(0, 3).map((it) => {
-          const s = mapEmDiffToStockItem(it); const up = s.changeRate >= 0;
-          const bg = up ? 'var(--up)' : 'var(--down)';
+          const s = mapEmDiffToStockItem(it); 
+          const cls = s.changeRate > 0 ? 'up' : s.changeRate < 0 ? 'down' : 'flat';
           return (
-            <div key={s.code} className="idx-card" style={{ background: bg }} onClick={() => open(s.code, s.name)}>
-              <div className="idx-name">{escapeHtml(s.name)}</div>
-              <div className="idx-price">{Number(s.price || 0).toFixed(2)}</div>
-              <div className="idx-chg">
+            <div key={s.code} className={`index-card ${cls}`} onClick={() => open(s.code, s.name)}>
+              <div className="name">{escapeHtml(s.name)}</div>
+              <div className="price">{Number(s.price || 0).toFixed(2)}</div>
+              <div className="change">
                 {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
-                <span className="idx-chg-abs">
-                  {upSign(Number(s.change || 0))}{Number(s.change || 0).toFixed(2)}
-                </span>
               </div>
             </div>
           );
@@ -754,10 +751,11 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
   return (
     <>
       {diff.map((x) => {
-        const s = mapEmDiffToStockItem(x); const up = s.changeRate >= 0;
+        const s = mapEmDiffToStockItem(x); 
+        const cls = s.changeRate > 0 ? 'up' : s.changeRate < 0 ? 'down' : 'flat';
         return (
           <div
-            className="wl-card-wrap"
+            className="stock-item-wrap"
             key={s.code}
             data-code={s.code}
             draggable
@@ -786,30 +784,26 @@ function Watchlist({ data, onNavigate, onAdd, onDel, moveWatch, reorderWatch }: 
             style={{ cursor: 'grab' }}
           >
             <div
-              className="wl-card"
+              className={`stock-item ${cls}`}
               onClick={() => {
                 onNavigate(`/stock/${s.code}?name=${encodeURIComponent(s.name)}`);
               }}
             >
-              <div className="wl-row">
-                <div className="wl-name">
-                  <div className="nm">{escapeHtml(s.name)}</div>
-                  <div className="cd">{s.code}</div>
-                </div>
-                <div className="wl-price">
-                  <div className={'pr ' + (up ? 'text-up' : 'text-down')}>{Number(s.price || 0).toFixed(2)}</div>
-                </div>
-                <div className="wl-chg">
-                  <span className={'tag ' + (up ? 'tag-up' : 'tag-down')}>
-                    {upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%
-                  </span>
-                </div>
-                <button
-                  className="wl-menu-btn"
-                  onClick={(e) => { e.stopPropagation(); setMenuCode(s.code); }}
-                >⋮</button>
+              <div className="stock-info">
+                <div className="stock-name">{escapeHtml(s.name)}</div>
+                <div className="stock-code">{s.code}</div>
               </div>
+              <div className="stock-price">{Number(s.price || 0).toFixed(2)}</div>
+              <div className="stock-change">{upSign(s.changeRate)}{Number(s.changeRate || 0).toFixed(2)}%</div>
+              <button className="menu-btn" onClick={(e) => { e.stopPropagation(); setMenuCode(menuCode === s.code ? null : s.code); }}>⋮</button>
             </div>
+            {menuCode === s.code && (
+              <div className="menu-popup">
+                <button onClick={() => { moveWatch(s.code, 'top'); setMenuCode(null); }}>置顶</button>
+                <button onClick={() => { moveWatch(s.code, 'bottom'); setMenuCode(null); }}>置底</button>
+                <button onClick={() => { onDel(s.code); setMenuCode(null); }}>删除</button>
+              </div>
+            )}
           </div>
         );
       })}
