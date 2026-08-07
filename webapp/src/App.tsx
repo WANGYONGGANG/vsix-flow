@@ -373,6 +373,34 @@ export default function App() {
     navigate(from);
   };
 
+  // 分享功能
+  const handleShare = async () => {
+    const shareData = {
+      title: 'StockExt 行情中心',
+      text: 'A股行情追踪 - 实时行情/自选/板块/龙虎/快讯',
+      url: window.location.origin,
+    };
+    
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // 用户取消分享
+        if ((err as Error).name !== 'AbortError') {
+          console.error('分享失败:', err);
+        }
+      }
+    } else {
+      // 降级：复制链接到剪贴板
+      try {
+        await navigator.clipboard.writeText(window.location.origin);
+        alert('链接已复制到剪贴板');
+      } catch {
+        prompt('复制链接分享给朋友:', window.location.origin);
+      }
+    }
+  };
+
   return (
     <div className="app-shell">
       {/* 顶部栏 — 东财红底，紧凑：左 logo+时间 / 右 搜索+AI */}
@@ -406,6 +434,18 @@ export default function App() {
               onClick={() => setShowSearch(true)}
             >
               <IconSearch />
+            </button>
+          )}
+          {isHome && (
+            <button
+              className="icon-btn"
+              aria-label="分享"
+              title="分享给朋友"
+              onClick={handleShare}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
+              </svg>
             </button>
           )}
           {isHome && (

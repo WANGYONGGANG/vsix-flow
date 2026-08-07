@@ -244,6 +244,45 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' },
         ],
+        shortcuts: [
+          {
+            name: '自选股',
+            short_name: '自选',
+            description: '查看自选股行情',
+            url: '/?tab=watchlist',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
+          {
+            name: '大盘概况',
+            short_name: '概况',
+            description: '查看大盘指数',
+            url: '/?tab=overview',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
+          {
+            name: '资金流向',
+            short_name: '资金',
+            description: '查看资金流向',
+            url: '/?tab=capital',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
+          {
+            name: '快讯',
+            short_name: '快讯',
+            description: '查看最新快讯',
+            url: '/?tab=flash',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
+        ],
+        share_target: {
+          action: '/share',
+          method: 'GET',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+          },
+        },
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
