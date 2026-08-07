@@ -4,8 +4,8 @@ node_modules/
 .next/
 **/.next/
 out/
-dist/
 build/
+!webapp/dist/
 
 # ===== Python / 后端 =====
 __pycache__/

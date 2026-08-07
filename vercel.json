@@ -1,8 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
-  "installCommand": "echo '--- root install ---' && (npm install || true) && echo '--- install webapp ---' && cd webapp && npm install --legacy-peer-deps",
-  "buildCommand": "cd webapp && npm run build",
   "outputDirectory": "webapp/dist",
   "functions": {
     "api/index.ts": {
