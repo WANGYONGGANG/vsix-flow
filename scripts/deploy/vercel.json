@@ -1,0 +1,30 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "echo skip-install",
+  "buildCommand": "echo skip-build",
+  "functions": {
+    "api/all.ts": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/api/ai/chat", "destination": "/api/all?ep=ai/chat" },
+    { "source": "/api/:ep", "destination": "/api/all?ep=:ep" },
+    { "source": "/((?!assets|api|favicon|sw\\.js|workbox|manifest|robots\\.txt).*)", "destination": "/index.html" }
+  ]
+}
