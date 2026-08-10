@@ -8,6 +8,7 @@ import { useRouter } from '../router/useRouter';
 import { api } from '../api/client';
 import { AIChatMessage } from '../../local-shared/types';
 import { fmtYi, upSign, mapEmDiffToStockItem, escapeHtml } from '../../local-shared/utils';
+import { parseAIFormula, Formula } from '../lib/FormulaEngine';
 
 const STORAGE_KEY = 'stockext.ai.history.v1';
 
@@ -25,8 +26,9 @@ function saveHistory(list: any[]) {
 type Session = { id: string; messages: AIChatMessage[]; title: string };
 
 export default function AIChatPage() {
-  const { settings, activeAIModel, getWatchCodes } = useSettings();
+  const { settings, activeAIModel, getWatchCodes, formulas, updateFormulas } = useSettings();
   const { navigate } = useRouter();
+  const [savedFormulaMsgs, setSavedFormulaMsgs] = useState<Record<string, boolean>>({});
   const [sessions, setSessions] = useState<Session[]>(() => loadHistory());
   const [sid, setSid] = useState<string>(() => {
     const hist = loadHistory();
@@ -205,6 +207,22 @@ export default function AIChatPage() {
     setTimeout(scrollToBottom, 0);
   }
 
+  // ========= AI 回复中提取公式并保存（对齐扩展 _saveAIFeatureFormula） =========
+  function saveFormulaFromMsg(msg: AIChatMessage, key: string) {
+    const parsed = parseAIFormula(msg.content);
+    if (!parsed) { alert('未检测到公式代码，请让AI重新生成'); return; }
+    const newFormula: Formula = {
+      id: 'ai_' + Date.now(),
+      name: parsed.name,
+      code: parsed.code,
+      type: parsed.type,
+      lines: parsed.lines,
+      enabled: true,
+    };
+    updateFormulas([...formulas, newFormula]);
+    setSavedFormulaMsgs((prev) => ({ ...prev, [key]: true }));
+  }
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const currentTitle = session?.title || '新对话';
 
@@ -247,9 +265,26 @@ export default function AIChatPage() {
             </div>
           </div>
         )}
-        {currentMessages.map((m, i) => (
-          <div key={i} className={'msg ' + m.role}>{m.content}</div>
-        ))}
+        {currentMessages.map((m, i) => {
+          const isFormulaReply = m.role === 'assistant' && m.content.includes('公式代码');
+          const msgKey = sid + ':' + i;
+          return (
+            <div key={i}>
+              <div className={'msg ' + m.role}>{m.content}</div>
+              {isFormulaReply && (
+                <button
+                  type="button"
+                  className="ai-chip"
+                  style={{ margin: '4px 0 8px', opacity: savedFormulaMsgs[msgKey] ? 0.5 : 1 }}
+                  disabled={!!savedFormulaMsgs[msgKey]}
+                  onClick={() => saveFormulaFromMsg(m, msgKey)}
+                >
+                  {savedFormulaMsgs[msgKey] ? '✅ 已保存为公式' : '📋 保存为公式'}
+                </button>
+              )}
+            </div>
+          );
+        })}
         {sending && assistantDraft && (
           <div className="msg assistant">{assistantDraft}<span style={{ opacity: .5 }}>▋</span></div>
         )}

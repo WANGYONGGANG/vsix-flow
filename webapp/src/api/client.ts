@@ -34,7 +34,7 @@ export const api = {
   marketOverviewDetail: () => request<any>('/api/market-overview-detail'),
   kline: (code: string, period = 'day', limit?: number, fq = 'qfq') =>
     request<any>(`/api/kline?code=${code}&period=${period}${limit ? `&limit=${limit}` : ''}&fq=${fq}`),
-  intraday: (code: string) => request<any>(`/api/intraday?code=${code}`),
+  intraday: (code: string, days = 1) => request<any>(`/api/intraday?code=${code}${days > 1 ? `&days=${days}` : ''}`),
   emNews: (page = 1, pageSize = 60) => request<any>(`/api/em-news?page=${page}&pageSize=${pageSize}`),
   emNewsSearch: (keyword = 'A股', page = 1, pageSize = 50) => request<any>(`/api/em-news-search?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`),
   ztPool: (date?: string) => request<any>(`/api/zt-pool${date ? `?date=${date}` : ''}`),
@@ -53,6 +53,7 @@ export const api = {
   marketRealtimeBatch: (codes: string[]) => request<any>(`/api/quote?codes=${codes.join(',')}`),
   search: (kw: string) => request<any>(`/api/search?kw=${encodeURIComponent(kw)}`),
   stockFlowRank: (pz = 100) => request<any>(`/api/stock-flow-rank?pz=${pz}`),
+  allStocks: (market = 'a') => request<any>(`/api/all-stocks?market=${market}`),
   sectorFlowRank: (t: 1 | 2 = 2, pz = 30) => request<any>(`/api/sector-flow-rank?t=${t}&pz=${pz}`),
   stockFflowDay: (code: string, lmt = 30) => request<any>(`/api/stock-fflow-day?code=${encodeURIComponent(code)}&lmt=${lmt}`),
   stockHolder: (code: string) => request<any>(`/api/stock-holder?code=${encodeURIComponent(code)}`),

@@ -8,11 +8,27 @@ export function fmtYi(v: number | string): string {
   else s = abs.toFixed(2);
   return n < 0 ? '-' + s : s;
 }
+
+export function fmtWan(v: number | string): string {
+  const n = Number(v) || 0;
+  const abs = Math.abs(n);
+  if (abs >= 100000000) return (abs / 100000000).toFixed(2) + '亿';
+  if (abs >= 10000) return (abs / 10000).toFixed(2) + '万';
+  return abs.toFixed(0);
+}
+
+export function fmtAmount(v: number | string): string {
+  const n = Number(v) || 0;
+  const abs = Math.abs(n);
+  if (abs >= 100000000) return (abs / 100000000).toFixed(2) + '亿';
+  if (abs >= 10000) return (abs / 10000).toFixed(2) + '万';
+  if (abs >= 1000) return (abs / 10000).toFixed(2) + '万';
+  return abs.toFixed(0);
+}
 export function fmtPrice(v: number | string): string {
   const n = Number(v) || 0;
   return n > 10000 ? (n / 10000).toFixed(2) + '万' : n.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }
-export function upClass(v: number): string { return v >= 0 ? 'up' : 'down'; }
 export function upSign(v: number): string { return v >= 0 ? '+' : ''; }
 
 export function getSecuritiesMarket(code: string): 'sh' | 'sz' | 'bj' {

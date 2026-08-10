@@ -43,7 +43,7 @@ function getVar(name: string): number[] {
     case 'INDEXL': return CURRENT_DATA.map(d => d.low);
     case 'INDEXV': return CURRENT_DATA.map(d => d.vol);
     case 'CAPITAL': return CURRENT_DATA.map(() => 100000000);
-    case 'DATE': return CURRENT_DATA.map((d, i) => i);
+    case 'DATE': return CURRENT_DATA.map((_, i) => i);
     case 'BARSCOUNT': return CURRENT_DATA.map((_, i) => i);
     case 'BARSLASTCOUNT': {
       const r: number[] = [];
@@ -120,17 +120,6 @@ function SMA(data: number[], n: number, m: number = 1): number[] {
   for (let i = 0; i < data.length; i++) {
     if (i === 0) { r.push(data[0]); continue; }
     r.push((data[i] * m + r[i - 1] * (n - m)) / n);
-  }
-  return r;
-}
-
-// ============ 动态移动平均 ============
-function DMA(data: number[], a: number[]): number[] {
-  const r: number[] = [];
-  for (let i = 0; i < data.length; i++) {
-    if (i === 0) { r.push(data[0]); continue; }
-    const ratio = Math.max(0, Math.min(1, a[i]));
-    r.push(data[i] * ratio + r[i - 1] * (1 - ratio));
   }
   return r;
 }
@@ -280,7 +269,12 @@ function BARSSINCE(cond: number[]): number[] {
 }
 
 // ============ CROSS ============
-function CROSS(a: number[], b: number[]): number[] {
+function asArr(x: any): number[] {
+  return Array.isArray(x) ? x : CURRENT_DATA.map(() => x);
+}
+
+function CROSS(a: any, b: any): number[] {
+  a = asArr(a); b = asArr(b);
   const r: number[] = [];
   for (let i = 0; i < a.length; i++) {
     if (i === 0) { r.push(0); continue; }
@@ -289,7 +283,8 @@ function CROSS(a: number[], b: number[]): number[] {
   return r;
 }
 
-function CROSSDOWN(a: number[], b: number[]): number[] {
+function CROSSDOWN(a: any, b: any): number[] {
+  a = asArr(a); b = asArr(b);
   const r: number[] = [];
   for (let i = 0; i < a.length; i++) {
     if (i === 0) { r.push(0); continue; }
@@ -299,17 +294,10 @@ function CROSSDOWN(a: number[], b: number[]): number[] {
 }
 
 // ============ 上穿N周期最高/最低 ============
-function CROSS向上(data: number[], n: number): number[] {
-  return CROSS(data, REF(data, 1));
-}
-
-function CROSS向下(data: number[], n: number): number[] {
-  return CROSSDOWN(data, REF(data, 1));
-}
-
 // ============ 条件判断 ============
-function IF(cond: number[], a: number[], b: number[]): number[] {
-  return cond.map((c, i) => c ? a[i] : b[i]);
+function IF(cond: number[], a: any, b: any): number[] {
+  const av = asArr(a), bv = asArr(b);
+  return cond.map((c, i) => c ? av[i] : bv[i]);
 }
 
 // ============ 统计函数 ============
@@ -317,16 +305,19 @@ function ABS(data: number[]): number[] {
   return data.map(d => Math.abs(d));
 }
 
-function MAX(a: number[], b: number[]): number[] {
-  return a.map((v, i) => Math.max(v, b[i]));
+function MAX(a: any, b: any): number[] {
+  a = asArr(a); b = asArr(b);
+  return a.map((v: number, i: number) => Math.max(v, b[i]));
 }
 
-function MIN(a: number[], b: number[]): number[] {
-  return a.map((v, i) => Math.min(v, b[i]));
+function MIN(a: any, b: any): number[] {
+  a = asArr(a); b = asArr(b);
+  return a.map((v: number, i: number) => Math.min(v, b[i]));
 }
 
-function BETWEEN(x: number[], a: number[], b: number[]): number[] {
-  return x.map((v, i) => v >= a[i] && v <= b[i] ? 1 : 0);
+function BETWEEN(x: any, a: any, b: any): number[] {
+  x = asArr(x); a = asArr(a); b = asArr(b);
+  return x.map((v: number, i: number) => v >= a[i] && v <= b[i] ? 1 : 0);
 }
 
 // ============ 标准差/方差 ============
@@ -437,19 +428,6 @@ function DMA_FUNC(data: number[], a: number[]): number[] {
   return r;
 }
 
-// ============ 振幅 ============
-function AMOUNT_FUNC(): number[] {
-  return CURRENT_DATA.map(d => {
-    if (d.open === 0) return 0;
-    return ((d.high - d.low) / d.open) * 100;
-  });
-}
-
-// ============ 换手率相关 ============
-function TURNOVER(): number[] {
-  return CURRENT_DATA.map(() => 0);
-}
-
 // ============ 价格位置 ============
 function CLOSE位置(n: number): number[] {
   return CURRENT_DATA.map((d, i) => {
@@ -501,7 +479,7 @@ function CCI(data: number[], n: number): number[] {
 }
 
 // ============ SAR ============
-function SAR_FUNC(n: number, step: number, max: number): number[] {
+function SAR_FUNC(n: number, step: number, _max: number): number[] {
   const r: number[] = [];
   let sar = CURRENT_DATA[0]?.low || 0;
   let isUp = true;
@@ -521,7 +499,7 @@ function SAR_FUNC(n: number, step: number, max: number): number[] {
 }
 
 // ============ 支撑/压力 ============
-function支撑线(n: number): number[] {
+function 支撑线(n: number): number[] {
   const r: number[] = [];
   for (let i = 0; i < CURRENT_DATA.length; i++) {
     const start = Math.max(0, i - n + 1);
@@ -534,7 +512,7 @@ function支撑线(n: number): number[] {
   return r;
 }
 
-function压力线(n: number): number[] {
+function 压力线(n: number): number[] {
   const r: number[] = [];
   for (let i = 0; i < CURRENT_DATA.length; i++) {
     const start = Math.max(0, i - n + 1);
@@ -600,7 +578,7 @@ function FILTER(cond: number[], n: number): number[] {
   return r;
 }
 
-function CAPITAL: number[] {
+function CAPITAL(): number[] {
   return CURRENT_DATA.map(() => 100000000);
 }
 
@@ -804,7 +782,12 @@ function evalAST(node: ASTNode): number[] {
       }
     }
     case 'call': {
-      const args = node.args!.map(evalAST);
+      const args = node.args!.map(a => {
+        const v = evalAST(a);
+        // 常量参数转回标量（MA/EMA/HHV 等函数的周期参数期望 number）
+        const f = v[0];
+        return typeof f === 'number' && v.every(x => x === f) ? f : v;
+      });
       const fn = FUNCTIONS[node.name!];
       if (!fn) throw new Error(`Unknown function: ${node.name}`);
       return fn(...args);
@@ -1038,4 +1021,64 @@ export function validateFormula(code: string): { valid: boolean; error?: string 
   } catch (e: any) {
     return { valid: false, error: e.message };
   }
+}
+
+// ============ AI 公式解析（对齐扩展 _saveAIFeatureFormula） ============
+
+// 公式助手 prompt 模板（与扩展 aiWriteFormula 一致）
+export function buildFormulaAssistantPrompt(desc: string): string {
+  return '[公式助手] 请帮我写一个通达信公式指标：' + desc +
+    '\n\n要求：\n1. 每行一个赋值语句，用分号结尾\n2. 输出线用 变量名:表达式 格式\n3. 赋值变量用 变量名:=表达式 格式\n4. 请在最后说明是主图叠加还是副图指标\n5. 请在代码前用“公式代码：”标记';
+}
+
+export interface ParsedAIFormula {
+  name: string;
+  code: string;
+  type: 'main' | 'sub';
+  lines: { label: string; color: string }[];
+}
+
+// 从 AI 回复中提取公式代码/名称/主副图类型，提取失败返回 null
+export function parseAIFormula(text: string): ParsedAIFormula | null {
+  // 去掉 markdown 代码块围栏后再匹配
+  const clean = text.split('\n').filter((l) => !/^\s*```/.test(l)).join('\n');
+  let codeBlock = '';
+  const codeMatch = clean.match(new RegExp('公式代码[：:]\\s*\\n([\\s\\S]*?)(?:\\n\\n|\\n[^\\n]*：|$)'));
+  if (codeMatch) {
+    codeBlock = codeMatch[1].trim();
+  } else {
+    // 回退：扫描连续赋值语句行
+    const linesArr = clean.split('\n');
+    let inCode = false;
+    const codeLines: string[] = [];
+    for (const raw of linesArr) {
+      const ln = raw.trim();
+      if (/[A-Z_][A-Z0-9_]*\s*:=/i.test(ln) || /[A-Z_][A-Z0-9_]*\s*:[^=]/.test(ln)) inCode = true;
+      if (inCode) {
+        if (ln) codeLines.push(ln);
+        else if (codeLines.length > 0) break;
+      }
+    }
+    codeBlock = codeLines.join('\n');
+  }
+  if (!codeBlock) return null;
+
+  const isMain = /主图/.test(clean);
+  const nameMatch = clean.match(/(?:指标名称|公式名称)[：:]\s*(.+)/);
+  let name = nameMatch ? nameMatch[1].trim() : 'AI公式';
+  if (!name || name.length > 20) name = 'AI公式';
+
+  const colors = ['#36a2eb', '#e8b393', '#cc65fe', '#23c343', '#ff4d4f'];
+  const lines: { label: string; color: string }[] = [];
+  const stmts = codeBlock.split(/[;\n]+/).filter((s) => s.trim());
+  for (const s of stmts) {
+    const t = s.trim();
+    const match = t.match(/^([A-Z_][A-Z0-9_]*)\s*:=/i) || t.match(/^([A-Z_][A-Z0-9_]*)\s*:/i);
+    if (match && t.includes(':') && !t.includes(':=')) {
+      lines.push({ label: match[1].toUpperCase(), color: colors[lines.length % colors.length] });
+    }
+  }
+  if (lines.length === 0) lines.push({ label: 'RESULT', color: colors[0] });
+
+  return { name, code: codeBlock, type: isMain ? 'main' : 'sub', lines };
 }

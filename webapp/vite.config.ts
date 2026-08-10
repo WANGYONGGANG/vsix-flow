@@ -3,8 +3,24 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 const _require = createRequire(import.meta.url);
+
+// Node 16 polyfills：Vite 5 内部 resolveConfig 会调用 crypto.getRandomValues
+if (typeof (crypto as any).getRandomValues !== 'function') {
+  (crypto as any).getRandomValues = (crypto as any).webcrypto.getRandomValues.bind((crypto as any).webcrypto);
+}
+
+async function ensureFetchPolyfill() {
+  if (typeof globalThis.fetch === 'function') return;
+  const nf: any = await import('node-fetch');
+  const fetchFn = nf.default || nf;
+  (globalThis as any).fetch = fetchFn;
+  (globalThis as any).Response = nf.Response || fetchFn.Response;
+  (globalThis as any).Headers = nf.Headers || fetchFn.Headers;
+  (globalThis as any).Request = nf.Request || fetchFn.Request;
+}
 
 // ============================================================
 // 内嵌 vercel functions shim：vite middleware 在 /api/* 时，
@@ -107,11 +123,13 @@ function compileHandler(tsfile: string): any {
 function resolveRelAbs(tsfile: string, rel: string): string {
   const base = path.dirname(tsfile);
   const abs = path.resolve(base, rel);
+  let real = abs;
   // 尝试文件后缀 / index
   for (const ext of ['.ts', '.js', '/index.ts', '/index.js', '']) {
-    if (fs.existsSync(abs + ext)) return abs + ext;
+    if (fs.existsSync(abs + ext)) { real = abs + ext; break; }
   }
-  return abs;
+  // Windows 下把反斜杠统一为正斜杠，避免生成 JS 字符串时被转义成控制字符
+  return real.replace(/\\/g, '/');
 }
 
 function readBody(req: Connect.IncomingMessage): Promise<any> {
@@ -210,11 +228,13 @@ function vercelFunctionsPlugin(rootDir: string): Plugin {
 
   return {
     name: 'vite-plugin-vercel-functions-inline',
-    configureServer(server) {
+    async configureServer(server) {
+      await ensureFetchPolyfill();
       // 中间件必须在 vite 的 HTML 回退中间件之前插入，才能处理 /api（否则被 SPA fallback 吞）
       server.middlewares.use(mw);
     },
-    configurePreviewServer(server) {
+    async configurePreviewServer(server) {
+      await ensureFetchPolyfill();
       server.middlewares.use(mw);
     },
   };

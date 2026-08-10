@@ -1639,6 +1639,7 @@ function renderChart(){
     if(sid==='vol')drawVol(c,_kl.data);
     else if(sid==='macd')drawMACD(c,_kl.data);
     else if(sid==='rsi')drawRSI(c,_kl.data);
+    else if(sid==='custom')drawFormulaSub(c);
   }
 }
 function fitSideHeight(totalH){
@@ -1660,6 +1661,7 @@ function redrawChart(){
       if(sid==='vol')drawVol(c,_kl.data);
       else if(sid==='macd')drawMACD(c,_kl.data);
       else if(sid==='rsi')drawRSI(c,_kl.data);
+      else if(sid==='custom')drawFormulaSub(c);
     }
   }
 }
@@ -1722,7 +1724,7 @@ function redrawIntradayContent(){
     }
     ctx.stroke();
   }
-  // 重绘子图
+  // 重绘子图（自定义公式副图依赖 K 线数据，分时模式下跳过）
   for(var si=0;si<_kl.subs.length;si++){
     var sid=_kl.subs[si];
     var sc=_klCanvases[sid];
@@ -1730,6 +1732,7 @@ function redrawIntradayContent(){
     if(sid==='vol')drawVol(sc,_kl.data);
     else if(sid==='macd')drawMACD(sc,_kl.data);
     else if(sid==='rsi')drawRSI(sc,_kl.data);
+    else if(sid==='custom'&&_klPeriod!=='intraday')drawFormulaSub(sc);
   }
 }
 function drawMain(canvas,data){
@@ -2093,7 +2096,15 @@ function resetTopInfo(){
 }
 function toggleSubChart(id){
   var idx=_kl.subs.indexOf(id);
-  if(idx>=0){if(id==='vol')return;_kl.subs.splice(idx,1)}
+  if(idx>=0){
+    if(id==='vol')return;
+    _kl.subs.splice(idx,1);
+    if(id==='custom'&&_activeFormula&&_activeFormula.type==='sub'){
+      // 关闭公式副图 = 停用对应公式
+      for(var fi=0;fi<_formulas.length;fi++){if(_formulas[fi].id===_activeFormula.id)_formulas[fi].enabled=false;}
+      _activeFormula=null;_formulaResult=null;
+    }
+  }
   else{_kl.subs.push(id)}
   refreshSubChartDOM();updateSubBtns();
   if(_klPeriod==='intraday'){if(_intradayRedrawData)drawIntraday(_intradayRedrawData)}
@@ -2101,7 +2112,7 @@ function toggleSubChart(id){
 }
 function refreshSubChartDOM(){
   var ct=document.getElementById('klChart');if(!ct)return;
-  var labels={vol:'成交量',macd:'MACD',rsi:'RSI'};
+  var labels={vol:'成交量',macd:'MACD',rsi:'RSI',custom:(_activeFormula&&_activeFormula.name)||'自定义指标'};
   var existing=ct.querySelectorAll('.kl-sub');for(var i=0;i<existing.length;i++)existing[i].remove();
   for(var i=0;i<_kl.subs.length;i++){
     var sid=_kl.subs[i];var div=document.createElement('div');div.className='kl-sub';div.id='klSub'+sid.charAt(0).toUpperCase()+sid.slice(1);
@@ -2134,6 +2145,12 @@ function drawKline(rows){
   _kl.data=parseKline(rows);
   _kl.gap=0;
   _kl.scroll=Math.max(0,_kl.data.length-60);
+  // 数据变化后重新计算激活公式
+  if(_activeFormula&&_kl.data.length){
+    try{_formulaResult=FormulaEngine.execute(_activeFormula.code,_kl.data)}
+    catch(e){console.error('Formula error:',e);_formulaResult=null;}
+  }
+  syncCustomSub();
   refreshSubChartDOM();updateSubBtns();setupChartDrag();renderChart();
 }
 
@@ -2821,7 +2838,9 @@ var FormulaEngine=(function(){
     }
     return r;
   }
-  function CROSS(a,b){
+  function asArr(x){return Array.isArray(x)?x:CURRENT_DATA.map(function(){return x;});}
+function CROSS(a,b){
+    a=asArr(a);b=asArr(b);
     var r=[];
     for(var i=0;i<a.length;i++){
       if(i===0){r.push(0);continue;}
@@ -2830,6 +2849,7 @@ var FormulaEngine=(function(){
     return r;
   }
   function CROSSDOWN(a,b){
+    a=asArr(a);b=asArr(b);
     var r=[];
     for(var i=0;i<a.length;i++){
       if(i===0){r.push(0);continue;}
@@ -2837,10 +2857,10 @@ var FormulaEngine=(function(){
     }
     return r;
   }
-  function IF(cond,a,b){return cond.map(function(c,i){return c?a[i]:b[i]});}
+  function IF(cond,a,b){var av=asArr(a),bv=asArr(b);return cond.map(function(c,i){return c?av[i]:bv[i]});}
   function ABS(data){return data.map(function(d){return Math.abs(d)});}
-  function MAX(a,b){return a.map(function(v,i){return Math.max(v,b[i])});}
-  function MIN(a,b){return a.map(function(v,i){return Math.min(v,b[i])});}
+  function MAX(a,b){a=asArr(a);b=asArr(b);return a.map(function(v,i){return Math.max(v,b[i])});}
+  function MIN(a,b){a=asArr(a);b=asArr(b);return a.map(function(v,i){return Math.min(v,b[i])});}
   function STD(data,n){
     var ma=MA(data,n),r=[];
     for(var i=0;i<data.length;i++){
@@ -2994,7 +3014,11 @@ var FormulaEngine=(function(){
           default:return left.map(function(){return NaN;});
         }
       case 'call':
-        var args=node.args.map(evalAST);
+        var args=node.args.map(function(a){
+          var v=evalAST(a);
+          var f=v[0];
+          return typeof f==='number'&&v.every(function(x){return x===f;})?f:v;
+        });
         var fn=FUNCTIONS[node.name];
         if(!fn)throw new Error('Unknown function: '+node.name);
         return fn.apply(null,args);
@@ -3071,7 +3095,7 @@ function _saveAIFeatureFormula(btn,msgIdx){
   if(!msg||!msg.text)return;
   var text=msg.text;
   var codeBlock='';
-  var codeMatch=text.match(/公式代码[：:]\s*\n([\s\S]*?)(?:\n\n|\n[^\n]*：|$)/);
+  var codeMatch=text.match(new RegExp('公式代码[：:]\\s*\\n([\\s\\S]*?)(?:\\n\\n|\\n[^\\n]*：|$)'));
   if(codeMatch){codeBlock=codeMatch[1].trim();}
   else{
     var lines=text.split('\n');var inCode=false;var codeLines=[];
@@ -3108,7 +3132,9 @@ function _toggleFormula(idx){
     applyFormula();
   }else if(_activeFormula&&_activeFormula.id===f.id){
     _activeFormula=null;_formulaResult=null;
-    drawKline(_kl.data||[]);
+    syncCustomSub();refreshSubChartDOM();
+    if(_klPeriod==='intraday'){if(_intradayRedrawData)drawIntraday(_intradayRedrawData)}
+    else renderChart();
   }
   openFormulaEditor();
 }
@@ -3272,17 +3298,29 @@ function saveFormula(idx){
 
 // 应用公式
 function applyFormula(){
-  if(!_activeFormula||!_kl.data.length){_formulaResult=null;drawKline(_kl.data||[]);return;}
-  try{
-    _formulaResult=FormulaEngine.execute(_activeFormula.code,_kl.data);
-    drawKline(_kl.data);
-  }catch(e){console.error('Formula error:',e);_formulaResult=null;drawKline(_kl.data||[]);}
+  if(!_activeFormula||!_kl.data.length){_formulaResult=null;}
+  else{
+    try{
+      _formulaResult=FormulaEngine.execute(_activeFormula.code,_kl.data);
+    }catch(e){console.error('Formula error:',e);_formulaResult=null;}
+  }
+  syncCustomSub();refreshSubChartDOM();
+  if(_klPeriod==='intraday'){if(_intradayRedrawData)drawIntraday(_intradayRedrawData)}
+  else renderChart();
 }
 
-// 绘制自定义指标
+// 同步公式副图窗格：副图型激活公式 <-> 'custom' 子图
+function syncCustomSub(){
+  var needSub=!!(_activeFormula&&_activeFormula.type==='sub'&&_formulaResult);
+  var idx=_kl.subs.indexOf('custom');
+  if(needSub&&idx<0)_kl.subs.push('custom');
+  if(!needSub&&idx>=0)_kl.subs.splice(idx,1);
+}
+
+// 绘制自定义指标（主图叠加：与 K 线共用可视区间/价格坐标）
 function drawCustomIndicator(ctx,W,H,data,start,gap,padL,padT,cH,minP,pR,isMain){
   if(!_formulaResult||!_activeFormula)return;
-  
+  var totalBars=Math.floor((W-padL-8)/gap);
   var lines=_activeFormula.lines;
   for(var li=0;li<lines.length;li++){
     var lineDef=lines[li];
@@ -3294,35 +3332,77 @@ function drawCustomIndicator(ctx,W,H,data,start,gap,padL,padT,cH,minP,pR,isMain)
     ctx.beginPath();
     var started=false;
     
-    for(var i=0;i<Math.floor(W-padL-padR/gap)+2;i++){
+    for(var i=0;i<totalBars+2;i++){
       var gi=start+i;
       if(gi>=values.length)break;
       var v=values[gi];
       if(isNaN(v)||v===null)continue;
       
       var x=padL+gap*(i-(start%1))+gap/2;
-      var y;
-      if(isMain){
-        y=padT+cH*(1-(v-minP)/pR);
-      }else{
-        // 副图独立范围
-        var minV=Infinity,maxV=-Infinity;
-        for(var j=0;j<values.length;j++){
-          if(!isNaN(values[j])&&values[j]!==null){
-            if(values[j]<minV)minV=values[j];
-            if(values[j]>maxV)maxV=values[j];
-          }
-        }
-        if(minV===Infinity||maxV===Infinity)continue;
-        var vRange=maxV-minP||1;
-        minV-=vRange*0.1;maxV+=vRange*0.1;
-        y=padT+cH*(1-(v-minV)/(maxV-minV));
-      }
+      var y=padT+cH*(1-(v-minP)/pR);
       
       if(!started){ctx.moveTo(x,y);started=true}else ctx.lineTo(x,y);
     }
     ctx.stroke();
   }
+}
+
+// 绘制自定义公式副图（独立坐标系，自动缩放）
+function drawFormulaSub(canvas){
+  if(!_formulaResult||!_activeFormula||!_kl.data.length)return;
+  var dpr=window.devicePixelRatio||1;
+  var ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+  var W=canvas.width/dpr,H=canvas.height/dpr;
+  ctx.fillStyle='#12151a';ctx.fillRect(0,0,W,H);
+  var padL=46,padR=8,padT=4,padB=4;
+  var cW=W-padL-padR,cH=H-padT-padB;
+  var gap=_kl.gap||cW/60;var totalBars=Math.floor(cW/gap);var start=Math.floor(_kl.scroll);
+  var lines=_activeFormula.lines;
+  // 可视区间统一求值域
+  var minV=Infinity,maxV=-Infinity;
+  for(var li=0;li<lines.length;li++){
+    var values=_formulaResult[lines[li].label];
+    if(!values)continue;
+    for(var i=start;i<Math.min(values.length,start+totalBars+2);i++){
+      var vv=values[i];
+      if(isNaN(vv)||vv===null)continue;
+      if(vv<minV)minV=vv;
+      if(vv>maxV)maxV=vv;
+    }
+  }
+  if(minV===Infinity)return;
+  var vRange=maxV-minV||1;
+  minV-=vRange*0.1;maxV+=vRange*0.1;
+  var vSpan=maxV-minV;
+  // 网格与刻度
+  ctx.strokeStyle='#1f2124';ctx.lineWidth=0.5;
+  ctx.fillStyle='#666';ctx.font='9px monospace';ctx.textAlign='right';ctx.textBaseline='middle';
+  for(var g=0;g<=2;g++){
+    var gy=padT+cH*g/2;
+    ctx.beginPath();ctx.moveTo(padL,gy);ctx.lineTo(W-padR,gy);ctx.stroke();
+    ctx.fillText((maxV-vSpan*g/2).toFixed(2),padL-4,gy);
+  }
+  // 指标线
+  for(var li2=0;li2<lines.length;li2++){
+    var ld=lines[li2];
+    var vals=_formulaResult[ld.label];
+    if(!vals)continue;
+    ctx.strokeStyle=ld.color;ctx.lineWidth=1;ctx.beginPath();
+    var st=false;
+    for(var k=0;k<totalBars+2;k++){
+      var gk=start+k;
+      if(gk>=vals.length)break;
+      var vk=vals[gk];
+      if(isNaN(vk)||vk===null)continue;
+      var xk=padL+gap*(k-(start%1))+gap/2;
+      var yk=padT+cH*(1-(vk-minV)/vSpan);
+      if(!st){ctx.moveTo(xk,yk);st=true}else ctx.lineTo(xk,yk);
+    }
+    ctx.stroke();
+  }
+  // 指标名称图例
+  ctx.fillStyle='#666';ctx.font='9px sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(_activeFormula.name||'自定义指标',padL,padT+2);
 }
 
 // 绑定指标按钮

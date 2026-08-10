@@ -37,8 +37,12 @@ export const DEFAULT_SETTINGS = {
   remindSwitch: 1,
   opacity: 1,
   // ===== 扩展适配 - WebApp 专属 =====
-  theme: 'light' as 'dark' | 'light' | 'system',
+  theme: 'dark' as 'dark' | 'light' | 'system',
   watchlist: [] as { code: string; name?: string }[],
+  // ===== 模拟交易 =====
+  simBalance: 100000,
+  simHoldings: [] as { code: string; name: string; amount: number; cost: number }[],
+  simOrders: [] as { id: string; type: 'buy' | 'sell'; code: string; name: string; price: number; amount: number; status: 'pending' | 'filled' | 'cancelled'; time: string }[],
   // ===== 从扩展补齐 =====
   webhook: {
     wecom: { url: '', enabled: false },

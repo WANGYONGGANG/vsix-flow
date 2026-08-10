@@ -52,7 +52,6 @@ function fmtYi(v: number): string { return (Number(v || 0) / 1e8).toFixed(2); }
 function fmtN(v: any, d = 2): string { const n = Number(v); return isNaN(n) ? '-' : n.toFixed(d); }
 function pctStr(v: number): string { const n = Number(v || 0); return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'; }
 function upDownCls(v: number): string { const n = Number(v || 0); return n > 0 ? 'up' : n < 0 ? 'down' : 'flat'; }
-function clamp(v: number, lo = 0, hi = 100): number { return Math.max(lo, Math.min(hi, v)); }
 function avg(arr: number[]): number { if (!arr.length) return 0; return arr.reduce((a, b) => a + b, 0) / arr.length; }
 function sum(arr: number[]): number { return arr.reduce((a, b) => a + b, 0); }
 function seg(v: number, s: [number, number][]): number {
@@ -101,7 +100,7 @@ function calcRSI(closes: number[], n = 14): number {
 function calcMACD(closes: number[]): { dif: number; dea: number; hist: number } {
   const ema = (n: number): number => { let k = 2 / (n + 1), e = closes[0]; for (let i = 1; i < closes.length; i++) e = closes[i] * k + e * (1 - k); return e; };
   const dif = ema(12) - ema(26);
-  let k = 2 / 10, dea = dif; const hist = dif - dea;
+  const dea = dif; const hist = dif - dea;
   return { dif, dea, hist };
 }
 function parseKlineRows(rows: string[]): { closes: number[]; vols: number[] } {
@@ -311,7 +310,7 @@ function moneyReason(it: RankItem, deep: DeepData): string[] {
   if (deep.flow.length) {
     const last5 = deep.flow.slice(-5), last20 = deep.flow.slice(-20);
     const s5 = sum(last5.map((d) => d.main)), s20 = sum(last20.map((d) => d.main));
-    const n5 = last5.filter((d) => d.main > 0).length, n20 = last20.filter((d) => d.main > 0).length;
+    const n5 = last5.filter((d) => d.main > 0).length;
     out.push(`近5日主力累计 ${(s5 / 1e8).toFixed(2)} 亿（${n5}/${last5.length} 日净流入）、近20日累计 ${(s20 / 1e8).toFixed(2)} 亿`);
   } else out.push('资金流历史数据缺失');
   return out;
@@ -356,7 +355,7 @@ function trendReason(it: RankItem, deep: DeepData): string[] {
   ];
 }
 function basicReason(it: RankItem): string[] {
-  const pe = it.f9; const pb = it.f23; const capYi = (it.f20 || 0) / 1e8;
+  const pe = it.f9; const pb = it.f23;
   const peStr = pe == null || isNaN(pe) ? (pe != null && pe < 0 ? '亏损' : '-') : pe.toFixed(1);
   const peDesc = peStr === '亏损' ? '当前处于亏损状态，估值无参考意义' : pe > 0 && pe < 25 ? '估值合理' : pe > 0 && pe < 60 ? '估值偏高' : pe > 0 ? '估值较高，靠预期支撑' : '估值无参考意义';
   return [
@@ -387,7 +386,7 @@ function holderReason(holders: HolderItem[]): string[] {
     trend,
   ];
 }
-function riskList(it: RankItem, deep: DeepData, sector: SectorItem | undefined, holders: HolderItem[]): string[] {
+function riskList(it: RankItem, deep: DeepData, holders: HolderItem[]): string[] {
   const out: string[] = []; const price = it.f2 || 0;
   if (deep.closes.length) { const win20 = deep.closes.slice(-20); const max20 = Math.max(...win20); if (price >= max20 * 0.99) out.push('股价贴近20日高点，压力位附近换手需求大'); }
   if ((it.f8 || 0) >= 15) out.push(`换手率 ${it.f8.toFixed(1)}% 过热，短期博弈激烈`);
@@ -436,7 +435,7 @@ function cardHtml(st: ScoredStock, idx: number, sectorMap: Record<string, Sector
     { n: '财务分析', sc: d.finance, ls: financeReason(deep.fin) },
     { n: '股东分析', sc: d.holder, ls: holderReason(deep.holders) },
   ].map((r) => `<div class="rblock"><div class="rhead">${r.n}<span class="rscore" style="background:${scoreColor(Math.round(r.sc))}">${Math.round(r.sc)}</span></div><ul>${r.ls.map((li) => `<li>${li}</li>`).join('')}</ul></div>`).join('');
-  const risks = riskList(it, deep, sector, deep.holders).map((r) => `<li>${r}</li>`).join('');
+  const risks = riskList(it, deep, deep.holders).map((r) => `<li>${r}</li>`).join('');
 
   return `<article class="card">
   <header class="chead">
@@ -776,7 +775,7 @@ export default function ReportPage() {
   return (
     <div className="page" style={{ background: '#f4f5f7' }}>
       <div className="detail-actions" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)', flexShrink: 0 }}>
-        <button className="btn-back" onClick={() => navigate('/')}>← 返回行情</button>
+        <button className="btn-back" onClick={() => navigate('/?tab=market')}>← 返回行情</button>
         <button className="btn-back" onClick={run} disabled={loading}>
           {loading ? '生成中…' : '↻ 重新生成'}
         </button>

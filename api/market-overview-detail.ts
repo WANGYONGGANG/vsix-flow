@@ -57,35 +57,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (yesterdayTrade > 0 && totalTrade > 0) volumeRatio = totalTrade / yesterdayTrade;
   } catch { /* empty */ }
 
-  // 2) 涨跌家数 + 涨跌分布：东方财富 push2 全市场
+  // 2) 涨跌分布：东财官方分布接口（push2ex，不受 push2 镜像分页限制）
+  // fenbu 为 [{"1":950},{"-2":358}...] 形式：键=涨跌百分比档，11=涨停，-11=跌停
   let upCount = 0, downCount = 0, flatCount = 0;
   let dist = { zt: 0, g5: 0, g1: 0, g0: 0, flat: 0, d0: 0, d1: 0, d5: 0, dt: 0 };
   try {
-    const ut = 'bd1d9ddb04089700cf9c27f6f7426281';
-    const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5000&po=1&np=1&ut=${ut}&fltt=2&invt=2&wbp2u=|0|0|0|web&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048&fields=f2,f3`;
-    const r3 = await httpGetJson(url, 'https://quote.eastmoney.com/center/gridlist.html');
-    const diff: any[] = r3?.data?.diff || [];
-    diff.forEach((row) => {
-      const chg = Number(row?.f3);
-      if (!isFinite(chg) || Number(row?.f2) <= 0) return;
-      if (chg > 0) { upCount++;
-        if (chg >= 9.8) dist.zt++;
-        else if (chg >= 5) dist.g5++;
-        else if (chg >= 1) dist.g1++;
-        else dist.g0++;
-      } else if (chg < 0) { downCount++;
-        if (chg <= -9.8) dist.dt++;
-        else if (chg <= -5) dist.d5++;
-        else if (chg <= -1) dist.d1++;
-        else dist.d0++;
-      } else { flatCount++; dist.flat++; }
+    const r3 = await httpGetJson('https://push2ex.eastmoney.com/getTopicZDFenBu?ut=7eea3edcaed734bea9cbfc24409ed989&dpt=wz.ztzt', 'https://quote.eastmoney.com/ztb/detail.html');
+    const fb: Record<string, number> = {};
+    (r3?.data?.fenbu || []).forEach((o: any) => {
+      const k = Object.keys(o || {})[0];
+      if (k !== undefined) fb[k] = Number((o as any)[k]) || 0;
     });
+    const sumRange = (a: number, b: number) => { let s = 0; for (let k = a; k <= b; k++) s += fb[String(k)] || 0; return s; };
+    dist.zt = fb['11'] || 0; dist.g5 = sumRange(6, 10); dist.g1 = sumRange(2, 5); dist.g0 = fb['1'] || 0;
+    dist.flat = fb['0'] || 0;
+    dist.d0 = fb['-1'] || 0; dist.d1 = sumRange(-5, -2); dist.d5 = sumRange(-10, -6); dist.dt = fb['-11'] || 0;
+    upCount = dist.zt + dist.g5 + dist.g1 + dist.g0;
+    downCount = dist.d5 + dist.d1 + dist.d0 + dist.dt;
+    flatCount = dist.flat;
   } catch { /* empty */ }
 
-  // 3) 昨日涨停表现
+  // 2.5) 主力净流入：上证+深证指数级主力净额（push2，自动切镜像）
+  let mainInflow = 0;
+  try {
+    const r4 = await httpGetJson('https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&ut=b2884a393a59ad64002292a3e90d46a5&secids=1.000001,0.399001&fields=f12,f62', 'https://quote.eastmoney.com/');
+    (r4?.data?.diff || []).forEach((row: any) => { mainInflow += Number(row?.f62) || 0; });
+  } catch { /* empty */ }
+
+  // 3) 昨日涨停表现（取最近一个交易日，跳过周末）
   let ztCount = 0, ztUpCount = 0, ztAvgChange = 0;
   try {
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10).replace(/-/g, '');
+    const yd = new Date();
+    do { yd.setDate(yd.getDate() - 1); } while (yd.getDay() === 0 || yd.getDay() === 6);
+    const yesterday = `${yd.getFullYear()}${String(yd.getMonth() + 1).padStart(2, '0')}${String(yd.getDate()).padStart(2, '0')}`;
     const ut = '7eea3edcaed734bea9cbfc24409ed989';
     const r2 = await httpGetJson(
       `https://push2ex.eastmoney.com/getTopicZTPool?ut=${ut}&dpt=wz.ztzt&Pageindex=0&pagesize=200&sort=fbt%3Aasc&date=${yesterday}`,
@@ -112,7 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     data: {
       counts: { up: upCount, down: downCount, flat: flatCount, zt: dist.zt, dt: dist.dt },
       distribution: dist,
-      trade: { sh: shAmt, sz: szAmt, cyb: cybAmt, total: totalTrade, yesterdayTotal: yesterdayTrade, volumeRatio },
+      trade: { sh: shAmt, sz: szAmt, cyb: cybAmt, total: totalTrade, yesterdayTotal: yesterdayTrade, volumeRatio, mainInflow },
       yesterdayZt: { count: ztCount, upCount: ztUpCount, avgChange: ztAvgChange },
     }
   });

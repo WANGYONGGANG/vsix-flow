@@ -6,6 +6,8 @@
 // ============================================
 
 import iconv from 'iconv-lite';
+import https from 'node:https';
+import http from 'node:http';
 
 const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -43,31 +45,118 @@ async function responseToText(r: Response): Promise<string> {
   }
 }
 
-export async function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
+// 按 charset 解码 Buffer（iconv-lite 优先，支持 gbk/big5）
+function decodeBytes(bytes: Buffer, contentType: string | null): string {
+  const charset = parseCharset(contentType);
+  if (iconv.encodingExists(charset)) {
+    try { return iconv.decode(bytes, charset); } catch { /* fall through */ }
+  }
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 15000);
-    const r = await fetch(fullUrl, {
-      headers: { 'User-Agent': DEFAULT_UA, ...(referer ? { Referer: referer } : {}) },
-      signal: ctrl.signal,
-    } as any);
-    clearTimeout(t);
-    const text = await responseToText(r);
-    try { return JSON.parse(text); } catch { return null; }
-  } catch { return null; }
+    return new TextDecoder(charset, { fatal: false }).decode(bytes);
+  } catch {
+    return bytes.toString('utf-8');
+  }
+}
+
+// Node 内置 http(s).get 兜底：fetch 不可用/出错（如 Node16 polyfill 对部分站点 socket hang up）时使用
+function nativeGetText(fullUrl: string, headers: Record<string, string>, redirects = 3): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      const u = new URL(fullUrl);
+      const mod: any = u.protocol === 'https:' ? https : http;
+      const req = mod.get(u, { headers }, (res: any) => {
+        const sc = res.statusCode || 0;
+        if ([301, 302, 303, 307, 308].includes(sc) && res.headers.location && redirects > 0) {
+          res.resume();
+          resolve(nativeGetText(new URL(res.headers.location, fullUrl).toString(), headers, redirects - 1));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => resolve(decodeBytes(Buffer.concat(chunks), res.headers['content-type'] || null)));
+        res.on('error', () => resolve(''));
+      });
+      req.on('error', () => resolve(''));
+      req.setTimeout(15000, () => req.destroy());
+    } catch { resolve(''); }
+  });
+}
+
+// push2 主站在部分网络下会被阻断（socket hang up），自动切换延时镜像（接口格式完全一致）
+function withPush2Mirror(url: string): string {
+  if (/^https?:\/\/push2\.eastmoney\.com\//.test(url)) return url.replace('//push2.eastmoney.com/', '//push2delay.eastmoney.com/');
+  return url;
+}
+
+// 统一文本获取：优先 fetch（Vercel Node20 原生），失败自动回退原生 http(s).get；push2 失败再切镜像
+async function fetchText(fullUrl: string, referer?: string): Promise<string> {
+  const headers: Record<string, string> = { 'User-Agent': DEFAULT_UA, ...(referer ? { Referer: referer } : {}) };
+  const targets = [fullUrl];
+  const mirror = withPush2Mirror(fullUrl);
+  if (mirror !== fullUrl) targets.push(mirror);
+  for (const target of targets) {
+    try {
+      if (typeof fetch === 'function') {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 15000);
+        const r = await fetch(target, { headers, signal: ctrl.signal } as any);
+        clearTimeout(t);
+        if (r && typeof (r as any).arrayBuffer === 'function') return await responseToText(r as Response);
+      }
+    } catch { /* fall through to native get */ }
+    const text = await nativeGetText(target, headers);
+    if (text) return text;
+  }
+  return '';
+}
+
+export async function httpGetJson(fullUrl: string, referer?: string): Promise<any> {
+  const text = await fetchText(fullUrl, referer);
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+// 原生 http(s) POST 兜底
+function nativePost(fullUrl: string, body: string, headers: Record<string, string>): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      const u = new URL(fullUrl);
+      const mod: any = u.protocol === 'https:' ? https : http;
+      const req = mod.request(u, { method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(body) } }, (res: any) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => resolve(decodeBytes(Buffer.concat(chunks), res.headers['content-type'] || null)));
+        res.on('error', () => resolve(''));
+      });
+      req.on('error', () => resolve(''));
+      req.setTimeout(15000, () => req.destroy());
+      req.write(body);
+      req.end();
+    } catch { resolve(''); }
+  });
+}
+
+// POST JSON：优先 fetch，失败回退原生 request
+export async function httpPostJson(fullUrl: string, body: any, referer?: string): Promise<any> {
+  const payload = typeof body === 'string' ? body : JSON.stringify(body);
+  const headers: Record<string, string> = { 'User-Agent': DEFAULT_UA, 'Content-Type': 'application/json', ...(referer ? { Referer: referer } : {}) };
+  try {
+    if (typeof fetch === 'function') {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15000);
+      const r = await fetch(fullUrl, { method: 'POST', headers, body: payload, signal: ctrl.signal } as any);
+      clearTimeout(t);
+      const text = await responseToText(r as Response);
+      if (text) return JSON.parse(text);
+    }
+  } catch { /* fall through */ }
+  const text = await nativePost(fullUrl, payload, headers);
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return null; }
 }
 
 export async function httpsGetText(fullUrl: string, referer?: string): Promise<string> {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 15000);
-    const r = await fetch(fullUrl, {
-      headers: { 'User-Agent': DEFAULT_UA, ...(referer ? { Referer: referer } : {}) },
-      signal: ctrl.signal,
-    } as any);
-    clearTimeout(t);
-    return await responseToText(r);
-  } catch { return ''; }
+  return fetchText(fullUrl, referer);
 }
 
 // ============ 代码格式转换 ============

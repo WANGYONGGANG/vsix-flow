@@ -9,15 +9,16 @@ import { FormulaResult } from '../lib/FormulaEngine';
 export interface KLineProps {
   rows: string[];        // K线：time,open,close,high,low,vol  （CSV 字符串数组）
   intraday?: {           // 分时：如果提供则优先画分时
-    minutes: string[];   // "HHMM,price"
+    minutes: string[];   // "HHMM,price[,vol]"
     preClose: number;
     ticks?: { time: string; price: number; vol: number; bs?: number }[];
     orderBook?: { buy: number[][]; sell: number[][] };
+    days?: { date: string; minutes: string[] }[]; // 五日分时（提供时画五日图）
   };
   riseColor?: string;
   fallColor?: string;
   mainHeight?: number;
-  customIndicator?: FormulaResult; // 自定义指标
+  customIndicators?: FormulaResult[]; // 自定义指标（主图叠加 + 副图窗格）
 }
 
 type Row = { date: string; open: number; close: number; high: number; low: number; vol: number };
@@ -82,24 +83,39 @@ const SUB_OPTIONS: { id: string; label: string }[] = [
   { id: 'rsi', label: 'RSI' },
 ];
 
-export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fallColor = '#23c343', mainHeight, customIndicator }: KLineProps) {
+export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fallColor = '#23c343', mainHeight, customIndicators }: KLineProps) {
   const mainRef = useRef<HTMLCanvasElement>(null);
   const volRef = useRef<HTMLCanvasElement>(null);
   const amountRef = useRef<HTMLCanvasElement>(null);
   const macdRef = useRef<HTMLCanvasElement>(null);
   const rsiRef = useRef<HTMLCanvasElement>(null);
-  const customRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const customRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
   const [subs, setSubs] = useState<string[]>(['vol']);
   const scrollRef = useRef<{ scroll: number }>({ scroll: 0 });
+  const visBarsRef = useRef(60); // 可视 K 线根数（滚轮缩放）
+  const dragRef = useRef<{ x: number; scroll: number } | null>(null);
 
   const subRefMap: Record<string, React.RefObject<HTMLCanvasElement>> = {
     vol: volRef,
     amount: amountRef,
     macd: macdRef,
     rsi: rsiRef,
-    custom: customRef,
   };
+
+  const mainOverlays = (customIndicators || []).filter((x) => x?.type === 'main' && x.lines.length);
+  const subPanes = (customIndicators || []).filter((x) => x?.type === 'sub' && x.lines.length);
+  const customIds = subPanes.map((_, i) => 'custom:' + i);
+
+  // 新增的副图指标自动开启显示（不强制恢复用户手动关闭的）
+  useEffect(() => {
+    if (!customIds.length) return;
+    setSubs((prev) => {
+      const add = customIds.filter((id) => !prev.includes(id));
+      return add.length ? [...prev, ...add] : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customIds.join(',')]);
 
   useEffect(() => { render(); });
 
@@ -130,18 +146,14 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
       main.width = W * dpr; main.height = mainH * dpr;
       const ctx = main.getContext('2d')!;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (intraday) drawIntraday(ctx, W, mainH, intraday, riseColor, fallColor);
-      else {
-        drawMain(ctx, W, mainH, data, riseColor, fallColor, scrollRef.current);
-        // 主图叠加指标
-        if (customIndicator?.type === 'main' && customIndicator.lines.length > 0) {
-          drawCustomIndicator(ctx, W, mainH, data, customIndicator, scrollRef.current, true);
-        }
-      }
+      if (intraday?.days?.length) drawIntraday5(ctx, W, mainH, intraday, riseColor, fallColor);
+      else if (intraday) drawIntraday(ctx, W, mainH, intraday, riseColor, fallColor);
+      else drawMain(ctx, W, mainH, data, riseColor, fallColor, scrollRef.current, mainOverlays, visBarsRef.current);
     }
 
     for (const sid of subs) {
-      const sub = subRefMap[sid]?.current;
+      const isCustom = sid.startsWith('custom:');
+      const sub = isCustom ? customRefs.current[sid] : subRefMap[sid]?.current;
       if (!sub) continue;
       sub.style.width = W + 'px';
       sub.style.height = subH + 'px';
@@ -149,25 +161,47 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
       const sctx = sub.getContext('2d')!;
       sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (sid === 'vol') {
-        if (intraday) drawIntradayVol(sctx, W, subH, intraday, riseColor, fallColor);
-        else drawVol(sctx, W, subH, data, riseColor, fallColor, scrollRef.current);
+        if (intraday?.days?.length) drawIntraday5Vol(sctx, W, subH, intraday, riseColor, fallColor);
+        else if (intraday) drawIntradayVol(sctx, W, subH, intraday, riseColor, fallColor);
+        else drawVol(sctx, W, subH, data, riseColor, fallColor, scrollRef.current, visBarsRef.current);
       } else if (sid === 'amount') {
-        if (intraday) drawIntradayAmount(sctx, W, subH, intraday, riseColor, fallColor);
-        else drawAmount(sctx, W, subH, data, riseColor, fallColor, scrollRef.current);
+        if (intraday && !intraday.days) drawIntradayAmount(sctx, W, subH, intraday, riseColor, fallColor);
+        else if (!intraday) drawAmount(sctx, W, subH, data, riseColor, fallColor, scrollRef.current, visBarsRef.current);
       } else if (sid === 'macd') {
-        if (!intraday) drawMACD(sctx, W, subH, data, riseColor, fallColor, scrollRef.current);
+        if (!intraday) drawMACD(sctx, W, subH, data, riseColor, fallColor, scrollRef.current, visBarsRef.current);
       } else if (sid === 'rsi') {
-        if (!intraday) drawRSI(sctx, W, subH, data, scrollRef.current);
-      } else if (sid === 'custom') {
-        if (!intraday && customIndicator?.type === 'sub') {
-          drawCustomIndicator(sctx, W, subH, data, customIndicator, scrollRef.current, false);
-        }
+        if (!intraday) drawRSI(sctx, W, subH, data, scrollRef.current, visBarsRef.current);
+      } else if (isCustom) {
+        const ind = subPanes[Number(sid.split(':')[1])];
+        if (!intraday && ind) drawCustomIndicator(sctx, W, subH, data, ind, scrollRef.current, false, visBarsRef.current);
       }
     }
   }
 
   return (
-    <div className="kl-chart" ref={wrapRef}>
+    <div
+      className="kl-chart"
+      ref={wrapRef}
+      onWheel={(e) => {
+        if (intraday) return;
+        visBarsRef.current = Math.max(20, Math.min(200, Math.round(visBarsRef.current * (e.deltaY > 0 ? 1.15 : 0.87))));
+        render();
+      }}
+      onMouseDown={(e) => {
+        if (intraday) return;
+        dragRef.current = { x: e.clientX, scroll: scrollRef.current.scroll };
+      }}
+      onMouseMove={(e) => {
+        const d = dragRef.current;
+        const wrap = wrapRef.current;
+        if (!d || intraday || !wrap) return;
+        const gap = Math.max(1, (wrap.clientWidth - 54) / visBarsRef.current);
+        scrollRef.current.scroll = Math.max(0, d.scroll - (e.clientX - d.x) / gap);
+        render();
+      }}
+      onMouseUp={() => { dragRef.current = null; }}
+      onMouseLeave={() => { dragRef.current = null; }}
+    >
       <div className="kl-toolbar" style={{ display: 'flex', gap: '6px', padding: '6px 8px', flexWrap: 'wrap' }}>
         {SUB_OPTIONS.map((opt) => (
           <button
@@ -228,31 +262,39 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
           <canvas className="kl-canvas" ref={rsiRef} style={{ width: '100%', display: 'block' }} />
         </div>
       )}
-      {customIndicator?.type === 'sub' && subs.includes('custom') && (
-        <div className="kl-sub" style={{ borderTop: '1px solid #1f2124', position: 'relative' }}>
-          <div className="kl-sub-hdr" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 8px 0', fontSize: '10px', opacity: 0.6 }}>
-            <span style={{ color: '#666' }}>
-              {customIndicator.lines.map((l, i) => (
-                <span key={i} style={{ color: l.color, marginRight: 6 }}>{l.label}</span>
-              ))}
-              <span>{customIndicator.name}</span>
-            </span>
+      {subPanes.map((ind, i) => {
+        const cid = 'custom:' + i;
+        if (!subs.includes(cid)) return null;
+        return (
+          <div key={cid} className="kl-sub" style={{ borderTop: '1px solid #1f2124', position: 'relative' }}>
+            <div className="kl-sub-hdr" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 8px 0', fontSize: '10px', opacity: 0.6 }}>
+              <span style={{ color: '#666' }}>
+                {ind.lines.map((l, j) => (
+                  <span key={j} style={{ color: l.color, marginRight: 6 }}>{l.label}</span>
+                ))}
+                <span>{ind.name}</span>
+              </span>
+            </div>
+            <canvas
+              className="kl-canvas"
+              ref={(el) => { customRefs.current[cid] = el; }}
+              style={{ width: '100%', display: 'block' }}
+            />
           </div>
-          <canvas className="kl-canvas" ref={customRef} style={{ width: '100%', display: 'block' }} />
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }
 
 // ---------- Main K线 ----------
-function drawMain(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number }) {
+function drawMain(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number }, overlays: FormulaResult[] | undefined, bars: number) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
   if (!data.length) return;
   const padL = 46, padR = 8, padT = 6, padB = 18;
   const cW = W - padL - padR, cH = H - padT - padB;
-  const barW = Math.max(2, Math.min(14, cW / 60 * 0.7));
-  const gap = cW / 60;
+  const gap = cW / bars;
+  const barW = Math.max(2, Math.min(14, gap * 0.7));
   const totalBars = Math.floor(cW / gap);
   const maxScroll = Math.max(0, data.length - totalBars);
   scrollS.scroll = Math.max(0, Math.min(scrollS.scroll, maxScroll));
@@ -302,6 +344,27 @@ function drawMain(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row
     }
     ctx.stroke();
   }
+  // 主图叠加自定义指标：与 K 线使用同一可视区间/价格坐标
+  if (overlays && overlays.length) {
+    const pRv = maxP - minP || 1;
+    for (const ind of overlays) {
+      for (const line of ind.lines) {
+        if (!line.values.length) continue;
+        ctx.strokeStyle = line.color; ctx.lineWidth = 1; ctx.beginPath();
+        let st = false;
+        for (let i = 0; i < vis.length; i++) {
+          const gi = start + i;
+          if (gi >= line.values.length) break;
+          const v = line.values[gi];
+          if (v == null || isNaN(v)) continue;
+          const x = padL + gap * (i - (start % 1)) + gap / 2;
+          const y = padT + cH * (1 - (v - minP) / pRv);
+          if (!st) { ctx.moveTo(x, y); st = true; } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+  }
   ctx.fillStyle = '#666'; ctx.font = '10px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   const step = Math.max(1, Math.floor(vis.length / 5));
   for (let i = 0; i < vis.length; i += step) {
@@ -312,15 +375,26 @@ function drawMain(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row
   ctx.font = '10px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   const labs = ['MA5', 'MA10', 'MA20'];
   for (let m = 0; m < 3; m++) { ctx.fillStyle = maColors[m]; ctx.fillText(labs[m], padL + m * 44, padT + 6); }
+  // 叠加指标图例
+  if (overlays && overlays.length) {
+    let ox = padL + 3 * 44;
+    for (const ind of overlays) {
+      for (const line of ind.lines) {
+        ctx.fillStyle = line.color;
+        ctx.fillText(line.label, ox, padT + 6);
+        ox += ctx.measureText(line.label).width + 8;
+      }
+    }
+  }
 }
 
-function drawVol(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number }) {
+function drawVol(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number }, bars: number) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
   if (!data.length) return;
   const padL = 46, padR = 8, padT = 4, padB = 4;
   const cW = W - padL - padR, cH = H - padT - padB;
-  const barW = Math.max(2, Math.min(14, cW / 60 * 0.7));
-  const gap = cW / 60;
+  const gap = cW / bars;
+  const barW = Math.max(2, Math.min(14, gap * 0.7));
   const totalBars = Math.floor(cW / gap);
   const start = Math.floor(scrollS.scroll);
   const vis: Row[] = [];
@@ -343,13 +417,13 @@ function drawVol(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[
   ctx.fillText((maxV / 10000).toFixed(0) + '万', padL - 4, padT + 6);
 }
 
-function drawAmount(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number }) {
+function drawAmount(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number }, bars: number) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
   if (!data.length) return;
   const padL = 46, padR = 8, padT = 4, padB = 4;
   const cW = W - padL - padR, cH = H - padT - padB;
-  const barW = Math.max(2, Math.min(14, cW / 60 * 0.7));
-  const gap = cW / 60;
+  const gap = cW / bars;
+  const barW = Math.max(2, Math.min(14, gap * 0.7));
   const totalBars = Math.floor(cW / gap);
   const start = Math.floor(scrollS.scroll);
   const vis: Row[] = [];
@@ -384,13 +458,13 @@ function formatAmount(v: number): string {
   return v.toFixed(0);
 }
 
-function drawMACD(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number }) {
+function drawMACD(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number }, bars: number) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
   if (!data.length) return;
   const padL = 46, padR = 8, padT = 4, padB = 4;
   const cW = W - padL - padR, cH = H - padT - padB;
-  const barW = Math.max(2, Math.min(14, cW / 60 * 0.7));
-  const gap = cW / 60;
+  const gap = cW / bars;
+  const barW = Math.max(2, Math.min(14, gap * 0.7));
   const totalBars = Math.floor(cW / gap);
   const start = Math.floor(scrollS.scroll);
   const md = calcMACD(data);
@@ -447,12 +521,12 @@ function drawMACD(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row
   ctx.fillText((-mx).toFixed(3), padL - 4, padT + cH - 2);
 }
 
-function drawRSI(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], scrollS: { scroll: number }) {
+function drawRSI(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], scrollS: { scroll: number }, bars: number) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
   if (!data.length) return;
   const padL = 46, padR = 8, padT = 4, padB = 4;
   const cW = W - padL - padR, cH = H - padT - padB;
-  const gap = cW / 60;
+  const gap = cW / bars;
   const totalBars = Math.floor(cW / gap);
   const start = Math.floor(scrollS.scroll);
   const rsi6 = calcRSI(data, 6);
@@ -464,7 +538,6 @@ function drawRSI(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[
     vis12.push(rsi12[i]);
   }
   if (!vis6.length) return;
-  const sc = cH / 100;
   ctx.strokeStyle = '#1f2124'; ctx.lineWidth = 0.5;
   ctx.fillStyle = '#555'; ctx.font = '9px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   [30, 50, 70].forEach((v) => {
@@ -486,18 +559,24 @@ function drawRSI(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[
 }
 
 // ---------- 分时 ----------
+// 解析分钟行 "HHMM,price[,vol]"
+function parseMinuteRows(minutes: string[]): { t: string; p: number; v: number }[] {
+  const pts: { t: string; p: number; v: number }[] = [];
+  for (const m of minutes) {
+    const p = String(m).split(',');
+    if (p.length < 2) continue;
+    pts.push({ t: p[0], p: parseFloat(p[1]), v: parseFloat(p[2] || '0') || 0 });
+  }
+  return pts;
+}
+
 function drawIntraday(ctx: CanvasRenderingContext2D, W: number, H: number, id: NonNullable<KLineProps['intraday']>, up: string, down: string) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
   if (!id.minutes.length) return;
   const padL = 46, padR = 8, padT = 6, padB = 18;
   const cW = W - padL - padR, cH = H - padT - padB;
   const preClose = Number(id.preClose) || 0;
-  const points: { t: string; p: number }[] = [];
-  for (const m of id.minutes) {
-    const p = String(m).split(',');
-    if (p.length < 2) continue;
-    points.push({ t: p[0], p: parseFloat(p[1]) });
-  }
+  const points = parseMinuteRows(id.minutes);
   if (!points.length) return;
   let minP = Infinity, maxP = -Infinity;
   for (const d of points) { if (d.p < minP) minP = d.p; if (d.p > maxP) maxP = d.p; }
@@ -560,19 +639,33 @@ function drawIntraday(ctx: CanvasRenderingContext2D, W: number, H: number, id: N
 
 function drawIntradayVol(ctx: CanvasRenderingContext2D, W: number, H: number, id: NonNullable<KLineProps['intraday']>, up: string, down: string) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
-  if (!id.ticks || !id.ticks.length) return;
   const padL = 46, padR = 8, padT = 4, padB = 4;
   const cW = W - padL - padR, cH = H - padT - padB;
-  const ticks = id.ticks;
-  let maxV = 0; for (const t of ticks) if (t.vol > maxV) maxV = t.vol;
+  const pts = parseMinuteRows(id.minutes);
+  let maxV = 0;
+  for (const p of pts) if (p.v > maxV) maxV = p.v;
+  if (maxV === 0 && id.ticks) for (const t of id.ticks) if (t.vol > maxV) maxV = t.vol;
   if (maxV === 0) return;
-  for (let i = 0; i < ticks.length; i++) {
-    const t = ticks[i];
-    const x = padL + (ticks.length === 1 ? cW / 2 : cW * (i / (ticks.length - 1)));
-    const h = cH * (t.vol / maxV);
-    const col = (t.bs ?? 0) >= 0 ? up : down;
-    ctx.fillStyle = hexA(col, 0.45);
-    ctx.fillRect(x - 1, padT + cH - h, Math.max(2, 2), h);
+  const bw = Math.max(1, cW / Math.max(pts.length, 241) * 0.8);
+  if (pts.length && maxV > 0) {
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const x = padL + (pts.length === 1 ? cW / 2 : cW * (i / (pts.length - 1)));
+      const h = cH * (p.v / maxV);
+      const prev = i > 0 ? pts[i - 1].p : Number(id.preClose) || p.p;
+      const col = p.p > prev ? up : p.p < prev ? down : '#888';
+      ctx.fillStyle = hexA(col, 0.45);
+      ctx.fillRect(x - bw / 2, padT + cH - h, bw, h);
+    }
+  } else if (id.ticks) {
+    for (let i = 0; i < id.ticks.length; i++) {
+      const t = id.ticks[i];
+      const x = padL + (id.ticks.length === 1 ? cW / 2 : cW * (i / (id.ticks.length - 1)));
+      const h = cH * (t.vol / maxV);
+      const col = (t.bs ?? 0) >= 0 ? up : down;
+      ctx.fillStyle = hexA(col, 0.45);
+      ctx.fillRect(x - 1, padT + cH - h, 2, h);
+    }
   }
   ctx.fillStyle = '#666'; ctx.font = '9px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
   ctx.fillText((maxV / 100).toFixed(0) + '手', padL - 4, padT + 4);
@@ -580,27 +673,94 @@ function drawIntradayVol(ctx: CanvasRenderingContext2D, W: number, H: number, id
 
 function drawIntradayAmount(ctx: CanvasRenderingContext2D, W: number, H: number, id: NonNullable<KLineProps['intraday']>, up: string, down: string) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
-  if (!id.ticks || !id.ticks.length) return;
   const padL = 46, padR = 8, padT = 4, padB = 4;
   const cW = W - padL - padR, cH = H - padT - padB;
-  const ticks = id.ticks;
+  const pts = parseMinuteRows(id.minutes);
   let maxV = 0;
-  for (const t of ticks) {
-    const amt = t.vol * t.price;
-    if (amt > maxV) maxV = amt;
-  }
+  for (const p of pts) { const amt = p.v * p.p * 100; if (amt > maxV) maxV = amt; }
+  if (maxV === 0 && id.ticks) for (const t of id.ticks) { const amt = t.vol * t.price; if (amt > maxV) maxV = amt; }
   if (maxV === 0) return;
-  for (let i = 0; i < ticks.length; i++) {
-    const t = ticks[i];
-    const x = padL + (ticks.length === 1 ? cW / 2 : cW * (i / (ticks.length - 1)));
-    const amt = t.vol * t.price;
-    const h = cH * (amt / maxV);
-    const col = (t.bs ?? 0) >= 0 ? up : down;
-    ctx.fillStyle = hexA(col, 0.45);
-    ctx.fillRect(x - 1, padT + cH - h, Math.max(2, 2), h);
+  const bw = Math.max(1, cW / Math.max(pts.length, 241) * 0.8);
+  if (pts.length) {
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const x = padL + (pts.length === 1 ? cW / 2 : cW * (i / (pts.length - 1)));
+      const h = cH * ((p.v * p.p * 100) / maxV);
+      const prev = i > 0 ? pts[i - 1].p : Number(id.preClose) || p.p;
+      const col = p.p > prev ? up : p.p < prev ? down : '#888';
+      ctx.fillStyle = hexA(col, 0.45);
+      ctx.fillRect(x - bw / 2, padT + cH - h, bw, h);
+    }
+  } else if (id.ticks) {
+    for (let i = 0; i < id.ticks.length; i++) {
+      const t = id.ticks[i];
+      const x = padL + (id.ticks.length === 1 ? cW / 2 : cW * (i / (id.ticks.length - 1)));
+      const amt = t.vol * t.price;
+      const h = cH * (amt / maxV);
+      const col = (t.bs ?? 0) >= 0 ? up : down;
+      ctx.fillStyle = hexA(col, 0.45);
+      ctx.fillRect(x - 1, padT + cH - h, 2, h);
+    }
   }
   ctx.fillStyle = '#666'; ctx.font = '9px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
   ctx.fillText(formatAmount(maxV), padL - 4, padT + 4);
+}
+
+// ---------- 五日分时 ----------
+function drawIntraday5(ctx: CanvasRenderingContext2D, W: number, H: number, id: NonNullable<KLineProps['intraday']>, up: string, down: string) {
+  ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
+  const days = id.days || [];
+  if (!days.length) return;
+  const padL = 46, padR = 8, padT = 6, padB = 18;
+  const cW = W - padL - padR, cH = H - padT - padB;
+  const preClose = Number(id.preClose) || 0;
+  const series = days.map((d) => parseMinuteRows(d.minutes));
+  let minP = Infinity, maxP = -Infinity;
+  for (const pts of series) for (const p of pts) { if (p.p < minP) minP = p.p; if (p.p > maxP) maxP = p.p; }
+  if (!isFinite(minP)) return;
+  if (preClose > 0) {
+    const dr = Math.max(Math.abs(maxP - preClose), Math.abs(minP - preClose), preClose * 0.01);
+    minP = preClose - dr * 1.1; maxP = preClose + dr * 1.1;
+  } else { const r = (maxP - minP) * 0.1 || 1; minP -= r; maxP += r; }
+  const pR = maxP - minP || 1;
+  const maxBars = Math.max(...series.map((s) => s.length), 1);
+  const colW = cW / days.length;
+  ctx.strokeStyle = '#1f2124'; ctx.lineWidth = 0.5;
+  ctx.fillStyle = '#666'; ctx.font = '10px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + cH * i / 4;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillStyle = '#666';
+    ctx.fillText((maxP - pR * i / 4).toFixed(2), padL - 4, y);
+  }
+  if (preClose > 0) {
+    ctx.strokeStyle = '#666'; ctx.setLineDash([4, 4]);
+    const y0 = padT + cH * (1 - (preClose - minP) / pR);
+    ctx.beginPath(); ctx.moveTo(padL, y0); ctx.lineTo(W - padR, y0); ctx.stroke(); ctx.setLineDash([]);
+  }
+  for (let di = 0; di < days.length; di++) {
+    const pts = series[di];
+    const x0 = padL + colW * di;
+    if (di > 0) {
+      ctx.strokeStyle = '#1f2124';
+      ctx.beginPath(); ctx.moveTo(x0, padT); ctx.lineTo(x0, padT + cH); ctx.stroke();
+    }
+    if (!pts.length) continue;
+    const xs = (i: number) => x0 + colW * (i / Math.max(maxBars - 1, 1));
+    const yp = (v: number) => padT + cH * (1 - (v - minP) / pR);
+    const lastP = pts[pts.length - 1].p;
+    const cUp = lastP >= (preClose || lastP);
+    ctx.strokeStyle = cUp ? up : down; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const x = xs(i), y = yp(pts[i].p);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#888'; ctx.font = '10px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    const d8 = String(days[di].date);
+    ctx.fillText(d8.length === 8 ? d8.slice(4, 6) + '/' + d8.slice(6) : d8, x0 + colW / 2, H - 4);
+  }
 }
 
 // ---------- 自定义指标 ----------
@@ -611,13 +771,14 @@ function drawCustomIndicator(
   data: Row[],
   indicator: FormulaResult,
   scrollS: { scroll: number },
-  isMain: boolean
+  isMain: boolean,
+  bars = 60
 ) {
   if (!indicator.lines.length || !indicator.lines[0].values.length) return;
   
   const padL = 46, padR = 8, padT = isMain ? 6 : 4, padB = isMain ? 18 : 4;
   const cW = W - padL - padR, cH = H - padT - padB;
-  const gap = cW / 60;
+  const gap = cW / bars;
   const totalBars = Math.floor(cW / gap);
   const start = Math.floor(scrollS.scroll);
   
@@ -732,4 +893,40 @@ function hexA(hex: string, a: number): string {
   const g = parseInt(h.substring(2, 4), 16);
   const b = parseInt(h.substring(4, 6), 16);
   return `rgba(${r},${g},${b},${a})`;
+}
+
+// 五日分时量柱
+function drawIntraday5Vol(ctx: CanvasRenderingContext2D, W: number, H: number, id: NonNullable<KLineProps['intraday']>, up: string, down: string) {
+  ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
+  const days = id.days || [];
+  if (!days.length) return;
+  const padL = 46, padR = 8, padT = 4, padB = 4;
+  const cW = W - padL - padR, cH = H - padT - padB;
+  const preClose = Number(id.preClose) || 0;
+  const series = days.map((d) => parseMinuteRows(d.minutes));
+  let maxV = 0;
+  for (const pts of series) for (const p of pts) if (p.v > maxV) maxV = p.v;
+  if (maxV === 0) return;
+  const maxBars = Math.max(...series.map((s) => s.length), 1);
+  const colW = cW / days.length;
+  for (let di = 0; di < days.length; di++) {
+    const pts = series[di];
+    const x0 = padL + colW * di;
+    if (di > 0) {
+      ctx.strokeStyle = '#1f2124';
+      ctx.beginPath(); ctx.moveTo(x0, padT); ctx.lineTo(x0, padT + cH); ctx.stroke();
+    }
+    const bw = Math.max(1, colW / Math.max(maxBars, 1) * 0.8);
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const x = x0 + colW * (i / Math.max(maxBars - 1, 1));
+      const h = cH * (p.v / maxV);
+      const prev = i > 0 ? pts[i - 1].p : preClose || p.p;
+      const col = p.p > prev ? up : p.p < prev ? down : '#888';
+      ctx.fillStyle = hexA(col, 0.45);
+      ctx.fillRect(x - bw / 2, padT + cH - h, bw, h);
+    }
+  }
+  ctx.fillStyle = '#666'; ctx.font = '9px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+  ctx.fillText((maxV / 100).toFixed(0) + '手', padL - 4, padT + 4);
 }

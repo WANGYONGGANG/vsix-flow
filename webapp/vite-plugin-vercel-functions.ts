@@ -60,7 +60,10 @@ function vercelShimMiddleware(rootDir: string) {
         if (fs.existsSync(abs + ext)) { real = abs + ext; break; }
       }
       // 返回绝对路径 + 带 file ext 的 require 路径（CJS）
-      return pre + real + post;
+      // Windows 下把反斜杠统一为正斜杠，避免生成 JS 字符串时被转义成控制字符
+      const out = pre + real.replace(/\\/g, '/') + post;
+      console.log('[vercel-dev] rewrite import:', rel, '->', out);
+      return out;
     });
     // 2) 把 '@vercel/node' 的 type-only 导入去掉（不影响运行）
     rewritten = rewritten.replace(/^\s*import\s+type\s+[^;]+;\s*$/gm, '');

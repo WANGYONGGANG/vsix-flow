@@ -1,59 +1,58 @@
 // ============================================
-// 股票详情页：顶部价格 + K线(分时/各周期/筹码) + 侧边栏(五档/逐笔/筹码) + 资讯/公告/财务/资料 Tab
+// 股票详情页：价格面板 + 图表(分时/五日/K线/筹码) + 五档/逐笔侧栏 + 资讯/公告/财务/资料 Tab
 // ============================================
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from '../router/useRouter';
 import { useSettings } from '../store/useSettings';
+import { useSimTrade } from '../store/useSimTrade';
 import { api } from '../api/client';
 import KLineChart from '../components/KLineChart';
 import ChipsChart from '../components/ChipsChart';
 import FormulaEditor from '../components/FormulaEditor';
-import { Formula, executeFormula, FormulaResult, KLineData } from '../lib/FormulaEngine';
+import { executeFormula, KLineData } from '../lib/FormulaEngine';
 import {
-  fmtYi, upSign, mapEmDiffToStockItem, escapeHtml, normalizeCode,
+  fmtYi, fmtWan, upSign, mapEmDiffToStockItem, escapeHtml, normalizeCode,
 } from '../../local-shared/utils';
 
+type Period = '分时' | '五日' | '日K' | '周K' | '月K' | '筹码';
+const PERIODS: Period[] = ['分时', '五日', '日K', '周K', '月K', '筹码'];
 type SubTab = 'news' | 'notice' | 'finance' | 'profile';
 type ProfileSubTab = 'essential' | 'company' | 'holder' | 'industry';
-type SideTab = 'orderbook' | 'ticks' | 'chips';
+type SideTab = 'orderbook' | 'ticks';
 
 export default function StockDetailPage({ code }: { code: string }) {
   const { navigate } = useRouter();
   const { settings, addWatch, delWatch, formulas, updateFormulas } = useSettings();
-  const [realCode, name] = useMemo(() => {
+  const { placeOrder } = useSimTrade();
+  const [realCode, initName] = useMemo(() => {
     const c = normalizeCode(code.split('?')[0]);
     const q = new URLSearchParams(code.includes('?') ? code.split('?')[1] : '');
     return [c, q.get('name') || ''];
   }, [code]);
 
   const [quote, setQuote] = useState<any>(null);
-  const [klinePeriod, setKlinePeriod] = useState<string>('intraday');
+  const [period, setPeriod] = useState<Period>('分时');
   const [klineRows, setKlineRows] = useState<string[]>([]);
   const [kline120Rows, setKline120Rows] = useState<string[]>([]);
-  const [intraday, setIntraday] = useState<{ minutes: string[]; preClose: number; ticks: any[]; orderBook: any } | null>(null);
+  const [intraday, setIntraday] = useState<{ minutes: string[]; preClose: number; ticks: any[]; days?: { date: string; minutes: string[] }[] } | null>(null);
+  const [sideTab, setSideTab] = useState<SideTab>('orderbook');
+  const [showTickModal, setShowTickModal] = useState(false);
+  const [moreInfoOpen, setMoreInfoOpen] = useState(false);
   const [dtab, setDtab] = useState<SubTab>('news');
   const [profileSubTab, setProfileSubTab] = useState<ProfileSubTab>('essential');
   const [subData, setSubData] = useState<any>(null);
-  const [sideTab, setSideTab] = useState<SideTab>('orderbook');
-  const [showTickModal, setShowTickModal] = useState<boolean>(false);
-  const [mobileSideOpen, setMobileSideOpen] = useState<boolean>(false);
-  const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth < 480 : false);
+  const [orderModal, setOrderModal] = useState<{ open: boolean; type: 'buy' | 'sell' } | null>(null);
+  const [orderAmount, setOrderAmount] = useState<string>('100');
+  const [orderPrice, setOrderPrice] = useState<string>('');
+  const [toast, setToast] = useState('');
+  const [showFormulaEditor, setShowFormulaEditor] = useState(false);
   const tickRef = useRef<any>(null);
-  const [showFormulaEditor, setShowFormulaEditor] = useState<boolean>(false);
-  const [activeFormula, setActiveFormula] = useState<Formula | null>(null);
-  const [formulaResult, setFormulaResult] = useState<FormulaResult | null>(null);
+  const periodRef = useRef<Period>('分时');
 
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 480);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  // Load
   useEffect(() => {
     loadQuote();
-    loadKline('intraday');
+    loadPeriod('分时');
     loadSubTab('news');
     loadKline120();
     schedule();
@@ -65,7 +64,7 @@ export default function StockDetailPage({ code }: { code: string }) {
     if (tickRef.current) clearInterval(tickRef.current);
     tickRef.current = setInterval(() => {
       loadQuote();
-      if (klinePeriod === 'intraday') loadKline('intraday');
+      if (periodRef.current === '分时') loadPeriod('分时');
     }, Math.max(3000, settings.pollIntervalMs || 5000));
   }
 
@@ -89,71 +88,34 @@ export default function StockDetailPage({ code }: { code: string }) {
     }
   }
 
-  async function loadKline(period: string) {
-    setKlinePeriod(period);
-    if (period === 'intraday') {
-      const r = await api.intraday(realCode);
-      if (r?.data) {
-        setIntraday({
-          minutes: r.data.minutes || [],
-          preClose: r.data.preClose || 0,
-          ticks: r.data.ticks || [],
-          orderBook: r.data.orderBook || null,
-        });
-        setKlineRows([]);
-      }
-    } else if (period === 'chips') {
-      setIntraday(null);
-    } else {
-      const r = await api.kline(realCode, period);
-      setKlineRows(r?.data?.klines || []);
-      setIntraday(null);
-    }
-  }
-
   async function loadKline120() {
     const r = await api.kline(realCode, 'day', 120);
     setKline120Rows(r?.data?.klines || []);
   }
 
-  // 计算公式指标
-  useEffect(() => {
-    if (!activeFormula || !klineRows.length) {
-      setFormulaResult(null);
-      return;
-    }
-    try {
-      const data: KLineData[] = klineRows.map(row => {
-        const p = row.split(',');
-        return {
-          date: p[0],
-          open: +p[1],
-          close: +p[2],
-          high: +p[3],
-          low: +p[4],
-          vol: +(p[5] || 0),
-        };
-      });
-      const result = executeFormula(activeFormula, data);
-      setFormulaResult(result);
-    } catch (e) {
-      console.error('Formula execution error:', e);
-      setFormulaResult(null);
-    }
-  }, [activeFormula, klineRows]);
-
-  function handleFormulaChange(formulas: Formula[]) {
-    updateFormulas(formulas);
-    // 如果当前激活的公式被删除或修改，更新激活公式
-    if (activeFormula) {
-      const updated = formulas.find(f => f.id === activeFormula.id);
-      if (updated && updated.enabled) {
-        setActiveFormula(updated);
-      } else {
-        setActiveFormula(formulas.find(f => f.enabled) || null);
+  async function loadPeriod(p: Period) {
+    periodRef.current = p;
+    setPeriod(p);
+    if (p === '分时') {
+      const r = await api.intraday(realCode);
+      if (r?.data) {
+        setIntraday({ minutes: r.data.minutes || [], preClose: r.data.preClose || 0, ticks: r.data.ticks || [] });
+        setKlineRows([]);
       }
+    } else if (p === '五日') {
+      const r = await api.intraday(realCode, 5);
+      if (r?.data) {
+        setIntraday({ minutes: [], preClose: r.data.preClose || 0, ticks: [], days: r.data.days || [] });
+        setKlineRows([]);
+      }
+    } else if (p === '筹码') {
+      setIntraday(null);
+      setKlineRows([]);
     } else {
-      setActiveFormula(formulas.find(f => f.enabled) || null);
+      const map: Record<string, string> = { '日K': 'day', '周K': 'week', '月K': 'month' };
+      const r = await api.kline(realCode, map[p], 120);
+      setKlineRows(r?.data?.klines || []);
+      setIntraday(null);
     }
   }
 
@@ -173,82 +135,118 @@ export default function StockDetailPage({ code }: { code: string }) {
     setSubData(await api.stockProfile(realCode, sub));
   }
 
-  const s = quote ? mapEmDiffToStockItem(quote) : null;
-  const codeN = s?.code || realCode.replace(/^(sh|sz|bj)/i, '');
-  const nm = s?.name || name || codeN;
+  const s = useMemo(() => quote ? mapEmDiffToStockItem(quote) : null, [quote]);
+  const name = s?.name || initName || realCode;
+  const codeDisplay = (s?.code || realCode).replace(/^(sh|sz|bj)/i, '');
   const price = Number(s?.price || 0);
+  const preClose = Number(s?.preClose || 0);
+  const chg = price - preClose;
   const rate = Number(s?.changeRate || 0);
   const up = rate >= 0;
-  const chg = price - Number(s?.preClose || 0);
-  const inWatch = (settings.stockPortfolio.groups || []).some((g) => g.codes.includes(realCode));
 
-  // 五档盘口（来自 quote 字段）
-  const ob = quote || {};
-  const buyLevels = [1,2,3,4,5].map((n) => ({
-    price: ob[`buy${n}`], vol: ob[`buy${n}vol`]
-  })).filter((x) => Number(x.price) > 0);
-  const sellLevels = [5,4,3,2,1].map((n) => ({
-    price: ob[`sell${n}`], vol: ob[`sell${n}vol`]
-  })).filter((x) => Number(x.price) > 0);
+  const inWatch = useMemo(() => {
+    return (settings.stockPortfolio.groups || []).some((g) => g.codes.includes(realCode));
+  }, [settings.stockPortfolio, realCode]);
 
-  // 逐笔 ticks（最新 16 条倒序）
-  const allTicks: any[] = intraday?.ticks && Array.isArray(intraday.ticks) ? intraday.ticks : [];
-  const latest16Ticks = allTicks.slice(Math.max(0, allTicks.length - 16)).reverse();
+  // 五档盘口（quote 字段 buy1-5/sell1-5）
+  const orderBook = useMemo(() => {
+    const q = quote || {};
+    const sell = [5, 4, 3, 2, 1].map((n) => ({
+      idx: '卖' + n,
+      price: Number(q[`sell${n}`]) || 0,
+      vol: Number(q[`sell${n}vol`]) || 0,
+    })).filter((x) => x.price > 0);
+    const buy = [1, 2, 3, 4, 5].map((n) => ({
+      idx: '买' + n,
+      price: Number(q[`buy${n}`]) || 0,
+      vol: Number(q[`buy${n}vol`]) || 0,
+    })).filter((x) => x.price > 0);
+    return { sell, buy };
+  }, [quote]);
 
-  // 流通股本
+  const allTicks: any[] = intraday?.ticks || [];
+  const latestTicks = useMemo(() => allTicks.slice(Math.max(0, allTicks.length - 16)).reverse(), [intraday]);
+
+  // 流通股本（筹码分布用）
   const floatShares = Number(quote?.f72) || 0;
 
-  const periods = [
-    { id: 'intraday', label: '分时' },
-    { id: '5m', label: '5分' }, { id: '15m', label: '15分' },
-    { id: '30m', label: '30分' }, { id: '60m', label: '60分' },
-    { id: 'day', label: '日K' }, { id: 'week', label: '周K' }, { id: 'month', label: '月K' },
-    { id: 'chips', label: '筹码' },
-  ];
+  // 自定义公式指标：仅在 K 线周期下计算
+  const customIndicators = useMemo(() => {
+    if (!klineRows.length) return [];
+    const data: KLineData[] = [];
+    for (const r of klineRows) {
+      const p = r.split(',');
+      if (p.length < 5) continue;
+      data.push({ date: p[0], open: +p[1], close: +p[2], high: +p[3], low: +p[4], vol: +(p[5] || 0) });
+    }
+    const out: any[] = [];
+    for (const f of formulas) {
+      if (!f.enabled) continue;
+      try {
+        const res = executeFormula(f, data);
+        if (res.lines.some((l) => l.values.length)) out.push(res);
+      } catch { /* 公式执行失败跳过 */ }
+    }
+    return out;
+  }, [klineRows, formulas]);
 
-  const sideTabs: { id: SideTab; label: string }[] = [
-    { id: 'orderbook', label: '五档' },
-    { id: 'ticks', label: '逐笔' },
-    { id: 'chips', label: '筹码' },
-  ];
+  function doOrder() {
+    const p = Number(orderPrice);
+    const a = Number(orderAmount);
+    if (!p || !a) return;
+    const ok = placeOrder(orderModal?.type || 'buy', realCode, name, p, a);
+    if (ok) {
+      setToast(`${orderModal?.type === 'buy' ? '买入' : '卖出'}委托已提交`);
+      setOrderModal(null);
+      setTimeout(() => setToast(''), 2000);
+    } else {
+      setToast('委托失败（资金或持仓不足）');
+      setTimeout(() => setToast(''), 2000);
+    }
+  }
+
+  function openOrder(type: 'buy' | 'sell') {
+    setOrderPrice(price ? price.toFixed(2) : '');
+    setOrderAmount('100');
+    setOrderModal({ open: true, type });
+  }
 
   function renderOrderBook() {
     return (
-      <div id="klSideBook">
-        <div className="kl-side-title">五档盘口</div>
-        <div id="orderBook">
-          {sellLevels.length === 0 && buyLevels.length === 0 && <div className="text-muted" style={{ fontSize: 10 }}>暂无盘口</div>}
-          {sellLevels.map((lv, i) => (
-            <div className="ob-row" key={'s' + i}>
-              <span className="ob-label">卖{5 - i}</span>
-              <span className="ob-price text-down">{Number(lv.price).toFixed(2)}</span>
-              <span className="ob-vol">{fmtVol(lv.vol)}</span>
-            </div>
-          ))}
-          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          {buyLevels.map((lv, i) => (
-            <div className="ob-row" key={'b' + i}>
-              <span className="ob-label">买{i + 1}</span>
-              <span className="ob-price text-up">{Number(lv.price).toFixed(2)}</span>
-              <span className="ob-vol">{fmtVol(lv.vol)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <>
+        {orderBook.sell.length === 0 && orderBook.buy.length === 0 && <div className="loading">暂无盘口</div>}
+        {orderBook.sell.map((row, i) => (
+          <div key={'s' + i} className="ob-row">
+            <span className="ob-label">{row.idx}</span>
+            <span className="ob-price" style={{ color: row.price >= preClose ? 'var(--up)' : 'var(--down)' }}>
+              {row.price.toFixed(2)}
+            </span>
+            <span className="ob-vol">{fmtVol(row.vol)}</span>
+          </div>
+        ))}
+        <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+        {orderBook.buy.map((row, i) => (
+          <div key={'b' + i} className="ob-row">
+            <span className="ob-label">{row.idx}</span>
+            <span className="ob-price" style={{ color: row.price >= preClose ? 'var(--up)' : 'var(--down)' }}>
+              {row.price.toFixed(2)}
+            </span>
+            <span className="ob-vol">{fmtVol(row.vol)}</span>
+          </div>
+        ))}
+      </>
     );
   }
 
   function renderTicks() {
     return (
-      <div id="klSideTicks">
-        <div className="kl-side-title">分时逐笔</div>
-        <div id="tickList" style={{ maxHeight: isMobile ? 260 : 340, overflowY: 'auto' }}>
-          {latest16Ticks.length === 0 && <div className="text-muted" style={{ fontSize: 10, padding: 4 }}>暂无数据</div>}
-          {latest16Ticks.map((t: any, i: number) => {
+      <>
+        <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+          {latestTicks.length === 0 && <div className="loading">暂无数据</div>}
+          {latestTicks.map((t: any, i: number) => {
             const timeStr = String(t.time || '');
-            const hh = timeStr.slice(0, 2);
-            const mm = timeStr.slice(2, 4);
-            const prev = i < latest16Ticks.length - 1 ? Number(latest16Ticks[i + 1]?.price || 0) : Number(intraday?.preClose || 0);
+            const hh = timeStr.slice(0, 2), mm = timeStr.slice(2, 4);
+            const prev = i < latestTicks.length - 1 ? Number(latestTicks[i + 1]?.price || 0) : Number(intraday?.preClose || 0);
             const cur = Number(t.price || 0);
             const tickUp = cur >= prev;
             return (
@@ -263,36 +261,6 @@ export default function StockDetailPage({ code }: { code: string }) {
         {allTicks.length > 16 && (
           <div className="kl-more" onClick={() => setShowTickModal(true)}>查看全部</div>
         )}
-      </div>
-    );
-  }
-
-  function renderChips() {
-    return (
-      <div id="klSideChips">
-        <div className="kl-side-title">筹码分布</div>
-        <ChipsChart
-          rows={kline120Rows}
-          floatShares={floatShares}
-          riseColor={settings.riseColor}
-          fallColor={settings.fallColor}
-        />
-      </div>
-    );
-  }
-
-  function renderSidePanel() {
-    return (
-      <>
-        <div className="kl-side-tabs">
-          {sideTabs.map((t) => (
-            <button key={t.id} className={sideTab === t.id ? 'active' : ''}
-              onClick={() => setSideTab(t.id)}>{t.label}</button>
-          ))}
-        </div>
-        {sideTab === 'orderbook' && renderOrderBook()}
-        {sideTab === 'ticks' && renderTicks()}
-        {sideTab === 'chips' && renderChips()}
       </>
     );
   }
@@ -306,7 +274,7 @@ export default function StockDetailPage({ code }: { code: string }) {
     ];
     return (
       <div>
-        <div style={{ display: 'flex', gap: 4, padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', gap: 4, padding: '6px 0', flexWrap: 'wrap' }}>
           {subTabs.map((t) => (
             <button key={t.id}
               className={'detail-tab' + (profileSubTab === t.id ? ' active' : '')}
@@ -314,163 +282,130 @@ export default function StockDetailPage({ code }: { code: string }) {
               onClick={() => loadProfileSub(t.id)}>{t.label}</button>
           ))}
         </div>
-        <div id="profileContent">
-          {!subData && <div className="loading">加载中…</div>}
-          <FinanceItems items={subData?.data?.items || []} />
-        </div>
+        {!subData && <div className="loading">加载中…</div>}
+        <FinanceItems items={subData?.data?.items || []} />
       </div>
     );
   }
 
-  const mainChartContent = klinePeriod === 'chips' ? (
-    <div style={{ flex: 1, padding: '10px 6px', overflow: 'auto' }}>
-      <ChipsChart
-        rows={kline120Rows}
-        floatShares={floatShares}
-        riseColor={settings.riseColor}
-        fallColor={settings.fallColor}
-      />
-    </div>
-  ) : (
-    <KLineChart
-      rows={klineRows}
-      intraday={intraday || undefined}
-      riseColor={settings.riseColor}
-      fallColor={settings.fallColor}
-      customIndicator={formulaResult || undefined}
-    />
-  );
-
-  function goBack() {
-    let from = '/';
-    try { from = sessionStorage.getItem('stockDetailFrom') || '/'; } catch { /* ignore */ }
-    navigate(from);
-  }
-
-  const [moreInfoOpen, setMoreInfoOpen] = useState(false);
-
   return (
-    <div className="page detail-page">
-      {/* 顶部：价格 */}
-      <div className="detail-top">
-        <div className="detail-hdr">
-          <span className="nm">{escapeHtml(nm)}</span>
-          <span className="cd">{codeN}</span>
-          <span className="detail-tags">
-            {s?.isSHConnect && <span className="tag-sh">沪股通</span>}
-            {s?.isSZConnect && <span className="tag-sz">深股通</span>}
-            {s?.isMargin && <span className="tag-margin">融资融券</span>}
-          </span>
-        </div>
-        {/* 第一行：大价格（左） + 今开/最高/最低（右） */}
-        <div className="detail-row-1">
-          <span className={'detail-price ' + (up ? 'text-up' : 'text-down')}>{price.toFixed(2)}</span>
-          <div className="detail-row-1-right">
-            <span className="detail-smi"><i>今开</i><b>{Number(s?.open || 0).toFixed(2)}</b></span>
-            <span className="detail-smi"><i>昨收</i><b>{Number(s?.preClose || 0).toFixed(2)}</b></span>
-            <span className="detail-smi"><i>最高</i><b className="text-up">{Number(s?.high || 0).toFixed(2)}</b></span>
-            <span className="detail-smi"><i>最低</i><b className="text-down">{Number(s?.low || 0).toFixed(2)}</b></span>
+    <div className="page" style={{ paddingBottom: 110 }}>
+      <div className="content-scroll">
+        <div className="detail-hdr-bar">
+          <div>
+            <span className="nm">{escapeHtml(name)}</span>
+            <span className="cd">{codeDisplay}</span>
+            <span className="detail-tags">
+              {s?.isSHConnect && <span className="tag-sh">沪股通</span>}
+              {s?.isSZConnect && <span className="tag-sz">深股通</span>}
+              {s?.isMargin && <span className="tag-margin">融</span>}
+            </span>
+          </div>
+          <div className="acts">
+            <button onClick={() => navigate('/ai')}>🤖</button>
           </div>
         </div>
-        {/* 第二行：涨跌幅%（大）+涨跌额（小）（左） + 换手/总手/金额（右） */}
-        <div className="detail-row-2">
-          <div className="detail-row-2-left">
-            <span className={'detail-rate ' + (up ? 'text-up' : 'text-down')}>
+
+        <div className="detail-price-board">
+          <div>
+            <div className="lbl">最新</div>
+            <div className={'big ' + (up ? 'text-up' : 'text-down')}>{price ? price.toFixed(2) : '--'}</div>
+          </div>
+          <div>
+            <div className="lbl">涨跌幅</div>
+            <div className={'val ' + (up ? 'text-up' : 'text-down')}>
               {upSign(rate)}{rate.toFixed(2)}%
-            </span>
-            <span className={'detail-chg ' + (up ? 'text-up' : 'text-down')}>
-              {upSign(chg)}{chg.toFixed(2)}
-            </span>
+            </div>
           </div>
-          <div className="detail-row-2-right">
-            <span className="detail-smi"><i>换手</i><b>{Number(s?.turnoverRate || 0).toFixed(2)}%</b></span>
-            <span className="detail-smi"><i>总手</i><b>{fmtYi(Number(s?.volume || 0))}</b></span>
-            <span className="detail-smi"><i>金额</i><b>{fmtYi(Number(s?.amount || 0))}</b></span>
+          <div>
+            <div className="lbl">涨跌额</div>
+            <div className={'val ' + (up ? 'text-up' : 'text-down')}>
+              {upSign(chg)}{chg.toFixed(2)}
+            </div>
           </div>
         </div>
-        {/* 第三行：市值/PE/PB + 更多按钮 */}
-        <div className="detail-row-3">
-          <div className="detail-row-3-left">
-            <span className="detail-smi"><i>总市值</i><b>{fmtYi(Number(s?.marketCap || 0))}</b></span>
-            <span className="detail-smi"><i>流通</i><b>{fmtYi(Number(s?.floatCap || 0))}</b></span>
-            <span className="detail-smi"><i>市盈</i><b>{s?.pe ? Number(s.pe).toFixed(2) : '--'}</b></span>
-            <span className="detail-smi"><i>市净</i><b>{s?.pb ? Number(s.pb).toFixed(2) : '--'}</b></span>
-          </div>
+
+        {/* 紧凑字段行（东财风格小占位） */}
+        <div className="detail-compact">
+          <span className="detail-smi"><i>今开</i><b>{Number(s?.open || 0).toFixed(2)}</b></span>
+          <span className="detail-smi"><i>昨收</i><b>{preClose.toFixed(2)}</b></span>
+          <span className="detail-smi"><i>最高</i><b className="text-up">{Number(s?.high || 0).toFixed(2)}</b></span>
+          <span className="detail-smi"><i>最低</i><b className="text-down">{Number(s?.low || 0).toFixed(2)}</b></span>
+        </div>
+        <div className="detail-compact">
+          <span className="detail-smi"><i>换手</i><b>{Number(s?.turnoverRate || 0).toFixed(2)}%</b></span>
+          <span className="detail-smi"><i>总手</i><b>{fmtWan(s?.volume || 0)}</b></span>
+          <span className="detail-smi"><i>金额</i><b>{fmtYi(s?.amount || 0)}</b></span>
+          <span className="detail-smi"><i>振幅</i><b>{Number(s?.amplitude || 0).toFixed(2)}%</b></span>
+        </div>
+        <div className="detail-compact">
+          <span className="detail-smi"><i>总市值</i><b>{fmtYi(s?.marketCap || 0)}</b></span>
+          <span className="detail-smi"><i>流通值</i><b>{fmtYi(s?.floatCap || 0)}</b></span>
+          <span className="detail-smi"><i>市盈</i><b>{s?.pe ? Number(s.pe).toFixed(2) : '--'}</b></span>
+          <span className="detail-smi"><i>市净</i><b>{s?.pb ? Number(s.pb).toFixed(2) : '--'}</b></span>
           <button className="detail-more-btn" onClick={() => setMoreInfoOpen(!moreInfoOpen)}>
-            {moreInfoOpen ? '收起 ▲' : '更多 ▼'}
+            {moreInfoOpen ? '收起▲' : '更多▼'}
           </button>
         </div>
-        {/* 展开的详细信息 */}
         {moreInfoOpen && (
-          <div className="detail-more">
-            <div className="detail-more-row">
-              <span className="detail-smi"><i>行业</i><b>{s?.industry || '--'}</b></span>
-              <span className="detail-smi"><i>振幅</i><b>{Number(s?.amplitude || 0).toFixed(2)}%</b></span>
-            </div>
-            {s?.isMargin && (
-              <div className="detail-more-row">
-                <span className="detail-smi"><i>融资余额</i><b>{fmtYi(Number(s?.marginBalance || 0))}</b></span>
-                <span className="detail-smi"><i>融券余额</i><b>{fmtYi(Number(s?.marginBalance || 0))}</b></span>
-              </div>
-            )}
+          <div className="detail-compact detail-more">
+            <span className="detail-smi"><i>行业</i><b>{s?.industry || '--'}</b></span>
+            {s?.isMargin && <span className="detail-smi"><i>融资余额</i><b>{fmtYi(Number(s?.marginBalance || 0))}</b></span>}
+            <span className="detail-smi"><i>市盈率TTM</i><b>{s?.pe ? Number(s.pe).toFixed(2) : '--'}</b></span>
           </div>
         )}
-      </div>
 
-      {/* K线工具栏 */}
-      <div className="kl-toolbar">
-        {periods.map((p) => (
-          <button key={p.id} className={'kl-pbtn' + (klinePeriod === p.id ? ' active' : '')}
-            onClick={() => loadKline(p.id)}>{p.label}</button>
-        ))}
-        <button
-          className={'kl-pbtn' + (activeFormula ? ' active' : '')}
-          onClick={() => setShowFormulaEditor(true)}
-          style={{ marginLeft: 'auto' }}
-        >
-          📐 指标
-        </button>
-      </div>
-
-      {/* K线主图 + 侧边栏 */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div className="kl-chart-wrap" style={{ flexDirection: isMobile ? 'column' : 'row' }}>
-          <div className="kl-chart" style={{ flex: 1, minWidth: 0 }}>
-            {mainChartContent}
-          </div>
-          {!isMobile && (
-            <div className="kl-side">
-              {renderSidePanel()}
-            </div>
-          )}
+        <div className="detail-period-tabs">
+          {PERIODS.map((p) => (
+            <button key={p} className={period === p ? 'active' : ''} onClick={() => loadPeriod(p)}>{p}</button>
+          ))}
+          <button style={{ marginLeft: 'auto' }} onClick={() => setShowFormulaEditor(true)} title="指标管理">⚙</button>
         </div>
 
-        {/* 移动端：下方可折叠侧边栏 */}
-        {isMobile && (
-          <div style={{ borderTop: '1px solid var(--border)' }}>
-            <div
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '6px 10px', cursor: 'pointer', fontSize: 12, userSelect: 'none',
-              }}
-              onClick={() => setMobileSideOpen(!mobileSideOpen)}
-            >
-              <span style={{ opacity: 0.7 }}>{sideTabs.find((t) => t.id === sideTab)?.label || '盘口'}</span>
-              <span style={{ opacity: 0.5 }}>{mobileSideOpen ? '▲' : '▼'}</span>
-            </div>
-            {mobileSideOpen && (
-              <div className="kl-side" style={{ width: '100%', borderLeft: 'none', borderTop: '1px solid var(--border)' }}>
-                {renderSidePanel()}
+        <div className="detail-chart-wrap">
+          <div className="detail-chart-main">
+            {period === '筹码' ? (
+              <div style={{ padding: '10px 6px' }}>
+                <ChipsChart
+                  rows={kline120Rows}
+                  floatShares={floatShares}
+                  riseColor={settings.riseColor}
+                  fallColor={settings.fallColor}
+                />
               </div>
+            ) : (
+              <KLineChart
+                rows={klineRows}
+                intraday={intraday || undefined}
+                mainHeight={220}
+                riseColor={settings.riseColor}
+                fallColor={settings.fallColor}
+                customIndicators={customIndicators}
+              />
             )}
+          </div>
+          <div className="detail-orderbook">
+            <div className="kl-side-tabs">
+              <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
+              <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>
+            </div>
+            {sideTab === 'orderbook' && renderOrderBook()}
+            {sideTab === 'ticks' && renderTicks()}
+          </div>
+        </div>
+
+        {customIndicators.length > 0 && period !== '筹码' && (
+          <div className="detail-sub-indicators">
+            {customIndicators.map((ind, i) => (
+              <span key={i}>{ind.name}{ind.type === 'main' ? '·主图' : '·副图'}</span>
+            ))}
           </div>
         )}
 
-        {/* 详情子 Tabs */}
-        <div className="detail-tabs">
-          {(['news','notice','finance','profile'] as SubTab[]).map((t) => (
-            <button key={t} className={'detail-tab' + (dtab === t ? ' active' : '')}
-              onClick={() => loadSubTab(t)}>
+        {/* 详情 Tabs：资讯/公告/财务/资料 */}
+        <div className="detail-tabs" style={{ marginTop: 8 }}>
+          {(['news', 'notice', 'finance', 'profile'] as SubTab[]).map((t) => (
+            <button key={t} className={'detail-tab' + (dtab === t ? ' active' : '')} onClick={() => loadSubTab(t)}>
               {{ news: '资讯', notice: '公告', finance: '财务', profile: '资料' }[t]}
             </button>
           ))}
@@ -492,28 +427,25 @@ export default function StockDetailPage({ code }: { code: string }) {
         </div>
       </div>
 
-      {/* 底部操作 */}
-      <div className="detail-actions">
-        <button className={inWatch ? 'btn-del' : 'btn-back'} onClick={() => inWatch ? delWatch(realCode) : addWatch(realCode)}>
-          {inWatch ? '删除自选' : '加入自选'}
+      <div className="detail-action-bar">
+        <button className="btn-buy" onClick={() => openOrder('buy')}>买入</button>
+        <button className="btn-sell" onClick={() => openOrder('sell')}>卖出</button>
+        <button className="btn-sub" onClick={() => navigate('/settings')}>撤单</button>
+        <button className="btn-sub" onClick={() => inWatch ? delWatch(realCode) : addWatch({ code: realCode, name })}>
+          {inWatch ? '已自选' : '设自选'}
         </button>
-        <button className="btn-back" onClick={goBack}>返回</button>
+        <button className="btn-sub" onClick={() => setShowFormulaEditor(true)}>指标</button>
       </div>
 
-      {/* 逐笔 Modal */}
+      {/* 逐笔全部成交 Modal */}
       {showTickModal && (
-        <div className="kl-modal-overlay" onClick={() => setShowTickModal(false)}>
-          <div className="kl-modal" onClick={(e: any) => e.stopPropagation()}>
-            <div className="kl-modal-hdr">
-              <span>全部成交（{escapeHtml(nm)}）</span>
-              <button onClick={() => setShowTickModal(false)}>×</button>
-            </div>
-            <div className="kl-modal-body">
-              {allTicks.length === 0 && <div className="loading">暂无数据</div>}
+        <div className="modal-overlay" onClick={() => setShowTickModal(false)}>
+          <div className="modal-body" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>全部成交（{escapeHtml(name)}）</div>
+            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
               {allTicks.slice().reverse().map((t: any, i: number) => {
                 const timeStr = String(t.time || '');
-                const hh = timeStr.slice(0, 2);
-                const mm = timeStr.slice(2, 4);
+                const hh = timeStr.slice(0, 2), mm = timeStr.slice(2, 4);
                 const prev = i > 0 ? Number(allTicks[allTicks.length - i]?.price || 0) : Number(intraday?.preClose || 0);
                 const cur = Number(t.price || 0);
                 const tickUp = cur >= prev;
@@ -530,11 +462,33 @@ export default function StockDetailPage({ code }: { code: string }) {
         </div>
       )}
 
-      {/* 公式编辑器 Modal */}
+      {orderModal?.open && (
+        <div className="modal-overlay" onClick={() => setOrderModal(null)}>
+          <div className="modal-body" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: orderModal.type === 'buy' ? 'var(--up)' : '#4a6cf7' }}>
+              {orderModal.type === 'buy' ? '买入' : '卖出'} {name}
+            </div>
+            <div className="field"><label>代码</label><input readOnly value={codeDisplay} /></div>
+            <div className="field"><label>价格</label><input type="number" value={orderPrice} onChange={(e) => setOrderPrice(e.target.value)} /></div>
+            <div className="field"><label>数量</label><input type="number" value={orderAmount} onChange={(e) => setOrderAmount(e.target.value)} /></div>
+            <div className="actions">
+              <button className="ghost" onClick={() => setOrderModal(null)}>取消</button>
+              <button className="primary" onClick={doOrder}>确认{orderModal.type === 'buy' ? '买入' : '卖出'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div style={{ position: 'fixed', top: '30%', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,.8)', color: '#fff', padding: '10px 18px', borderRadius: 6, zIndex: 300, fontSize: 13 }}>
+          {toast}
+        </div>
+      )}
+
       {showFormulaEditor && (
         <FormulaEditor
           formulas={formulas}
-          onChange={handleFormulaChange}
+          onChange={updateFormulas}
           onClose={() => setShowFormulaEditor(false)}
         />
       )}
@@ -549,7 +503,7 @@ function fmtVol(v: number | string): string {
 }
 
 function NewsNoticeList({ list }: { list: any[] }) {
-  if (!list.length) return <div className="loading">暂无数据</div>;
+  if (!list || !list.length) return <div className="loading">暂无数据</div>;
   return (
     <>
       {list.map((n, i) => {

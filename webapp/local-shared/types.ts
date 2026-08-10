@@ -19,6 +19,24 @@ export interface AIModelConfig {
 export interface AIChatMessage { role: 'system' | 'user' | 'assistant'; content: string; }
 export interface WatchEntry { code: string; name?: string; }
 
+export interface SimHolding {
+  code: string;
+  name: string;
+  amount: number;
+  cost: number;
+}
+
+export interface SimOrder {
+  id: string;
+  type: 'buy' | 'sell';
+  code: string;
+  name: string;
+  price: number;
+  amount: number;
+  status: 'pending' | 'filled' | 'cancelled';
+  time: string;
+}
+
 // 公式指标配置
 export interface FormulaConfig {
   id: string;
@@ -63,4 +81,8 @@ export interface AppSettings {
   voicePreset?: string;               // 语音播报音色预设
   maxVisibleTurns?: number;           // AI 最大对话轮数（默认 30）
   aiStockHistoryRange?: '1y' | '6m' | '3m' | '1m' | '1w';  // AI 分析历史区间
+  // ===== 模拟交易 =====
+  simBalance: number;
+  simHoldings: SimHolding[];
+  simOrders: SimOrder[];
 }

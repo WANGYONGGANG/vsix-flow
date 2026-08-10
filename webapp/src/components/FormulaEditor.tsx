@@ -3,7 +3,8 @@
 // ============================================
 
 import { useState, useCallback } from 'react';
-import { Formula, PRESET_FORMULAS, validateFormula } from '../lib/FormulaEngine';
+import { Formula, PRESET_FORMULAS, validateFormula, buildFormulaAssistantPrompt } from '../lib/FormulaEngine';
+import { useRouter } from '../router/useRouter';
 
 interface FormulaEditorProps {
   formulas: Formula[];
@@ -12,8 +13,11 @@ interface FormulaEditorProps {
 }
 
 export default function FormulaEditor({ formulas, onChange, onClose }: FormulaEditorProps) {
+  const { navigate } = useRouter();
   const [editId, setEditId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showAI, setShowAI] = useState(false);
+  const [aiDesc, setAiDesc] = useState('');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [type, setType] = useState<'main' | 'sub'>('sub');
@@ -92,10 +96,21 @@ export default function FormulaEditor({ formulas, onChange, onClose }: FormulaEd
   function resetForm() {
     setEditId(null);
     setShowAdd(false);
+    setShowAI(false);
+    setAiDesc('');
     setName('');
     setCode('');
     setType('sub');
     setError('');
+  }
+
+  // AI 写公式：描述 → 跳转 AI 对话页自动发送（对齐扩展 aiWriteFormula）
+  function sendAIFormula() {
+    const desc = aiDesc.trim();
+    if (!desc) return;
+    const prompt = buildFormulaAssistantPrompt(desc);
+    onClose();
+    navigate('/ai?prompt=' + encodeURIComponent(prompt));
   }
 
   function handleEdit(f: Formula) {
@@ -132,7 +147,22 @@ export default function FormulaEditor({ formulas, onChange, onClose }: FormulaEd
         </div>
         
         <div style={styles.body}>
-          {!showAdd ? (
+          {showAI ? (
+            <div style={styles.editor}>
+              <div style={{ fontSize: 13, color: '#ccc' }}>描述你需要的指标公式，AI 会帮你生成代码</div>
+              <textarea
+                value={aiDesc}
+                onChange={e => setAiDesc(e.target.value)}
+                placeholder={'例如：5日和10日均线金叉死叉提示\nMACD顶底背离\n量价齐升选股'}
+                style={styles.textarea}
+                rows={4}
+              />
+              <div style={styles.btnGroup}>
+                <button onClick={sendAIFormula} style={styles.saveBtn}>发送给 AI</button>
+                <button onClick={() => { setShowAI(false); setAiDesc(''); }} style={styles.cancelBtn}>取消</button>
+              </div>
+            </div>
+          ) : !showAdd ? (
             <>
               <div style={styles.section}>
                 <div style={styles.sectionTitle}>我的公式</div>
@@ -185,9 +215,14 @@ export default function FormulaEditor({ formulas, onChange, onClose }: FormulaEd
                 })}
               </div>
               
-              <button onClick={() => { resetForm(); setShowAdd(true); }} style={styles.addBtn}>
-                + 新建公式
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { resetForm(); setShowAdd(true); }} style={styles.addBtn}>
+                  + 新建公式
+                </button>
+                <button onClick={() => { resetForm(); setShowAI(true); }} style={{ ...styles.addBtn, borderColor: '#36a2eb', color: '#36a2eb' }}>
+                  ✨ AI 写公式
+                </button>
+              </div>
             </>
           ) : (
             <div style={styles.editor}>
