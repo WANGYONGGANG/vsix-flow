@@ -1,0 +1,17 @@
+[
+{"created":1786369018077,"date":1786369018077,"deploymentId":"dpl_HSrujRWbHrSQyKYmGUTz6CuNhpsV","id":"1786369018077389979674100000","text":"Running build in Washington, D.C., USA (East) – iad1","type":"stdout","serial":"1786369018077389979674100000","info":{"type":"build","name":"bld_9osf444w3","entrypoint":"."}}
+,
+{"created":1786369018078,"date":1786369018078,"deploymentId":"dpl_HSrujRWbHrSQyKYmGUTz6CuNhpsV","id":"1786369018078389979674100000","text":"Build machine configuration: 2 cores, 8 GB","type":"stdout","serial":"1786369018078389979674100000","info":{"type":"build","name":"bld_9osf444w3","entrypoint":"."}}
+,
+{"created":1786369018216,"date":1786369018216,"deploymentId":"dpl_HSrujRWbHrSQyKYmGUTz6CuNhpsV","id":"1786369018216389979674100000","text":"Cloning github.com/WANGYONGGANG/vsix-flow (Branch: main, Commit: 934594d)","type":"stdout","serial":"1786369018216389979674100000","info":{"type":"build","name":"bld_9osf444w3","entrypoint":"."}}
+,
+{"created":1786369018217,"date":1786369018217,"deploymentId":"dpl_HSrujRWbHrSQyKYmGUTz6CuNhpsV","id":"1786369018217389979674100000","text":"Previous build caches not available.","type":"stdout","serial":"1786369018217389979674100000","info":{"type":"build","name":"bld_9osf444w3","entrypoint":"."}}
+,
+{"created":1786369018686,"date":1786369018686,"deploymentId":"dpl_HSrujRWbHrSQyKYmGUTz6CuNhpsV","id":"1786369018686389979674100000","text":"Cloning completed: 469.000ms","type":"stdout","serial":"1786369018686389979674100000","info":{"type":"build","name":"bld_9osf444w3","entrypoint":"."}}
+,
+{"created":1786369019049,"date":1786369019049,"deploymentId":"dpl_HSrujRWbHrSQyKYmGUTz6CuNhpsV","id":"1786369019049532819360400000","text":"Running \"vercel build\"","type":"stdout","serial":"1786369019049532819360400000","info":{"type":"build","name":"bld_9osf444w3","entrypoint":"."}}
+,
+{"created":1786369019069,"date":1786369019069,"deploymentId":"dpl_HSrujRWbHrSQyKYmGUTz6CuNhpsV","id":"1786369019069532819360400000","text":"Vercel CLI 58.1.0","type":"stderr","serial":"1786369019069532819360400000","info":{"type":"build","name":"bld_9osf444w3","entrypoint":"."}}
+,
+{"created":1786369019108,"date":1786369019108,"deploymentId":"dpl_HSrujRWbHrSQyKYmGUTz6CuNhpsV","id":"1786369019108532819360400000","text":"Error: Function Runtimes must have a valid version, for example `now-php@1.0.0`.","type":"stderr","serial":"1786369019108532819360400000","info":{"type":"build","name":"bld_9osf444w3","entrypoint":"."},"level":"error"}
+]
