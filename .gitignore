@@ -72,3 +72,7 @@ coverage/
 *.lcov
 .nyc_output/
 .vercel
+
+# ===== Vercel 部署临时文件 =====
+.vercel-tmp/
+.deploy/
