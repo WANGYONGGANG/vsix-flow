@@ -1,33 +1,34 @@
 // 单函数分发器：Hobby 计划限 12 个 Serverless 函数，
+// api/_handlers 下划线开头不会被 Vercel 识别为函数，
 // 所有 /api/:ep 通过 vercel.json rewrites 转发到 /api/all?ep=:ep
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-import allStocks from '../handlers/all-stocks';
-import emNews from '../handlers/em-news';
-import emNewsSearch from '../handlers/em-news-search';
-import hotStocks from '../handlers/hot-stocks';
-import intraday from '../handlers/intraday';
-import kline from '../handlers/kline';
-import lhb from '../handlers/lhb';
-import marketOverview from '../handlers/market-overview';
-import marketOverviewDetail from '../handlers/market-overview-detail';
-import quote from '../handlers/quote';
-import quoteDetail from '../handlers/quote-detail';
-import search from '../handlers/search';
-import sectorFlowRank from '../handlers/sector-flow-rank';
-import sectorLimit from '../handlers/sector-limit';
-import sinaBkzj from '../handlers/sina-bkzj';
-import stockChanges from '../handlers/stock-changes';
-import stockEssential from '../handlers/stock-essential';
-import stockFflowDay from '../handlers/stock-fflow-day';
-import stockFinance from '../handlers/stock-finance';
-import stockFlowRank from '../handlers/stock-flow-rank';
-import stockHolder from '../handlers/stock-holder';
-import stockNews from '../handlers/stock-news';
-import stockNotice from '../handlers/stock-notice';
-import stockProfile from '../handlers/stock-profile';
-import ztPool from '../handlers/zt-pool';
-import aiChat from '../handlers/ai/chat';
+import allStocks from './_handlers/all-stocks';
+import emNews from './_handlers/em-news';
+import emNewsSearch from './_handlers/em-news-search';
+import hotStocks from './_handlers/hot-stocks';
+import intraday from './_handlers/intraday';
+import kline from './_handlers/kline';
+import lhb from './_handlers/lhb';
+import marketOverview from './_handlers/market-overview';
+import marketOverviewDetail from './_handlers/market-overview-detail';
+import quote from './_handlers/quote';
+import quoteDetail from './_handlers/quote-detail';
+import search from './_handlers/search';
+import sectorFlowRank from './_handlers/sector-flow-rank';
+import sectorLimit from './_handlers/sector-limit';
+import sinaBkzj from './_handlers/sina-bkzj';
+import stockChanges from './_handlers/stock-changes';
+import stockEssential from './_handlers/stock-essential';
+import stockFflowDay from './_handlers/stock-fflow-day';
+import stockFinance from './_handlers/stock-finance';
+import stockFlowRank from './_handlers/stock-flow-rank';
+import stockHolder from './_handlers/stock-holder';
+import stockNews from './_handlers/stock-news';
+import stockNotice from './_handlers/stock-notice';
+import stockProfile from './_handlers/stock-profile';
+import ztPool from './_handlers/zt-pool';
+import aiChat from './_handlers/ai/chat';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void> | void;
 

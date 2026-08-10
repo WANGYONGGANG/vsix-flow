@@ -5,7 +5,7 @@
   "buildCommand": "cd webapp && npm run build",
   "outputDirectory": "webapp/dist",
   "functions": {
-    "api/**/*.ts": {
+    "api/all.ts": {
       "maxDuration": 30
     }
   },
@@ -25,7 +25,8 @@
     }
   ],
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/api/ai/chat", "destination": "/api/all?ep=ai/chat" },
+    { "source": "/api/:ep", "destination": "/api/all?ep=:ep" },
     { "source": "/((?!assets|api|favicon|sw\\.js|workbox|manifest|robots\\.txt).*)", "destination": "/index.html" }
   ]
 }
