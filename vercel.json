@@ -6,7 +6,6 @@
   "outputDirectory": "webapp/dist",
   "functions": {
     "api/**/*.ts": {
-      "runtime": "@vercel/node@4",
       "maxDuration": 30
     }
   },
