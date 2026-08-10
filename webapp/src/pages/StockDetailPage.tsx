@@ -15,11 +15,11 @@ import {
   fmtYi, fmtWan, upSign, mapEmDiffToStockItem, escapeHtml, normalizeCode,
 } from '../../local-shared/utils';
 
-type Period = '分时' | '五日' | '日K' | '周K' | '月K' | '筹码';
-const PERIODS: Period[] = ['分时', '五日', '日K', '周K', '月K', '筹码'];
+type Period = '分时' | '五日' | '日K' | '周K' | '月K';
+const PERIODS: Period[] = ['分时', '五日', '日K', '周K', '月K'];
 type SubTab = 'news' | 'notice' | 'finance' | 'profile';
 type ProfileSubTab = 'essential' | 'company' | 'holder' | 'industry';
-type SideTab = 'orderbook' | 'ticks';
+type SideTab = 'orderbook' | 'ticks' | 'chips';
 
 export default function StockDetailPage({ code }: { code: string }) {
   const { navigate } = useRouter();
@@ -38,7 +38,7 @@ export default function StockDetailPage({ code }: { code: string }) {
   const [intraday, setIntraday] = useState<{ minutes: string[]; preClose: number; ticks: any[]; days?: { date: string; minutes: string[] }[] } | null>(null);
   const [sideTab, setSideTab] = useState<SideTab>('orderbook');
   const [showTickModal, setShowTickModal] = useState(false);
-  const [moreInfoOpen, setMoreInfoOpen] = useState(false);
+  const [moreInfoOpen, setMoreInfoOpen] = useState(true);
   const [dtab, setDtab] = useState<SubTab>('news');
   const [profileSubTab, setProfileSubTab] = useState<ProfileSubTab>('essential');
   const [subData, setSubData] = useState<any>(null);
@@ -108,9 +108,6 @@ export default function StockDetailPage({ code }: { code: string }) {
         setIntraday({ minutes: [], preClose: r.data.preClose || 0, ticks: [], days: r.data.days || [] });
         setKlineRows([]);
       }
-    } else if (p === '筹码') {
-      setIntraday(null);
-      setKlineRows([]);
     } else {
       const map: Record<string, string> = { '日K': 'day', '周K': 'week', '月K': 'month' };
       const r = await api.kline(realCode, map[p], 120);
@@ -265,6 +262,19 @@ export default function StockDetailPage({ code }: { code: string }) {
     );
   }
 
+  function renderChips() {
+    return (
+      <>
+        <ChipsChart
+          rows={kline120Rows}
+          floatShares={floatShares}
+          riseColor={settings.riseColor}
+          fallColor={settings.fallColor}
+        />
+      </>
+    );
+  }
+
   function renderProfilePanel() {
     const subTabs: { id: ProfileSubTab; label: string }[] = [
       { id: 'essential', label: '操盘必读' },
@@ -289,7 +299,7 @@ export default function StockDetailPage({ code }: { code: string }) {
   }
 
   return (
-    <div className="page" style={{ paddingBottom: 110 }}>
+    <div className="page" style={{ paddingBottom: 'calc(72px + var(--safe-bottom))' }}>
       <div className="content-scroll">
         <div className="detail-hdr-bar">
           <div>
@@ -325,35 +335,39 @@ export default function StockDetailPage({ code }: { code: string }) {
           </div>
         </div>
 
-        {/* 紧凑字段行（东财风格小占位） */}
-        <div className="detail-compact">
-          <span className="detail-smi"><i>今开</i><b>{Number(s?.open || 0).toFixed(2)}</b></span>
-          <span className="detail-smi"><i>昨收</i><b>{preClose.toFixed(2)}</b></span>
-          <span className="detail-smi"><i>最高</i><b className="text-up">{Number(s?.high || 0).toFixed(2)}</b></span>
-          <span className="detail-smi"><i>最低</i><b className="text-down">{Number(s?.low || 0).toFixed(2)}</b></span>
-        </div>
-        <div className="detail-compact">
-          <span className="detail-smi"><i>换手</i><b>{Number(s?.turnoverRate || 0).toFixed(2)}%</b></span>
-          <span className="detail-smi"><i>总手</i><b>{fmtWan(s?.volume || 0)}</b></span>
-          <span className="detail-smi"><i>金额</i><b>{fmtYi(s?.amount || 0)}</b></span>
-          <span className="detail-smi"><i>振幅</i><b>{Number(s?.amplitude || 0).toFixed(2)}%</b></span>
-        </div>
-        <div className="detail-compact">
-          <span className="detail-smi"><i>总市值</i><b>{fmtYi(s?.marketCap || 0)}</b></span>
-          <span className="detail-smi"><i>流通值</i><b>{fmtYi(s?.floatCap || 0)}</b></span>
-          <span className="detail-smi"><i>市盈</i><b>{s?.pe ? Number(s.pe).toFixed(2) : '--'}</b></span>
-          <span className="detail-smi"><i>市净</i><b>{s?.pb ? Number(s.pb).toFixed(2) : '--'}</b></span>
+        {/* 紧凑字段行（更多=全部展开 / 收起=全部折叠） */}
+        {moreInfoOpen && (
+          <>
+            <div className="detail-compact">
+              <span className="detail-smi"><i>今开</i><b>{Number(s?.open || 0).toFixed(2)}</b></span>
+              <span className="detail-smi"><i>昨收</i><b>{preClose.toFixed(2)}</b></span>
+              <span className="detail-smi"><i>最高</i><b className="text-up">{Number(s?.high || 0).toFixed(2)}</b></span>
+              <span className="detail-smi"><i>最低</i><b className="text-down">{Number(s?.low || 0).toFixed(2)}</b></span>
+            </div>
+            <div className="detail-compact">
+              <span className="detail-smi"><i>换手</i><b>{Number(s?.turnoverRate || 0).toFixed(2)}%</b></span>
+              <span className="detail-smi"><i>总手</i><b>{fmtWan(s?.volume || 0)}</b></span>
+              <span className="detail-smi"><i>金额</i><b>{fmtYi(s?.amount || 0)}</b></span>
+              <span className="detail-smi"><i>振幅</i><b>{Number(s?.amplitude || 0).toFixed(2)}%</b></span>
+            </div>
+            <div className="detail-compact">
+              <span className="detail-smi"><i>总市值</i><b>{fmtYi(s?.marketCap || 0)}</b></span>
+              <span className="detail-smi"><i>流通值</i><b>{fmtYi(s?.floatCap || 0)}</b></span>
+              <span className="detail-smi"><i>市盈</i><b>{s?.pe ? Number(s.pe).toFixed(2) : '--'}</b></span>
+              <span className="detail-smi"><i>市净</i><b>{s?.pb ? Number(s.pb).toFixed(2) : '--'}</b></span>
+            </div>
+            <div className="detail-compact detail-more">
+              <span className="detail-smi"><i>行业</i><b>{s?.industry || '--'}</b></span>
+              {s?.isMargin && <span className="detail-smi"><i>融资余额</i><b>{fmtYi(Number(s?.marginBalance || 0))}</b></span>}
+              <span className="detail-smi"><i>市盈率TTM</i><b>{s?.pe ? Number(s.pe).toFixed(2) : '--'}</b></span>
+            </div>
+          </>
+        )}
+        <div className="detail-compact detail-compact-toggle">
           <button className="detail-more-btn" onClick={() => setMoreInfoOpen(!moreInfoOpen)}>
             {moreInfoOpen ? '收起▲' : '更多▼'}
           </button>
         </div>
-        {moreInfoOpen && (
-          <div className="detail-compact detail-more">
-            <span className="detail-smi"><i>行业</i><b>{s?.industry || '--'}</b></span>
-            {s?.isMargin && <span className="detail-smi"><i>融资余额</i><b>{fmtYi(Number(s?.marginBalance || 0))}</b></span>}
-            <span className="detail-smi"><i>市盈率TTM</i><b>{s?.pe ? Number(s.pe).toFixed(2) : '--'}</b></span>
-          </div>
-        )}
 
         <div className="detail-period-tabs">
           {PERIODS.map((p) => (
@@ -364,37 +378,28 @@ export default function StockDetailPage({ code }: { code: string }) {
 
         <div className="detail-chart-wrap">
           <div className="detail-chart-main">
-            {period === '筹码' ? (
-              <div style={{ padding: '10px 6px' }}>
-                <ChipsChart
-                  rows={kline120Rows}
-                  floatShares={floatShares}
-                  riseColor={settings.riseColor}
-                  fallColor={settings.fallColor}
-                />
-              </div>
-            ) : (
-              <KLineChart
-                rows={klineRows}
-                intraday={intraday || undefined}
-                mainHeight={220}
-                riseColor={settings.riseColor}
-                fallColor={settings.fallColor}
-                customIndicators={customIndicators}
-              />
-            )}
+            <KLineChart
+              rows={klineRows}
+              intraday={intraday || undefined}
+              mainHeight={220}
+              riseColor={settings.riseColor}
+              fallColor={settings.fallColor}
+              customIndicators={customIndicators}
+            />
           </div>
           <div className="detail-orderbook">
             <div className="kl-side-tabs">
               <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
               <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>
+              <button className={sideTab === 'chips' ? 'active' : ''} onClick={() => setSideTab('chips')}>筹码</button>
             </div>
             {sideTab === 'orderbook' && renderOrderBook()}
             {sideTab === 'ticks' && renderTicks()}
+            {sideTab === 'chips' && renderChips()}
           </div>
         </div>
 
-        {customIndicators.length > 0 && period !== '筹码' && (
+        {customIndicators.length > 0 && (
           <div className="detail-sub-indicators">
             {customIndicators.map((ind, i) => (
               <span key={i}>{ind.name}{ind.type === 'main' ? '·主图' : '·副图'}</span>

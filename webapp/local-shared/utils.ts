@@ -46,13 +46,15 @@ export function normalizeCode(raw: string): string {
 }
 export function mapEmDiffToStockItem(d: any): any {
   // 盘口字段来自腾讯（实时），财务字段来自东方财富（振幅/市盈/市净/市值/行业）
+  // 东财限流时字段可能为 "-"，统一做数值安全处理
+  const num = (v: any): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
   return {
     code: d.f12, name: d.f14,
-    price: d.f2 ?? 0, changeRate: d.f3 ?? 0, changeAmount: d.f4 ?? 0,
-    volume: d.f5 ?? 0, amount: d.f6 ?? 0,
-    high: d.f15 ?? 0, low: d.f16 ?? 0, open: d.f17 ?? 0, preClose: d.f18 ?? 0,
-    turnoverRate: d.f8 ?? 0, marketCap: d.f20 ?? 0, amplitude: d.f7 ?? 0,
-    pe: d.f9 ?? 0, pb: d.f23 ?? 0, floatCap: d.f21 ?? 0,
+    price: num(d.f2), changeRate: num(d.f3), changeAmount: num(d.f4),
+    volume: num(d.f5), amount: num(d.f6),
+    high: num(d.f15), low: num(d.f16), open: num(d.f17), preClose: num(d.f18),
+    turnoverRate: num(d.f8), marketCap: num(d.f20), amplitude: num(d.f7),
+    pe: num(d.f9), pb: num(d.f23), floatCap: num(d.f21),
     isSHConnect: /^(601|603|605|688)/.test(d.f12 || ''), isSZConnect: /^(000|002|300)/.test(d.f12 || ''),
     isMargin: /^(60|68|00|30)/.test(d.f12 || ''), marginBalance: 0, industry: d.f127 ?? '',
     buy1: d.buy1, buy1vol: d.buy1vol, buy2: d.buy2, buy2vol: d.buy2vol,

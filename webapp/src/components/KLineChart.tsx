@@ -90,11 +90,18 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
   const macdRef = useRef<HTMLCanvasElement>(null);
   const rsiRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const mainBoxRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
   const customRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
   const [subs, setSubs] = useState<string[]>(['vol']);
-  const scrollRef = useRef<{ scroll: number }>({ scroll: 0 });
+  const scrollRef = useRef<{ scroll: number; touched?: boolean }>({ scroll: 0 });
   const visBarsRef = useRef(60); // 可视 K 线根数（滚轮缩放）
   const dragRef = useRef<{ x: number; scroll: number } | null>(null);
+  const crossRef = useRef(false); // 十字光标模式（双击/双击屏幕开关）
+  const crossPosRef = useRef<{ x: number; y: number } | null>(null);
+  const touchRef = useRef<{ x: number; scroll: number } | null>(null);
+  const lastTapRef = useRef<{ t: number; x: number; y: number }>({ t: 0, x: 0, y: 0 });
 
   const subRefMap: Record<string, React.RefObject<HTMLCanvasElement>> = {
     vol: volRef,
@@ -176,6 +183,124 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
         if (!intraday && ind) drawCustomIndicator(sctx, W, subH, data, ind, scrollRef.current, false, visBarsRef.current);
       }
     }
+    // 刷新后恢复十字光标（轮询更新数据时不丢失）
+    if (crossRef.current && crossPosRef.current) {
+      drawCross(crossPosRef.current.x, crossPosRef.current.y);
+    }
+  }
+
+  // ---------- 十字光标 ----------
+  function mainGeo() {
+    const wrap = wrapRef.current;
+    if (!wrap) return null;
+    const W = wrap.clientWidth;
+    const mainH = mainHeight || Math.max(180, Math.min(280, W * 0.55));
+    return { W, mainH, padL: 46, padR: 8, padT: 6, padB: 18 };
+  }
+
+  function clearCross() {
+    const ov = overlayRef.current;
+    if (ov) {
+      const ctx = ov.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, ov.width, ov.height);
+    }
+    if (tipRef.current) tipRef.current.style.display = 'none';
+  }
+
+  function drawCross(px: number, py: number) {
+    const g = mainGeo();
+    const ov = overlayRef.current;
+    if (!g || !ov) return;
+    crossPosRef.current = { x: px, y: py };
+    const dpr = dprOf();
+    ov.width = g.W * dpr; ov.height = g.mainH * dpr;
+    ov.style.width = g.W + 'px'; ov.style.height = g.mainH + 'px';
+    const ctx = ov.getContext('2d')!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, g.W, g.mainH);
+    const cW = g.W - g.padL - g.padR;
+    const y = Math.max(g.padT, Math.min(g.mainH - g.padB, py));
+    let cx = -1;
+    let tip1 = '', tip2 = '', tip3 = '';
+    if (intraday?.days?.length) {
+      // 五日图不支持十字光标
+      crossRef.current = false;
+      crossPosRef.current = null;
+      clearCross();
+      return;
+    } else if (intraday) {
+      const pts = parseMinuteRows(intraday.minutes);
+      if (!pts.length) return;
+      const frac = Math.max(0, Math.min(1, (px - g.padL) / cW));
+      const idx = Math.round(frac * (pts.length - 1));
+      const d = pts[idx];
+      cx = g.padL + (pts.length === 1 ? cW / 2 : cW * (idx / (pts.length - 1)));
+      const pre = Number(intraday.preClose) || 0;
+      const chg = d.p - pre;
+      const t = d.t.length >= 4 ? d.t.slice(0, 2) + ':' + d.t.slice(2, 4) : d.t;
+      tip1 = t + '  ' + d.p.toFixed(2) + '  ' + (chg >= 0 ? '+' : '') + chg.toFixed(2);
+      tip2 = pre > 0 ? '涨跌 ' + (chg >= 0 ? '+' : '') + ((chg / pre) * 100).toFixed(2) + '%' : '';
+      tip3 = d.v > 0 ? '量 ' + (d.v >= 10000 ? (d.v / 10000).toFixed(1) + '万' : String(Math.round(d.v))) : '';
+    } else {
+      const data = parseRows(rows);
+      if (!data.length) return;
+      const bars = visBarsRef.current;
+      const gap = cW / bars;
+      const totalBars = Math.floor(cW / gap);
+      const maxScroll = Math.max(0, data.length - totalBars);
+      const scroll = Math.max(0, Math.min(scrollRef.current.scroll, maxScroll));
+      const start = Math.floor(scroll);
+      let idx = start + Math.floor((px - g.padL) / gap);
+      idx = Math.max(0, Math.min(data.length - 1, idx));
+      if (idx < start || idx > start + totalBars) return;
+      const d = data[idx];
+      cx = g.padL + gap * (idx - start) + gap / 2;
+      const dir = d.close >= d.open ? '▲' : '▼';
+      tip1 = d.date + ' ' + dir;
+      tip2 = '开 ' + d.open.toFixed(2) + ' 高 ' + d.high.toFixed(2);
+      tip3 = '低 ' + d.low.toFixed(2) + ' 收 ' + d.close.toFixed(2) + ' 量 ' + (d.vol >= 10000 ? (d.vol / 10000).toFixed(1) + '万' : String(Math.round(d.vol)));
+    }
+    if (cx < 0) return;
+    // 十字虚线 + 中心圆点
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.2; ctx.setLineDash([5, 3]);
+    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, g.mainH); ctx.stroke();
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(g.W, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(232,179,57,.9)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(cx, y, 3.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(232,179,57,.25)';
+    ctx.beginPath(); ctx.arc(cx, y, 3.5, 0, Math.PI * 2); ctx.fill();
+    // 提示框
+    const tip = tipRef.current;
+    if (tip) {
+      tip.innerHTML = '';
+      for (const line of [tip1, tip2, tip3]) {
+        if (!line) continue;
+        const div = document.createElement('div');
+        div.textContent = line;
+        tip.appendChild(div);
+      }
+      tip.style.display = 'block';
+      tip.style.left = (cx > g.W / 2 ? Math.max(4, cx - 150) : Math.min(g.W - 146, cx + 10)) + 'px';
+      tip.style.top = '6px';
+    }
+  }
+
+  function toggleCross(px: number, py: number) {
+    crossRef.current = !crossRef.current;
+    dragRef.current = null;
+    touchRef.current = null;
+    if (crossRef.current) drawCross(px, py);
+    else { crossPosRef.current = null; clearCross(); }
+  }
+
+  // 主图区域相对坐标
+  function mainPos(clientX: number, clientY: number) {
+    const box = mainBoxRef.current;
+    if (!box) return null;
+    const r = box.getBoundingClientRect();
+    return { x: clientX - r.left, y: clientY - r.top };
   }
 
   return (
@@ -184,20 +309,24 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
       ref={wrapRef}
       onWheel={(e) => {
         if (intraday) return;
+        scrollRef.current.touched = true;
         visBarsRef.current = Math.max(20, Math.min(200, Math.round(visBarsRef.current * (e.deltaY > 0 ? 1.15 : 0.87))));
         render();
       }}
       onMouseDown={(e) => {
-        if (intraday) return;
+        if (intraday || crossRef.current) return;
         dragRef.current = { x: e.clientX, scroll: scrollRef.current.scroll };
+        scrollRef.current.touched = true;
       }}
       onMouseMove={(e) => {
-        const d = dragRef.current;
         const wrap = wrapRef.current;
-        if (!d || intraday || !wrap) return;
-        const gap = Math.max(1, (wrap.clientWidth - 54) / visBarsRef.current);
-        scrollRef.current.scroll = Math.max(0, d.scroll - (e.clientX - d.x) / gap);
-        render();
+        if (!wrap || intraday) return;
+        const d = dragRef.current;
+        if (d && !crossRef.current) {
+          const gap = Math.max(1, (wrap.clientWidth - 54) / visBarsRef.current);
+          scrollRef.current.scroll = Math.max(0, d.scroll - (e.clientX - d.x) / gap);
+          render();
+        }
       }}
       onMouseUp={() => { dragRef.current = null; }}
       onMouseLeave={() => { dragRef.current = null; }}
@@ -222,7 +351,70 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
           </button>
         ))}
       </div>
-      <canvas className="kl-canvas" ref={mainRef} />
+      <div
+        ref={mainBoxRef}
+        style={{ position: 'relative', touchAction: 'none', cursor: 'crosshair' }}
+        onDoubleClick={(e) => {
+          const p = mainPos(e.clientX, e.clientY);
+          if (p) toggleCross(p.x, p.y);
+        }}
+        onMouseMove={(e) => {
+          if (!crossRef.current) return;
+          const p = mainPos(e.clientX, e.clientY);
+          if (p) drawCross(p.x, p.y);
+        }}
+        onTouchStart={(e) => {
+          const t = e.touches[0];
+          if (!t) return;
+          const p = mainPos(t.clientX, t.clientY);
+          if (!p) return;
+          // 双击（双次轻点）切换十字光标
+          const now = Date.now();
+          const lt = lastTapRef.current;
+          if (now - lt.t < 320 && Math.abs(t.clientX - lt.x) < 30 && Math.abs(t.clientY - lt.y) < 30) {
+            toggleCross(p.x, p.y);
+            lastTapRef.current = { t: 0, x: 0, y: 0 };
+            return;
+          }
+          lastTapRef.current = { t: now, x: t.clientX, y: t.clientY };
+          if (crossRef.current) drawCross(p.x, p.y);
+          else if (!intraday) touchRef.current = { x: t.clientX, scroll: scrollRef.current.scroll };
+        }}
+        onTouchMove={(e) => {
+          const t = e.touches[0];
+          if (!t) return;
+          const p = mainPos(t.clientX, t.clientY);
+          if (!p) return;
+          if (crossRef.current) {
+            drawCross(p.x, p.y);
+            return;
+          }
+          const td = touchRef.current;
+          const wrap = wrapRef.current;
+          if (td && !intraday && wrap) {
+            scrollRef.current.touched = true;
+            const gap = Math.max(1, (wrap.clientWidth - 54) / visBarsRef.current);
+            scrollRef.current.scroll = Math.max(0, td.scroll - (t.clientX - td.x) / gap);
+            render();
+          }
+        }}
+        onTouchEnd={() => { touchRef.current = null; }}
+      >
+        <canvas className="kl-canvas" ref={mainRef} style={{ display: 'block' }} />
+        <canvas
+          ref={overlayRef}
+          style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}
+        />
+        <div
+          ref={tipRef}
+          style={{
+            position: 'absolute', display: 'none', pointerEvents: 'none',
+            background: 'rgba(0,0,0,.78)', border: '1px solid rgba(255,255,255,.18)',
+            borderRadius: 4, padding: '4px 8px', fontSize: 10, lineHeight: 1.6,
+            color: '#e8e8e8', whiteSpace: 'nowrap', zIndex: 5,
+          }}
+        />
+      </div>
       {subs.includes('vol') && (
         <div className="kl-sub" style={{ borderTop: '1px solid #1f2124', position: 'relative' }}>
           <div className="kl-sub-hdr" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 8px 0', fontSize: '10px', opacity: 0.6 }}>
@@ -288,7 +480,7 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
 }
 
 // ---------- Main K线 ----------
-function drawMain(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number }, overlays: FormulaResult[] | undefined, bars: number) {
+function drawMain(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row[], up: string, down: string, scrollS: { scroll: number; touched?: boolean }, overlays: FormulaResult[] | undefined, bars: number) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
   if (!data.length) return;
   const padL = 46, padR = 8, padT = 6, padB = 18;
@@ -298,7 +490,8 @@ function drawMain(ctx: CanvasRenderingContext2D, W: number, H: number, data: Row
   const totalBars = Math.floor(cW / gap);
   const maxScroll = Math.max(0, data.length - totalBars);
   scrollS.scroll = Math.max(0, Math.min(scrollS.scroll, maxScroll));
-  if (scrollS.scroll === 0 && data.length > totalBars) scrollS.scroll = data.length - totalBars;
+  // 首次定位到最新（用户手动拖动/缩放后不再回弹）
+  if (!scrollS.touched && data.length > totalBars) scrollS.scroll = data.length - totalBars;
   const start = Math.floor(scrollS.scroll);
   const vis: Row[] = [];
   for (let i = start; i < Math.min(data.length, start + totalBars + 2); i++) vis.push(data[i]);

@@ -16,12 +16,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const isSh = /^(60|68|90|11|13|50|56|51|58)/.test(cleanCode);
   const secid = `${isSh ? 1 : 0}.${cleanCode}`;
 
-  // 并行：腾讯盘口 + 东财 ulist 财务 + 东财 stock/get 行业
+  // 并行：腾讯盘口 + 东财 ulist 财务 + 东财 stock/get 行业/市值/估值
   const ulistFields = 'f7,f9,f20,f21,f23'; // 振幅/市盈/总市值/流通市值/市净
   const [tencentText, u, s] = await Promise.all([
     httpsGetText(`https://qt.gtimg.cn/q=${toTencentCode(rawCode)}`, 'https://finance.qq.com/'),
     httpGetJson(`https://push2.eastmoney.com/api/qt/ulist.np/get?secids=${secid}&fields=${ulistFields}&fltt=2&invt=2`, 'https://quote.eastmoney.com/'),
-    httpGetJson(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f127&fltt=2&invt=2`, 'https://quote.eastmoney.com/'),
+    httpGetJson(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f116,f117,f127,f162,f167&fltt=2&invt=2`, 'https://quote.eastmoney.com/'),
   ]);
 
   // 腾讯盘口数据
@@ -29,9 +29,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tq = tDiff[0] || null;
   if (!tq) { json(res, 200, { data: { diff: [] } }); return; }
 
-  // 东财财务字段
+  // 东财财务字段（东财限流时字段可能为 "-" 或缺失，两路互为兜底）
+  const num = (v: any): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
   const ud = u?.data?.diff?.[0] || {};
   const sd = s?.data || {};
+  // 振幅兜底：由腾讯高/低/昨收计算
+  const hi = num(tq.f15), lo = num(tq.f16), pre = num(tq.f18);
+  const amplitude = num(ud.f7) || (pre > 0 ? +(((hi - lo) / pre) * 100).toFixed(2) : 0);
 
   // 合并：腾讯盘口为主，东财补充财务字段
   const diff = [{
@@ -46,12 +50,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     sell1: tq.sell1, sell1vol: tq.sell1vol, sell2: tq.sell2, sell2vol: tq.sell2vol,
     sell3: tq.sell3, sell3vol: tq.sell3vol, sell4: tq.sell4, sell4vol: tq.sell4vol,
     sell5: tq.sell5, sell5vol: tq.sell5vol,
-    // 东财财务字段
-    f7: ud.f7 ?? 0,    // 振幅
-    f9: ud.f9 ?? 0,    // 市盈率
-    f20: ud.f20 ?? 0,  // 总市值
-    f21: ud.f21 ?? 0,  // 流通市值
-    f23: ud.f23 ?? 0,  // 市净率
+    // 东财财务字段（ulist 优先，stock/get 兜底）
+    f7: amplitude,                        // 振幅
+    f9: num(ud.f9) || num(sd.f162),       // 市盈率
+    f20: num(ud.f20) || num(sd.f116),     // 总市值
+    f21: num(ud.f21) || num(sd.f117),     // 流通市值
+    f23: num(ud.f23) || num(sd.f167),     // 市净率
     f127: sd.f127 ?? '', // 行业
   }];
   json(res, 200, { data: { diff } });

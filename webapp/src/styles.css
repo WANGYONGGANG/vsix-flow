@@ -1090,7 +1090,7 @@ html[data-theme="dark"] .stock-row:active { background: var(--accent-soft); }
 }
 .detail-period-tabs button.active { color: var(--up); font-weight: 600; }
 .detail-chart-wrap {
-  display: grid; grid-template-columns: 1fr 110px;
+  display: grid; grid-template-columns: 1fr 118px;
   gap: 1px; background: var(--border); margin-bottom: 8px;
 }
 .detail-chart-main { background: var(--card); padding: 8px; min-height: 220px; }
@@ -1110,8 +1110,8 @@ html[data-theme="dark"] .stock-row:active { background: var(--accent-soft); }
   font-size: 13px;
 }
 .detail-action-bar {
-  position: fixed; left: 0; right: 0; bottom: calc(54px + var(--safe-bottom));
-  display: flex; gap: 8px; padding: 8px 14px;
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; gap: 8px; padding: 8px 14px calc(8px + var(--safe-bottom));
   background: var(--card); border-top: 1px solid var(--border); z-index: 40;
 }
 .detail-action-bar .btn-buy { flex: 1; background: var(--up); color: #fff; border-radius: 4px; padding: 10px; font-size: 15px; }
@@ -1123,6 +1123,7 @@ html[data-theme="dark"] .stock-row:active { background: var(--accent-soft); }
   padding: 4px 14px; background: var(--card);
 }
 .detail-compact.detail-more { border-top: 1px dashed var(--border); margin-bottom: 8px; padding: 6px 14px; }
+.detail-compact.detail-compact-toggle { justify-content: flex-end; padding: 2px 14px 6px; margin-bottom: 8px; }
 /* 侧栏 Tabs（五档/逐笔） */
 .kl-side-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
 .kl-side-tabs button { flex: 1; padding: 4px 0; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; color: var(--fg-2); }
@@ -1133,10 +1134,10 @@ html[data-theme="dark"] .stock-row:active { background: var(--accent-soft); }
 .detail-orderbook .ob-price { flex: 1; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
 .detail-orderbook .ob-vol { width: 34px; text-align: right; color: var(--fg-2); flex-shrink: 0; }
 /* 逐笔行 */
-.tick-row { display: flex; justify-content: space-between; line-height: 1.8; font-size: 11px; }
-.tick-row .tick-time { width: 36px; color: var(--fg-dim); flex-shrink: 0; }
-.tick-row .tick-price { flex: 1; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
-.tick-row .tick-vol { width: 40px; text-align: right; color: var(--fg-2); flex-shrink: 0; }
+.tick-row { display: flex; justify-content: space-between; gap: 2px; line-height: 1.8; font-size: 10px; }
+.tick-row .tick-time { width: 30px; color: var(--fg-dim); flex-shrink: 0; }
+.tick-row .tick-price { flex: 1; min-width: 0; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tick-row .tick-vol { width: 34px; text-align: right; color: var(--fg-2); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kl-more { text-align: center; color: var(--accent); font-size: 11px; padding: 4px 0; cursor: pointer; }
 
 /* ========= 交易面板 ========= */
