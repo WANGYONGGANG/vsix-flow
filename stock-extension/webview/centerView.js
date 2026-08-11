@@ -1146,9 +1146,58 @@ function renderStrongSector(d){
 
 function renderLhb(d){
   var list=d&&d.data?d.data.list:(d&&d.list?d.list:[]);if(!list||!list.length){$('#content').innerHTML='<div class="loading">暂无数据</div>';return}
-  var html='<table><tr><th>名称/代码</th><th>涨跌幅</th><th>净买额</th><th>上榜原因</th></tr>';
-  for(var i=0;i<list.length;i++){var x=list[i];var net=Number(x.BILLBOARD_NET_AMT||0);html+='<tr class="stock-row" data-code="'+esc(x.SECURITY_CODE||'')+'" data-name="'+esc(x.SECURITY_NAME_ABBR||'')+'"><td>'+esc(x.SECURITY_NAME_ABBR||'')+'<div class="text-muted" style="font-size:10px">'+esc(x.SECURITY_CODE||'')+'</div></td><td class="'+upClass(x.CHANGE_RATE)+'">'+upSign(x.CHANGE_RATE)+(x.CHANGE_RATE||0).toFixed(2)+'%</td><td class="'+(net>=0?'text-up':'text-down')+'">'+(net>=0?'+':'')+fmtYi(net)+'</td><td class="text-muted">'+esc(x.EXPLANATION||x.EXPLAIN||'')+'</td></tr>'}
-  html+='</table>';$('#content').innerHTML=html
+  var html='<div id="lhbList">';
+  for(var i=0;i<list.length;i++){
+    var x=list[i];var net=Number(x.BILLBOARD_NET_AMT||0);
+    var buyAmt=Number(x.BILLBOARD_BUY_AMT||0);var sellAmt=Number(x.BILLBOARD_SELL_AMT||0);
+    var explain=x.EXPLANATION||x.EXPLAIN||'';
+    var buySeats=[];var sellSeats=[];
+    try{buySeats=typeof x.BUY_SEAT==='string'?JSON.parse(x.BUY_SEAT):(x.BUY_SEAT||[])}catch(_){}
+    try{sellSeats=typeof x.SELL_SEAT==='string'?JSON.parse(x.SELL_SEAT):(x.SELL_SEAT||[])}catch(_){}
+    html+='<div class="lhb-item" style="border-bottom:1px solid var(--border);padding:8px 0;cursor:pointer" data-idx="'+i+'">';
+    html+='<div style="display:flex;align-items:center;gap:8px">';
+    html+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">'+esc(x.SECURITY_NAME_ABBR||'')+'</div><div class="text-muted" style="font-size:10px">'+esc(x.SECURITY_CODE||'')+'</div></div>';
+    html+='<div style="text-align:center;min-width:60px"><div class="'+upClass(x.CHANGE_RATE)+'" style="font-size:13px;font-weight:600">'+upSign(x.CHANGE_RATE)+(x.CHANGE_RATE||0).toFixed(2)+'%</div></div>';
+    html+='<div style="text-align:right;min-width:60px"><div class="'+(net>=0?'text-up':'text-down')+'" style="font-size:13px;font-weight:600">'+(net>=0?'+':'')+fmtYi(net)+'</div><div class="text-muted" style="font-size:10px">净额</div></div>';
+    html+='<div style="flex-shrink:0;width:16px;text-align:center;color:#999;font-size:10px">▼</div>';
+    html+='</div>';
+    html+='<div style="font-size:11px;color:var(--fg);line-height:1.5;margin-top:4px;word-break:break-all">'+(explain?esc(explain):'<span class="text-muted">—</span>')+'</div>';
+    html+='<div class="lhb-detail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">';
+    html+='<div style="font-size:11px;color:#999;margin-bottom:6px">买入额：'+fmtYi(buyAmt)+'　卖出额：'+fmtYi(sellAmt)+'</div>';
+    if(buySeats.length){
+      html+='<div style="font-size:11px;color:#23c343;margin-bottom:4px;font-weight:500">买入席位</div>';
+      for(var j=0;j<buySeats.length;j++){
+        var bs=buySeats[j];
+        html+='<div style="font-size:11px;line-height:1.8;padding-left:8px">'+(j+1)+'. '+esc(bs[0]||bs.name||'')+' <span class="text-up">'+fmtYi(bs[1]||bs.buy||0)+'</span>';
+        if((bs[2]||bs.sell||0)>0)html+='<span class="text-muted" style="margin-left:8px">卖出 '+fmtYi(bs[2]||bs.sell||0)+'</span>';
+        html+='</div>';
+      }
+    }
+    if(sellSeats.length){
+      html+='<div style="font-size:11px;color:#ff4d4f;margin-bottom:4px;margin-top:6px;font-weight:500">卖出席位</div>';
+      for(var k=0;k<sellSeats.length;k++){
+        var ss=sellSeats[k];
+        html+='<div style="font-size:11px;line-height:1.8;padding-left:8px">'+(k+1)+'. '+esc(ss[0]||ss.name||'')+' <span class="text-down">'+fmtYi(ss[2]||ss.sell||0)+'</span>';
+        if((ss[1]||ss.buy||0)>0)html+='<span class="text-muted" style="margin-left:8px">买入 '+fmtYi(ss[1]||ss.buy||0)+'</span>';
+        html+='</div>';
+      }
+    }
+    if(!buySeats.length&&!sellSeats.length)html+='<div class="text-muted" style="font-size:11px">暂无席位数据</div>';
+    html+='</div></div>';
+  }
+  html+='</div>';
+  $('#content').innerHTML=html;
+  var items=document.querySelectorAll('.lhb-item');
+  for(var m=0;m<items.length;m++){
+    items[m].addEventListener('click',function(){
+      var detail=this.querySelector('.lhb-detail');
+      if(!detail)return;
+      var open=detail.style.display!=='none';
+      detail.style.display=open?'none':'block';
+      var arrow=this.querySelector('div:last-child');
+      if(arrow)arrow.textContent=open?'▼':'▲';
+    });
+  }
 }
 
 function renderAlert(d){

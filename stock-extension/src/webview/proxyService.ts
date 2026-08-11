@@ -537,6 +537,31 @@ export class ProxyService {
 
       if (targetUrl.startsWith('/api/intraday')) {
         const code = toTencentCode((parsed.query.code as string) || 'sh000001');
+        const days = parseInt(parsed.query.days as string) || 1;
+        if (days > 1) {
+          // 五日分时：获取多天数据
+          const allDays: { date: string; minutes: string[] }[] = [];
+          let preClose = 0;
+          for (let d = days - 1; d >= 0; d--) {
+            const dt = new Date();
+            dt.setDate(dt.getDate() - d);
+            const dateStr = dt.toISOString().slice(0, 10).replace(/-/g, '');
+            const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${code}&date=${dateStr}`);
+            const mdata = r?.data?.[code]?.data?.data || [];
+            const rows: string[] = mdata.map((item: string) => {
+              const parts = item.split(' ');
+              if (parts.length >= 4) return `${parts[0]},${parts[1]},${parts[2]},${parts[3]}`;
+              return parts.length >= 2 ? `${parts[0]},${parts[1]},0,0` : item;
+            });
+            if (rows.length > 0) {
+              allDays.push({ date: dateStr, minutes: rows });
+              const qt = r?.data?.[code]?.qt?.[code] || {};
+              if (!preClose) preClose = qt[4] || 0;
+            }
+          }
+          this.json(res, 200, { data: { days: allDays, preClose } });
+          return;
+        }
         const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${code}`);
         const mdata = r?.data?.[code]?.data?.data || [];
         const rows: string[] = mdata.map((d: any) => {
