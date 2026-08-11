@@ -102,6 +102,7 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
   const crossPosRef = useRef<{ x: number; y: number } | null>(null);
   const touchRef = useRef<{ x: number; scroll: number } | null>(null);
   const lastTapRef = useRef<{ t: number; x: number; y: number }>({ t: 0, x: 0, y: 0 });
+  const lastTouchToggleRef = useRef(0); // 触摸双击切换十字光标的时间戳（避免随后合成的 dblclick 反向开关）
   const pinchRef = useRef<{ dist: number; visBars: number } | null>(null);
 
   const subRefMap: Record<string, React.RefObject<HTMLCanvasElement>> = {
@@ -288,10 +289,11 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
     }
   }
 
-  function toggleCross(px: number, py: number) {
+  function toggleCross(px: number, py: number, fromTouch = false) {
     crossRef.current = !crossRef.current;
     dragRef.current = null;
     touchRef.current = null;
+    if (fromTouch) lastTouchToggleRef.current = Date.now();
     if (crossRef.current) drawCross(px, py);
     else { crossPosRef.current = null; clearCross(); }
   }
@@ -346,6 +348,7 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
               fontSize: '11px',
               cursor: 'pointer',
               opacity: subs.includes(opt.id) ? 1 : 0.7,
+              filter: subs.includes(opt.id) ? 'brightness(0.68)' : 'none',
             }}
           >
             {opt.label}
@@ -356,6 +359,8 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
         ref={mainBoxRef}
         style={{ position: 'relative', touchAction: 'none', cursor: 'crosshair' }}
         onDoubleClick={(e) => {
+          // 触摸双击已处理过时跳过，避免合成 dblclick 把刚开启的光标关掉
+          if (Date.now() - lastTouchToggleRef.current < 800) return;
           const p = mainPos(e.clientX, e.clientY);
           if (p) toggleCross(p.x, p.y);
         }}
@@ -381,8 +386,8 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
           // 单击切换十字光标
           const now = Date.now();
           const lt = lastTapRef.current;
-          if (now - lt.t < 320 && Math.abs(t.clientX - lt.x) < 30 && Math.abs(t.clientY - lt.y) < 30) {
-            toggleCross(p.x, p.y);
+          if (now - lt.t < 450 && Math.abs(t.clientX - lt.x) < 40 && Math.abs(t.clientY - lt.y) < 40) {
+            toggleCross(p.x, p.y, true);
             lastTapRef.current = { t: 0, x: 0, y: 0 };
             return;
           }

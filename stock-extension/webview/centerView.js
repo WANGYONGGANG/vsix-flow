@@ -3124,7 +3124,9 @@ function _saveAIFeatureFormula(btn,msgIdx){
     }
   }
   if(lines.length===0)lines=[{label:'RESULT',color:'#36a2eb'}];
-  _formulas.push({id:'ai_'+Date.now(),name:name,code:codeBlock,type:isMain?'main':'sub',lines:lines,enabled:true,usage:text.substring(0,200)});
+  var nf={id:'ai_'+Date.now(),name:name,code:codeBlock,type:isMain?'main':'sub',lines:lines,enabled:true,usage:text.substring(0,200)};
+  _formulas.push(nf);
+  _activeFormula=nf;applyFormula();
   btn.textContent='✅ 已保存';btn.style.color='#23c343';btn.disabled=true;
   openFormulaEditor();
 }
@@ -3147,12 +3149,29 @@ function _addPreset(idx,btn){
   if(!p)return;
   var exists=_formulas.some(function(f){return f.id===p.id});
   if(exists)return;
-  _formulas.push({id:p.id,name:p.name,code:p.code,type:p.type,lines:JSON.parse(JSON.stringify(p.lines)),enabled:true});
+  var nf={id:p.id,name:p.name,code:p.code,type:p.type,lines:JSON.parse(JSON.stringify(p.lines)),enabled:true};
+  _formulas.push(nf);
+  // 添加后立即激活并刷新 K 线图指标，与 webapp 行为一致
+  _activeFormula=nf;
+  applyFormula();
   btn.textContent='已添加';btn.style.color='#666';btn.disabled=true;
+  openFormulaEditor();
   var tip=document.createElement('div');
   tip.textContent='+ 已添加';tip.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#23c343;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;z-index:10000;pointer-events:none;transition:opacity .4s';
   document.body.appendChild(tip);
   setTimeout(function(){tip.style.opacity='0';setTimeout(function(){tip.remove()},400)},800);
+}
+function _delFormula(idx){
+  var f=_formulas[idx];
+  if(!f)return;
+  if(_activeFormula&&_activeFormula.id===f.id){
+    _activeFormula=null;_formulaResult=null;
+    syncCustomSub();refreshSubChartDOM();
+    if(_klPeriod==='intraday'){if(_intradayRedrawData)drawIntraday(_intradayRedrawData)}
+    else renderChart();
+  }
+  _formulas.splice(idx,1);
+  openFormulaEditor();
 }
 function aiWriteFormula(){
   var m=document.getElementById('formulaManagerModal');
@@ -3182,6 +3201,8 @@ function aiWriteFormula(){
   document.getElementById('aiFormulaDesc').focus();
 }
 function openFormulaEditor(){
+  var old=document.getElementById('formulaManagerModal');
+  if(old)old.remove();
   var html='<div id="formulaManagerModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)this.remove()">';
   html+='<div onclick="event.stopPropagation()" style="width:500px;max-width:90vw;max-height:85vh;background:#1a1d24;border-radius:12px;border:1px solid #3a3d44;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5)">';
   html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #2a2d34;flex-shrink:0"><span style="color:#fff;font-size:15px;font-weight:600">公式指标管理</span><button onclick="document.getElementById(\'formulaManagerModal\').remove()" style="background:none;border:none;color:#999;font-size:20px;cursor:pointer;line-height:1">x</button></div>';
@@ -3202,7 +3223,7 @@ function openFormulaEditor(){
     html+='</div>';
     html+='<div style="display:flex;gap:8px">';
     html+='<button style="background:none;border:none;color:#36a2eb;font-size:12px;cursor:pointer" onclick="editFormula('+i+')">编辑</button>';
-    html+='<button style="background:none;border:none;color:#ff4d4f;font-size:12px;cursor:pointer" onclick="_formulas.splice('+i+',1);openFormulaEditor()">删除</button>';
+    html+='<button style="background:none;border:none;color:#ff4d4f;font-size:12px;cursor:pointer" onclick="_delFormula('+i+')">删除</button>';
     html+='</div></div>';
   }
   

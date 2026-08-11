@@ -15,8 +15,8 @@ import {
   fmtYi, fmtWan, upSign, mapEmDiffToStockItem, escapeHtml, normalizeCode,
 } from '../../local-shared/utils';
 
-type Period = '分时' | '五日' | '日K' | '周K' | '月K';
-const PERIODS: Period[] = ['分时', '五日', '日K', '周K', '月K'];
+type Period = '分时' | '五日' | '5分钟' | '15分钟' | '30分钟' | '60分钟' | '日K' | '周K' | '月K';
+const PERIODS: Period[] = ['分时', '五日', '5分钟', '15分钟', '30分钟', '60分钟', '日K', '周K', '月K'];
 type SubTab = 'news' | 'notice' | 'finance' | 'profile';
 type ProfileSubTab = 'essential' | 'company' | 'holder' | 'industry';
 type SideTab = 'orderbook' | 'ticks' | 'chips';
@@ -110,7 +110,7 @@ export default function StockDetailPage({ code }: { code: string }) {
         setKlineRows([]);
       }
     } else {
-      const map: Record<string, string> = { '日K': 'day', '周K': 'week', '月K': 'month' };
+      const map: Record<string, string> = { '日K': 'day', '周K': 'week', '月K': 'month', '5分钟': '5m', '15分钟': '15m', '30分钟': '30m', '60分钟': '60m' };
       const r = await api.kline(realCode, map[p], 120);
       setKlineRows(r?.data?.klines || []);
       setIntraday(null);
@@ -398,7 +398,7 @@ export default function StockDetailPage({ code }: { code: string }) {
             {sideCollapsed ? '◀' : '▶'}
           </button>
           {!sideCollapsed && (
-            <div className="detail-orderbook" style={{ width: 140, flexShrink: 0 }}>
+            <div className="detail-orderbook" style={{ width: 118, flexShrink: 0 }}>
               <div className="kl-side-tabs">
                 <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
                 <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>
@@ -448,8 +448,8 @@ export default function StockDetailPage({ code }: { code: string }) {
         <button className="btn-buy" onClick={() => openOrder('buy')}>买入</button>
         <button className="btn-sell" onClick={() => openOrder('sell')}>卖出</button>
         <button className="btn-sub" onClick={() => navigate('/settings')}>撤单</button>
-        <button className="btn-sub" onClick={() => inWatch ? delWatch(realCode) : addWatch({ code: realCode, name })}>
-          {inWatch ? '已自选' : '设自选'}
+        <button className="btn-watch" onClick={() => inWatch ? delWatch(realCode) : addWatch({ code: realCode, name })}>
+          {inWatch ? '★ 已自选' : '＋ 加入自选'}
         </button>
         <button className="btn-sub" onClick={() => setShowFormulaEditor(true)}>指标</button>
       </div>

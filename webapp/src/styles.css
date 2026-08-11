@@ -1083,14 +1083,15 @@ html[data-theme="dark"] .stock-row:active { background: var(--accent-soft); }
 }
 .detail-period-tabs {
   display: flex; gap: 0; padding: 0 6px; border-bottom: 1px solid var(--border);
-  background: var(--card); position: sticky; top: 0; z-index: 5;
+  background: var(--card); overflow-x: auto; scrollbar-width: none;
 }
+.detail-period-tabs::-webkit-scrollbar { display: none; }
 .detail-period-tabs button {
-  padding: 0 12px; height: 36px; font-size: 13px; color: var(--fg-2); flex-shrink: 0;
+  padding: 0 10px; height: 36px; font-size: 12px; color: var(--fg-2); flex-shrink: 0;
 }
-.detail-period-tabs button.active { color: var(--up); font-weight: 600; }
+.detail-period-tabs button.active { color: var(--up); font-weight: 600; opacity: .72; }
 .detail-chart-wrap {
-  display: grid; grid-template-columns: 1fr 118px;
+  display: flex; align-items: stretch;
   gap: 1px; background: var(--border); margin-bottom: 8px;
 }
 .detail-chart-main { background: var(--card); padding: 8px; min-height: 220px; }
@@ -1117,6 +1118,7 @@ html[data-theme="dark"] .stock-row:active { background: var(--accent-soft); }
 .detail-action-bar .btn-buy { flex: 1; background: var(--up); color: #fff; border-radius: 4px; padding: 10px; font-size: 15px; }
 .detail-action-bar .btn-sell { flex: 1; background: #4a6cf7; color: #fff; border-radius: 4px; padding: 10px; font-size: 15px; }
 .detail-action-bar .btn-sub { width: 48px; color: var(--fg-2); font-size: 11px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.detail-action-bar .btn-watch { flex: 1.2; background: rgba(232,179,147,.12); color: #e8b393; border: 1px solid rgba(232,179,147,.45); border-radius: 4px; padding: 10px 4px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 /* 紧凑字段行（东财风格小占位） */
 .detail-compact {
   display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center;
