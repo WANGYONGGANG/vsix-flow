@@ -215,7 +215,7 @@ export default function FormulaEditor({ formulas, onChange, onClose }: FormulaEd
                 })}
               </div>
               
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ position: 'sticky', bottom: 0, background: '#1a1d24', padding: '12px 0 0', display: 'flex', gap: 8 }}>
                 <button onClick={() => { resetForm(); setShowAdd(true); }} style={styles.addBtn}>
                   + 新建公式
                 </button>

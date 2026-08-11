@@ -3217,12 +3217,13 @@ function openFormulaEditor(){
   }
   
   // 新建公式按钮
-  html+='<div style="display:flex;gap:8px;margin-top:12px">';
+  html+='</div>'; // close scrollable area
+  html+='<div style="padding:12px;border-top:1px solid #2a2d34;flex-shrink:0;display:flex;gap:8px">';
   html+='<button style="flex:1;padding:12px;background:#22252c;border:1px dashed #3a3d44;border-radius:8px;color:#999;font-size:14px;cursor:pointer" onclick="editFormula(-1)">+ 新建公式</button>';
   html+='<button style="flex:1;padding:12px;background:#22252c;border:1px dashed #36a2eb;border-radius:8px;color:#36a2eb;font-size:14px;cursor:pointer" onclick="aiWriteFormula()">AI 写公式</button>';
   html+='</div>';
   
-  html+='</div></div></div>';
+  html+='</div></div>';
   var div=document.createElement('div');
   div.innerHTML=html;
   var modal=div.firstElementChild;

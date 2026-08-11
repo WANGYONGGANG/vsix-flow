@@ -312,6 +312,9 @@ export default function StockDetailPage({ code }: { code: string }) {
             </span>
           </div>
           <div className="acts">
+            <button onClick={() => setMoreInfoOpen(!moreInfoOpen)} style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 4, color: 'var(--fg)', cursor: 'pointer' }}>
+              {moreInfoOpen ? '收起▲' : '更多▼'}
+            </button>
             <button onClick={() => navigate('/ai')}>🤖</button>
           </div>
         </div>
@@ -363,11 +366,6 @@ export default function StockDetailPage({ code }: { code: string }) {
             </div>
           </>
         )}
-        <div className="detail-compact detail-compact-toggle">
-          <button className="detail-more-btn" onClick={() => setMoreInfoOpen(!moreInfoOpen)}>
-            {moreInfoOpen ? '收起▲' : '更多▼'}
-          </button>
-        </div>
 
         <div className="detail-period-tabs">
           {PERIODS.map((p) => (
