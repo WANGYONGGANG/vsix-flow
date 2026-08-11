@@ -144,22 +144,46 @@ export function resolveApiUrl(path) {
 
 ---
 
-## 4. 快速部署到 Vercel
+## 4. 打包与推送（Vercel Git 自动部署）
 
-### 方式 A：一键导入
-1. 把这个 Monorepo 推到 GitHub
-2. [vercel.com/new](https://vercel.com/new) → 选这个仓库 → Deploy
-3. Framework：**Vite**（Vercel 会自动识别）
-4. Root Directory：**留空（项目根）**
-5. 等待 → 获得 `xxx.vercel.app` 域名
+**部署方式：推送到 GitHub 后 Vercel 自动构建部署。** 不要用 vercel CLI 从仓库内部署（会因 Git 作者邮箱校验被 BLOCKED）。
 
-### 方式 B：vercel CLI
+关键信息：
+- 生产地址：`https://vsix-rho.vercel.app`
+- Git 远端：`github-origin` → `https://github.com/WANGYONGGANG/vsix-flow.git`（main 分支）
+- 服务端项目设置：framework=`vite`，buildCommand=`cd webapp && npm run build`，outputDirectory=`webapp/dist`
+- API 单函数分发器：`api/all.ts` + `api/_handlers/`（下划线目录不生成函数，规避 Hobby 计划 12 函数上限），`vercel.json` rewrites 将 `/api/:ep` 转发到 `/api/all?ep=:ep`
+
+### ① 打包（本地验证，可选）
+
 ```bash
-npm i -g vercel
-cd /workspace
-vercel      # 首次登录 + 项目创建
-vercel --prod
+nvm use 22.12.0                              # 需要 Node ≥ 18
+cd webapp && npm run build                   # 产出 webapp/dist（仅本地验证，Vercel 远端会重新构建，dist 不入库）
+cd .. && npx tsc -p tsconfig.api.json --noEmit   # API 类型检查
 ```
+
+### ② 推送（触发自动部署）
+
+```bash
+git add <改动文件>
+git commit -m "提交说明"
+git push github-origin main                  # Vercel 自动拉取构建，一般 1~2 分钟 READY
+```
+
+### ③ 部署状态验证
+
+本机无法直连 `*.vercel.app`，用 Vercel API 查状态（token 位于 `%APPDATA%\xdg.data\com.vercel.cli\auth.json`）：
+
+```bash
+# 最近部署列表（projectId/teamId 见 Vercel 控制台）
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://api.vercel.com/v6/deployments?teamId=<teamId>&projectId=<projectId>&limit=1"
+# 单部署状态：readyState=READY 即成功；失败时用 /v3/deployments/{id}/events 看构建日志
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://api.vercel.com/v13/deployments/<deploymentId>?teamId=<teamId>"
+```
+
+部署成功后用手机浏览器 / PWA 打开生产地址验证。
 
 ### 自定义域名
 在 Vercel 项目 → Settings → Domains 中添加域名 → 按提示配置 DNS CNAME
