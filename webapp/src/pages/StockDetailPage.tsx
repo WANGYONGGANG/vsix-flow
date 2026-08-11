@@ -37,6 +37,7 @@ export default function StockDetailPage({ code }: { code: string }) {
   const [kline120Rows, setKline120Rows] = useState<string[]>([]);
   const [intraday, setIntraday] = useState<{ minutes: string[]; preClose: number; ticks: any[]; days?: { date: string; minutes: string[] }[] } | null>(null);
   const [sideTab, setSideTab] = useState<SideTab>('orderbook');
+  const [sideCollapsed, setSideCollapsed] = useState(false);
   const [showTickModal, setShowTickModal] = useState(false);
   const [moreInfoOpen, setMoreInfoOpen] = useState(true);
   const [dtab, setDtab] = useState<SubTab>('news');
@@ -375,7 +376,7 @@ export default function StockDetailPage({ code }: { code: string }) {
         </div>
 
         <div className="detail-chart-wrap">
-          <div className="detail-chart-main">
+          <div className="detail-chart-main" style={{ flex: 1, minWidth: 0 }}>
             <KLineChart
               rows={klineRows}
               intraday={intraday || undefined}
@@ -385,16 +386,29 @@ export default function StockDetailPage({ code }: { code: string }) {
               customIndicators={customIndicators}
             />
           </div>
-          <div className="detail-orderbook">
-            <div className="kl-side-tabs">
-              <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
-              <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>
-              <button className={sideTab === 'chips' ? 'active' : ''} onClick={() => setSideTab('chips')}>筹码</button>
+          <button
+            onClick={() => setSideCollapsed(!sideCollapsed)}
+            style={{
+              flexShrink: 0, width: 20, background: 'rgba(255,255,255,.04)', border: 'none',
+              borderLeft: '1px solid var(--border)', color: '#999', cursor: 'pointer',
+              fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            title={sideCollapsed ? '展开侧栏' : '收起侧栏'}
+          >
+            {sideCollapsed ? '◀' : '▶'}
+          </button>
+          {!sideCollapsed && (
+            <div className="detail-orderbook" style={{ width: 140, flexShrink: 0 }}>
+              <div className="kl-side-tabs">
+                <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
+                <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>
+                <button className={sideTab === 'chips' ? 'active' : ''} onClick={() => setSideTab('chips')}>筹码</button>
+              </div>
+              {sideTab === 'orderbook' && renderOrderBook()}
+              {sideTab === 'ticks' && renderTicks()}
+              {sideTab === 'chips' && renderChips()}
             </div>
-            {sideTab === 'orderbook' && renderOrderBook()}
-            {sideTab === 'ticks' && renderTicks()}
-            {sideTab === 'chips' && renderChips()}
-          </div>
+          )}
         </div>
 
         {customIndicators.length > 0 && (

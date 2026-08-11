@@ -102,6 +102,7 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
   const crossPosRef = useRef<{ x: number; y: number } | null>(null);
   const touchRef = useRef<{ x: number; scroll: number } | null>(null);
   const lastTapRef = useRef<{ t: number; x: number; y: number }>({ t: 0, x: 0, y: 0 });
+  const pinchRef = useRef<{ dist: number; visBars: number } | null>(null);
 
   const subRefMap: Record<string, React.RefObject<HTMLCanvasElement>> = {
     vol: volRef,
@@ -364,11 +365,20 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
           if (p) drawCross(p.x, p.y);
         }}
         onTouchStart={(e) => {
-          const t = e.touches[0];
+          const touches = e.touches;
+          // 双指缩放
+          if (touches.length === 2) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            pinchRef.current = { dist: Math.sqrt(dx * dx + dy * dy), visBars: visBarsRef.current };
+            touchRef.current = null;
+            return;
+          }
+          const t = touches[0];
           if (!t) return;
           const p = mainPos(t.clientX, t.clientY);
           if (!p) return;
-          // 双击（双次轻点）切换十字光标
+          // 单击切换十字光标
           const now = Date.now();
           const lt = lastTapRef.current;
           if (now - lt.t < 320 && Math.abs(t.clientX - lt.x) < 30 && Math.abs(t.clientY - lt.y) < 30) {
@@ -381,7 +391,19 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
           else if (!intraday) touchRef.current = { x: t.clientX, scroll: scrollRef.current.scroll };
         }}
         onTouchMove={(e) => {
-          const t = e.touches[0];
+          const touches = e.touches;
+          // 双指缩放
+          if (touches.length === 2 && pinchRef.current) {
+            e.preventDefault();
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const scale = pinchRef.current.dist / dist;
+            visBarsRef.current = Math.max(20, Math.min(200, Math.round(pinchRef.current.visBars * scale)));
+            render();
+            return;
+          }
+          const t = touches[0];
           if (!t) return;
           const p = mainPos(t.clientX, t.clientY);
           if (!p) return;
@@ -398,7 +420,7 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
             render();
           }
         }}
-        onTouchEnd={() => { touchRef.current = null; }}
+        onTouchEnd={() => { touchRef.current = null; pinchRef.current = null; }}
       >
         <canvas className="kl-canvas" ref={mainRef} style={{ display: 'block' }} />
         <canvas

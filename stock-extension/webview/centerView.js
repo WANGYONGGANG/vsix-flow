@@ -1427,12 +1427,13 @@ function renderStockDetail(s){
   html+='<button class="kl-add" id="openFormulaEditor" style="margin-left:auto">📐 指标</button>';
   html+='</div>';
   html+='<div class="kl-chart-wrap" id="klChartWrap">';
-  html+='<div class="kl-chart" id="klChart">';
+  html+='<div class="kl-chart" id="klChart" style="flex:1;min-width:0">';
   html+='<canvas class="kl-canvas" id="klMain"></canvas>';
   html+='<div class="kl-sub" id="klSubVol"><div class="kl-sub-hdr"><span>成交量</span></div><canvas class="kl-canvas" id="klVol"></canvas></div>';
   html+='<canvas id="klOverlay" style="position:absolute;top:0;left:0;pointer-events:none;z-index:20"></canvas>';
   html+='</div>';
-  html+='<div class="kl-side" id="klSide">';
+  html+='<button id="klSideToggle" style="flex-shrink:0;width:20px;background:rgba(255,255,255,.04);border:none;border-left:1px solid #1f2124;color:#999;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center" title="收起/展开侧栏">▶</button>';
+  html+='<div class="kl-side" id="klSide" style="width:140px;flex-shrink:0">';
   html+='<div class="kl-side-tabs"><button data-side="book" class="active">盘口</button><button data-side="chips">筹码</button></div>';
   html+='<div id="klSideBook">';
   html+='<div class="kl-side-title">五档盘口</div>';
@@ -1488,6 +1489,9 @@ function renderStockDetail(s){
   var moreBtn=document.getElementById('detailMoreBtn');
   var moreDiv=document.getElementById('detailMore');
   if(moreBtn&&moreDiv){moreBtn.addEventListener('click',function(){var open=moreDiv.style.display!=='none';moreDiv.style.display=open?'none':'block';moreBtn.textContent=open?'更多 ▼':'收起 ▲'})}
+  var sideToggle=document.getElementById('klSideToggle');
+  var sidePanel=document.getElementById('klSide');
+  if(sideToggle&&sidePanel){sideToggle.addEventListener('click',function(){var collapsed=sidePanel.style.display==='none';sidePanel.style.display=collapsed?'':'none';sideToggle.textContent=collapsed?'▶':'◀'})}
   var watchBtn=document.getElementById('detailWatchBtn');
   if(watchBtn)watchBtn.addEventListener('click',function(){
     var inW=this.getAttribute('data-in')==='1';
