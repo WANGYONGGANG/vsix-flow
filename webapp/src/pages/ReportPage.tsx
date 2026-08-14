@@ -774,7 +774,7 @@ export default function ReportPage() {
 
   return (
     <div className="page" style={{ background: '#f4f5f7' }}>
-      <div className="detail-actions" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)', flexShrink: 0 }}>
+      <div className="detail-actions" style={{ borderBottom: '1px solid #e9ecef', background: '#fff', flexShrink: 0 }}>
         <button className="btn-back" onClick={() => navigate('/?tab=market')}>← 返回行情</button>
         <button className="btn-back" onClick={run} disabled={loading}>
           {loading ? '生成中…' : '↻ 重新生成'}
@@ -786,8 +786,8 @@ export default function ReportPage() {
       </div>
       <div id="report-frame" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', background: '#f4f5f7', paddingBottom: 'calc(20px + var(--safe-bottom))' }}>
         {loading && (
-          <div style={{ textAlign: 'center', padding: '120px 20px', color: 'var(--fg)' }}>
-            <div style={{ display: 'inline-block', width: 22, height: 22, border: '2px solid #2a2d34', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'rp 1s linear infinite', verticalAlign: 'middle', marginRight: 10 }} />
+          <div style={{ textAlign: 'center', padding: '120px 20px', color: '#212529' }}>
+            <div style={{ display: 'inline-block', width: 22, height: 22, border: '2px solid #dee2e6', borderTopColor: '#e03131', borderRadius: '50%', animation: 'rp 1s linear infinite', verticalAlign: 'middle', marginRight: 10 }} />
             正在扫描全市场（六维评分 / 15 只深度分析），请稍候…
           </div>
         )}

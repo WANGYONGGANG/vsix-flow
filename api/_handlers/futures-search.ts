@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return dm.includes(kw) || name.includes(kw);
       })
       .map((x: any) => ({
-        code: String(x.dm || ''),
+        code: 'f_' + String(x.dm || ''),
         name: x.name || '',
         type: '期货',
         display_code: String(x.dm || ''),

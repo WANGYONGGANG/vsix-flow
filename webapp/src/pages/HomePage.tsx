@@ -44,9 +44,15 @@ export default function HomePage() {
         ))}
       </div>
 
-      {tab === 'discovery' && <DiscoveryTab onNavigate={navigate} />}
-      {tab === 'market' && <MarketTab onNavigate={navigate} />}
-      {tab === 'watchlist' && <WatchlistTab onNavigate={navigate} />}
+      <div style={{ display: tab === 'discovery' ? 'block' : 'none' }}>
+        <DiscoveryTab onNavigate={navigate} />
+      </div>
+      <div style={{ display: tab === 'market' ? 'block' : 'none' }}>
+        <MarketTab onNavigate={navigate} />
+      </div>
+      <div style={{ display: tab === 'watchlist' ? 'block' : 'none' }}>
+        <WatchlistTab onNavigate={navigate} />
+      </div>
     </div>
   );
 }

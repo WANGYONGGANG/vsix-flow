@@ -55,6 +55,7 @@ export default function StockDetailPage({ code }: { code: string }) {
   const [aiInput, setAiInput] = useState('');
   const [aiMessages, setAiMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [fundFlowData, setFundFlowData] = useState<any[]>([]);
   const tickRef = useRef<any>(null);
   const periodRef = useRef<Period>('分时');
   const searchBoxRef = useRef<HTMLDivElement>(null);
@@ -64,6 +65,7 @@ export default function StockDetailPage({ code }: { code: string }) {
     loadPeriod('分时');
     loadSubTab('news');
     loadKline120();
+    loadFundFlow();
     schedule();
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,6 +102,11 @@ export default function StockDetailPage({ code }: { code: string }) {
   async function loadKline120() {
     const r = await api.kline(realCode, 'day', 120);
     setKline120Rows(r?.data?.klines || []);
+  }
+
+  async function loadFundFlow() {
+    const r = await api.stockFflowDay(realCode, 30);
+    setFundFlowData(r?.data?.list || []);
   }
 
   async function loadPeriod(p: Period) {
@@ -527,6 +534,55 @@ export default function StockDetailPage({ code }: { code: string }) {
             {customIndicators.map((ind, i) => (
               <span key={i}>{ind.name}{ind.type === 'main' ? '·主图' : '·副图'}</span>
             ))}
+          </div>
+        )}
+
+        {/* 历史资金流和大单占比 */}
+        {fundFlowData.length > 0 && (
+          <div style={{ marginTop: 12, padding: '0 12px' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--fg)' }}>
+              历史资金流（近{fundFlowData.length}日）
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+              <div style={{ background: 'rgba(255,255,255,.03)', padding: '8px 10px', borderRadius: 6 }}>
+                <div style={{ fontSize: 11, color: '#999' }}>主力净流入</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: fundFlowData[0]?.main >= 0 ? 'var(--up)' : 'var(--down)' }}>
+                  {fmtYi(fundFlowData[0]?.main || 0)}亿
+                </div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,.03)', padding: '8px 10px', borderRadius: 6 }}>
+                <div style={{ fontSize: 11, color: '#999' }}>主力占比</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>
+                  {fundFlowData[0]?.mainRatio ? fundFlowData[0].mainRatio.toFixed(1) + '%' : '-'}
+                </div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,.03)', padding: '8px 10px', borderRadius: 6 }}>
+                <div style={{ fontSize: 11, color: '#999' }}>超大单净流入</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: fundFlowData[0]?.super >= 0 ? 'var(--up)' : 'var(--down)' }}>
+                  {fmtYi(fundFlowData[0]?.super || 0)}亿
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>大单占比趋势</div>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 60, background: 'rgba(255,255,255,.02)', padding: '8px', borderRadius: 6 }}>
+              {fundFlowData.slice(-10).map((d, i) => {
+                const maxRatio = Math.max(...fundFlowData.slice(-10).map(x => Math.abs(x.mainRatio || 0)), 1);
+                const height = Math.abs(d.mainRatio || 0) / maxRatio * 100;
+                const isUp = (d.mainRatio || 0) >= 0;
+                return (
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <div style={{ fontSize: 9, color: '#999' }}>{(d.mainRatio || 0).toFixed(0)}%</div>
+                    <div style={{
+                      width: '100%',
+                      height: `${height}%`,
+                      background: isUp ? 'var(--up)' : 'var(--down)',
+                      borderRadius: 2,
+                      minHeight: 2,
+                    }} />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

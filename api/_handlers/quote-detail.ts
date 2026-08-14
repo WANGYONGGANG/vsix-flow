@@ -12,6 +12,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const rawCode = getQuery(req, 'code');
   if (!rawCode) { json(res, 200, { data: { diff: [] } }); return; }
 
+  // 检测是否为期货代码（f_ 前缀）
+  const isFutures = rawCode.toLowerCase().startsWith('f_');
+  
+  if (isFutures) {
+    // 期货数据：使用东方财富期货 API
+    const futuresCode = rawCode.replace(/^f_/i, '');
+    const secid = `113.${futuresCode}`; // 期货使用 market 113
+    
+    const [futuresData] = await Promise.all([
+      httpGetJson(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f43,f44,f45,f46,f47,f48,f50,f51,f52,f55,f57,f58,f60,f116,f117,f162,f167,f170,f171&fltt=2&invt=2`, 'https://quote.eastmoney.com/'),
+    ]);
+    
+    const fd = futuresData?.data || {};
+    const diff = [{
+      f2: fd.f43 || 0,      // 最新价
+      f3: fd.f170 || 0,     // 涨跌幅
+      f4: fd.f171 || 0,     // 涨跌额
+      f5: fd.f47 || 0,      // 成交量
+      f6: fd.f48 || 0,      // 成交额
+      f8: 0,                // 换手率（期货无此字段）
+      f12: futuresCode,     // 代码
+      f14: fd.f58 || '',    // 名称
+      f15: fd.f44 || 0,     // 最高
+      f16: fd.f45 || 0,     // 最低
+      f17: fd.f46 || 0,     // 今开
+      f18: fd.f60 || 0,     // 昨收
+      f7: 0,                // 振幅（期货需单独计算）
+      f9: 0,                // 市盈率（期货无）
+      f20: fd.f116 || 0,    // 总市值
+      f21: fd.f117 || 0,    // 流通市值
+      f23: 0,               // 市净率（期货无）
+      f127: '',             // 行业（期货无）
+      // 期货无五档盘口
+    }];
+    json(res, 200, { data: { diff } });
+    return;
+  }
+
   const cleanCode = rawCode.replace(/^(sh|sz|bj)/i, '');
   const isSh = /^(60|68|90|11|13|50|56|51|58)/.test(cleanCode);
   const secid = `${isSh ? 1 : 0}.${cleanCode}`;
