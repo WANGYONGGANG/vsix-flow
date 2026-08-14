@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const date = getQuery(req, 'date');
   if (!code || !date) { json(res, 200, { data: { buyList: [], sellList: [] } }); return; }
 
-  const baseFilter = `(SECURITY_CODE="${code}")(TRADE_DATE='${date}')`;
+  const baseFilter = `(SECURITY_CODE=%22${code}%22)(TRADE_DATE='${date}')`;
   const sortTypes = '-1';
 
   const [rBuy, rSell] = await Promise.all([
