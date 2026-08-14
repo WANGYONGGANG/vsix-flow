@@ -501,6 +501,33 @@ export class ProxyService {
         return;
       }
 
+      if (targetUrl.startsWith('/api/futures-search')) {
+        const kw = String(parsed.query.kw || '').trim();
+        if (!kw) { this.json(res, 200, { data: { list: [] } }); return; }
+        try {
+          const token = '58b2fa8f54638b60b87d69b31969089c';
+          const r = await httpGetJson(`https://futsseapi.eastmoney.com/list/COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`);
+          const raw = r?.list || [];
+          const list = raw
+            .filter((x: any) => {
+              const dm = String(x.dm || '').toLowerCase();
+              const name = String(x.name || '').toLowerCase();
+              return dm.includes(kw.toLowerCase()) || name.includes(kw.toLowerCase());
+            })
+            .map((x: any) => ({
+              code: String(x.dm || ''),
+              name: x.name || '',
+              type: '期货',
+              price: x.p,
+              change: x.zdf,
+            }));
+          this.json(res, 200, { data: { list } });
+        } catch {
+          this.json(res, 200, { data: { list: [] } });
+        }
+        return;
+      }
+
       if (targetUrl.startsWith('/api/em-news')) {
         const page = parsed.query.page || 1;
         const pageSize = parsed.query.pageSize || 50;
@@ -726,6 +753,18 @@ export class ProxyService {
         const r = await httpGetJson(`https://push2ex.eastmoney.com/getTopicZTPool?ut=${ut}&dpt=wz.ztzt&Pageindex=0&pagesize=200&sort=fbt%3Aasc&date=${d}`, 'https://quote.eastmoney.com/ztb/detail.html');
         const pool = r?.data?.pool || [];
         this.json(res, 200, { data: { pool } });
+        return;
+      }
+
+      if (targetUrl.startsWith('/api/lhb-detail')) {
+        const code = (parsed.query.code as string) || '';
+        const date = (parsed.query.date as string) || '';
+        if (!code || !date) { this.json(res, 200, { data: { list: [] } }); return; }
+        const r = await httpGetJson(`https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_BILLBOARD_DAILYDETAILSBUY&columns=ALL&pageSize=100&pageNumber=1&source=WEB&client=WEB&filter=(SECURITY_CODE=%22${code}%22)(TRADE_DATE='${date}')&sortTypes=-1`);
+        const list = r?.result?.data || [];
+        const r2 = await httpGetJson(`https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_BILLBOARD_DAILYDETAILSSELL&columns=ALL&pageSize=100&pageNumber=1&source=WEB&client=WEB&filter=(SECURITY_CODE=%22${code}%22)(TRADE_DATE='${date}')&sortTypes=-1`);
+        const sellList = r2?.result?.data || [];
+        this.json(res, 200, { data: { buyList: list, sellList } });
         return;
       }
 

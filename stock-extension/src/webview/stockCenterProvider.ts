@@ -95,7 +95,20 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ type: 'inWatchResult', code: String(msg.code), inWatch });
       } else if (msg.type === 'stockSearch' && msg.kw) {
         const r = await proxyGet(`/api/search?kw=${encodeURIComponent(String(msg.kw))}`);
-        webviewView.webview.postMessage({ type: 'stockSearchResult', list: r?.data?.list || [] });
+        let list = r?.data?.list || [];
+        // 如果是全局搜索，也搜索期货
+        if (msg.searchAll) {
+          try {
+            const futuresR = await proxyGet(`/api/futures-search?kw=${encodeURIComponent(String(msg.kw))}`);
+            const futuresList = futuresR?.data?.list || [];
+            list = [...list, ...futuresList];
+          } catch {}
+        }
+        webviewView.webview.postMessage({ type: 'stockSearchResult', list });
+        // 如果是搜索面板模式，也发送搜索面板结果
+        if (msg.searchAll) {
+          webviewView.webview.postMessage({ type: 'searchPanelResults', list });
+        }
       } else if (msg.type === 'delWatch' && msg.code) {
         await this.delWatch(msg.code);
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });

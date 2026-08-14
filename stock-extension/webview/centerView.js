@@ -1266,10 +1266,17 @@ function renderWatchlist(d){
       }
       var inSb=_statusBarCodes.indexOf(prefixCode(x.f12))>=0;
       var sbTag=inSb?'<span class="wl-alert-tag" style="background:rgba(53,150,240,.18);color:#5cabff">📌 状态栏</span>':'';
-      html+='<div class="wl-card '+flash+'" draggable="true" data-code="'+code+'" data-idx="'+i+'"><div class="wl-row"><div class="wl-name"><div class="nm">'+name+(alertHtml?'<span>'+alertHtml+'</span>':'')+'</div><div class="cd">'+code+' · 右键更多操作</div></div><div class="wl-price"><div class="pr '+(up?'text-up':'text-down')+'">'+price+'</div></div><div class="wl-chg"><span class="tag '+(up?'tag-up':'tag-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span></div><div class="wl-acts"><button class="wl-code-act wl-sb-toggle" data-code="'+code+'" title="'+(inSb?'移出状态栏':'加入状态栏')+'">'+sbTag+'</button><button class="wl-code-act" data-code="'+code+'" data-dir="top" title="置顶">⤒ 置顶</button><button class="wl-code-act" data-code="'+code+'" data-dir="bottom" title="置底">⤓ 置底</button></div><button class="wl-del" data-code="'+code+'">删除</button></div></div>';
+      html+='<div class="wl-card '+flash+'" draggable="true" data-code="'+code+'" data-idx="'+i+'"><div class="wl-row"><div class="wl-name"><div class="nm">'+name+(alertHtml?'<span>'+alertHtml+'</span>':'')+'</div><div class="cd">'+code+'</div></div><div class="wl-price"><div class="pr '+(up?'text-up':'text-down')+'">'+price+'</div></div><div class="wl-chg"><span class="tag '+(up?'tag-up':'tag-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span></div><div class="wl-acts"><button class="wl-code-act wl-sb-toggle" data-code="'+code+'" title="'+(inSb?'移出状态栏':'加入状态栏')+'">'+sbTag+'</button><button class="wl-code-act" data-code="'+code+'" data-dir="top" title="置顶">⤒ 置顶</button><button class="wl-code-act" data-code="'+code+'" data-dir="bottom" title="置底">⤓ 置底</button></div><button class="wl-del" data-code="'+code+'">删除</button></div></div>';
     }
   }
+  html+='<div id="wlAddBtn" style="position:sticky;bottom:0;padding:10px 0;text-align:center;background:var(--bg);border-top:1px solid var(--border);z-index:10"><button id="wlAddBtnInner" style="padding:8px 24px;border:1px solid #3596f0;border-radius:6px;background:transparent;color:#5cabff;font-size:13px;cursor:pointer;width:100%;max-width:200px">+ 添加自选</button></div>';
   $('#content').innerHTML=html;
+  var addBtn=document.getElementById('wlAddBtnInner');
+  if(addBtn){
+    addBtn.addEventListener('click',function(){
+      showSearchPanel('watchlist');
+    });
+  }
   var delBtns=document.querySelectorAll('.wl-del');
   for(var j=0;j<delBtns.length;j++){
     delBtns[j].addEventListener('click',function(e){
@@ -2755,6 +2762,8 @@ window.addEventListener('message',function(e){
     }
   }else if(msg.type==='stockSearchResult'){
     showDetailSearchResults(msg.list||[]);
+  }else if(msg.type==='searchPanelResults'){
+    showSearchPanelResults(msg.list||[]);
   }else if(msg.type==='setOpacity'){
     document.documentElement.style.setProperty('--panel-opacity',msg.opacity);
   }else if(msg.type==='setTheme'){
@@ -3478,6 +3487,93 @@ function drawFormulaSub(canvas){
   // 指标名称图例
   ctx.fillStyle='#666';ctx.font='9px sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
   ctx.fillText(_activeFormula.name||'自定义指标',padL,padT+2);
+}
+
+// 搜索面板 - 用于添加自选
+var _searchPanelResults=[];
+var _searchPanelMode='';
+function showSearchPanel(mode){
+  _searchPanelMode=mode||'watchlist';
+  var existing=document.getElementById('searchPanelModal');
+  if(existing)existing.remove();
+  var mask=document.createElement('div');
+  mask.id='searchPanelModal';
+  mask.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;display:flex;align-items:flex-start;justify-content:center;padding-top:80px';
+  mask.addEventListener('click',function(e){if(e.target===mask)mask.remove()});
+  var panel=document.createElement('div');
+  panel.style.cssText='width:360px;max-width:90vw;background:#1b1f26;border:1px solid #2a2e36;border-radius:10px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  panel.innerHTML='<div style="display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid #2a2e36"><span style="font-size:14px;font-weight:500;color:#eee;flex:1">添加自选</span><button id="spClose" style="background:none;border:none;color:#999;font-size:18px;cursor:pointer;padding:0 4px">✕</button></div><div style="padding:10px 14px"><input id="spInput" style="width:100%;padding:8px 10px;border:1px solid #2a2e36;border-radius:6px;background:#14171c;color:#eee;font-size:13px;outline:none" placeholder="搜索股票/期货名称或代码..."><div id="spResults" style="margin-top:8px;max-height:300px;overflow-y:auto"></div></div>';
+  mask.appendChild(panel);
+  document.body.appendChild(mask);
+  document.getElementById('spClose').addEventListener('click',function(){mask.remove()});
+  var inp=document.getElementById('spInput');
+  var resDiv=document.getElementById('spResults');
+  var debounce=null;
+  inp.addEventListener('input',function(){
+    var kw=this.value.trim();
+    if(debounce)clearTimeout(debounce);
+    if(!kw){resDiv.innerHTML='';_searchPanelResults=[];return}
+    debounce=setTimeout(function(){
+      // 同时搜索A股和期货
+      vscode.postMessage({type:'stockSearch',kw:kw,searchAll:true});
+    },300);
+  });
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&_searchPanelResults.length>0){
+      var item=_searchPanelResults[0];
+      addStockFromSearch(item);
+    }
+    if(e.key==='Escape')mask.remove();
+  });
+  inp.focus();
+}
+function showSearchPanelResults(list){
+  _searchPanelResults=list||[];
+  var resDiv=document.getElementById('spResults');
+  if(!resDiv)return;
+  if(!list||!list.length){resDiv.innerHTML='<div style="color:#999;font-size:12px;padding:8px">暂无结果</div>';return}
+  var html='';
+  for(var i=0;i<Math.min(10,list.length);i++){
+    var item=list[i];
+    var code=esc(item.f12||item.code||'');
+    var name=esc(item.f14||item.name||'');
+    var type=esc(item.f100||item.type||item.SecurityTypeName||'');
+    var typeTag=type?'<span style="font-size:10px;color:#999;margin-left:6px">'+type+'</span>':'';
+    html+='<div class="sp-item" style="display:flex;align-items:center;padding:8px 10px;cursor:pointer;border-bottom:1px solid #2a2e36" data-idx="'+i+'"><div style="flex:1"><span style="color:#eee;font-size:13px">'+name+'</span><span style="color:#999;font-size:12px;margin-left:8px">'+code+'</span>'+typeTag+'</div><button class="sp-add-btn" style="padding:4px 12px;border:1px solid #3596f0;border-radius:4px;background:transparent;color:#5cabff;font-size:12px;cursor:pointer">添加</button></div>';
+  }
+  resDiv.innerHTML=html;
+  var items=resDiv.querySelectorAll('.sp-item');
+  for(var j=0;j<items.length;j++){
+    items[j].addEventListener('click',function(e){
+      if(e.target.classList.contains('sp-add-btn'))return;
+      var idx=parseInt(this.getAttribute('data-idx'));
+      addStockFromSearch(_searchPanelResults[idx]);
+    });
+  }
+  var addBtns=resDiv.querySelectorAll('.sp-add-btn');
+  for(var k=0;k<addBtns.length;k++){
+    addBtns[k].addEventListener('click',function(e){
+      e.stopPropagation();
+      var idx=parseInt(this.closest('.sp-item').getAttribute('data-idx'));
+      addStockFromSearch(_searchPanelResults[idx]);
+      this.textContent='已添加';
+      this.disabled=true;
+      this.style.opacity='0.5';
+    });
+  }
+}
+function addStockFromSearch(item){
+  if(!item)return;
+  var code=item.f12||item.code||'';
+  var name=item.f14||item.name||'';
+  var marketType=item.f100||item.type||item.SecurityTypeName||'';
+  var prefix='';
+  if(marketType==='期货'||/^\d{4}$/.test(code)){
+    prefix='f_'+code;
+  }else{
+    prefix=prefixCode(code);
+  }
+  vscode.postMessage({type:'addWatch',code:prefix});
 }
 
 // 绑定指标按钮
