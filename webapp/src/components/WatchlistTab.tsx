@@ -195,6 +195,22 @@ export default function WatchlistTab({ onNavigate }: { onNavigate: (to: string) 
         );
       })}
 
+      {/* 添加自选按钮 */}
+      {codes.length > 0 && (
+        <div style={{ position: 'sticky', bottom: 0, padding: '10px 0', textAlign: 'center', background: 'var(--bg)', borderTop: '1px solid var(--border)', zIndex: 10 }}>
+          <button
+            onClick={() => {
+              // 触发全局搜索（通过自定义事件）
+              const evt = new CustomEvent('openSearch');
+              window.dispatchEvent(evt);
+            }}
+            style={{ padding: '8px 24px', border: '1px solid #3596f0', borderRadius: 6, background: 'transparent', color: '#5cabff', fontSize: 13, cursor: 'pointer', width: '100%', maxWidth: 200 }}
+          >
+            + 添加自选
+          </button>
+        </div>
+      )}
+
       {/* 长按菜单 */}
       {menuCode && (
         <div className="modal-mask" onClick={() => setMenuCode(null)}>

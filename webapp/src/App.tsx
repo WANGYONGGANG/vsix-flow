@@ -191,6 +191,12 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    const handler = () => setShowSearch(true);
+    window.addEventListener('openSearch', handler);
+    return () => window.removeEventListener('openSearch', handler);
+  }, []);
+
   const marketStatus = useMemo(() => {
     const trading = isAStockTradingHours(now);
     return trading ? { label: '交易中', dot: 'open' } : { label: '休市', dot: 'close' };
