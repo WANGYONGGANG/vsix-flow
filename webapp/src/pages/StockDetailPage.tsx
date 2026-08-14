@@ -48,8 +48,16 @@ export default function StockDetailPage({ code }: { code: string }) {
   const [orderPrice, setOrderPrice] = useState<string>('');
   const [toast, setToast] = useState('');
   const [showFormulaEditor, setShowFormulaEditor] = useState(false);
+  const [showSearchBox, setShowSearchBox] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiInput, setAiInput] = useState('');
+  const [aiMessages, setAiMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
   const tickRef = useRef<any>(null);
   const periodRef = useRef<Period>('分时');
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadQuote();
@@ -209,6 +217,81 @@ export default function StockDetailPage({ code }: { code: string }) {
     setOrderModal({ open: true, type });
   }
 
+  // 搜索功能
+  async function doSearch(query: string) {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const r = await api.search(query);
+      const list = r?.data?.list || [];
+      setSearchResults(list.slice(0, 10));
+    } catch {
+      setSearchResults([]);
+    }
+  }
+
+  function selectSearchResult(item: any) {
+    const code = normalizeCode(item.code || '');
+    if (code && code !== realCode) {
+      navigate(`/stock/${code}?name=${encodeURIComponent(item.name || '')}`);
+      setShowSearchBox(false);
+      setSearchQuery('');
+      setSearchResults([]);
+    }
+  }
+
+  // AI 对话功能
+  async function sendAIMessage(text: string) {
+    if (!text.trim() || aiLoading) return;
+    const activeModel = settings.aiModels.find(m => m.id === settings.activeAIModelId);
+    if (!activeModel) {
+      alert('请先在设置中配置 AI 模型');
+      return;
+    }
+
+    const userMsg = { role: 'user' as const, content: text };
+    setAiMessages(prev => [...prev, userMsg]);
+    setAiInput('');
+    setAiLoading(true);
+
+    try {
+      const response = await api.chatStream({
+        baseURL: activeModel.baseURL,
+        apiKey: activeModel.apiKey,
+        model: activeModel.model,
+        messages: [
+          { role: 'system', content: `你是股票 ${name}(${realCode}) 的分析助手，请简洁回答。` },
+          ...aiMessages.map(m => ({ role: m.role, content: m.content })),
+          userMsg
+        ],
+        onToken: (delta) => {
+          setAiMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (last && last.role === 'assistant') {
+              return [...prev.slice(0, -1), { ...last, content: last.content + delta }];
+            }
+            return [...prev, { role: 'assistant', content: delta }];
+          });
+        }
+      });
+    } catch (e: any) {
+      setAiMessages(prev => [...prev, { role: 'assistant', content: `❌ 请求失败：${e?.message || '未知错误'}` }]);
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  function quickAIAction(action: 'analyze' | 'trend' | 'news') {
+    const prompts = {
+      analyze: `请分析股票 ${name}(${realCode}) 的基本面情况，包括财务数据、行业地位、估值水平等`,
+      trend: `请解读股票 ${name}(${realCode}) 的技术走势，包括K线形态、支撑压力位、成交量变化等`,
+      news: `请总结股票 ${name}(${realCode}) 最近的新闻资讯和市场动态`
+    };
+    sendAIMessage(prompts[action]);
+  }
+
   function renderOrderBook() {
     return (
       <>
@@ -301,6 +384,33 @@ export default function StockDetailPage({ code }: { code: string }) {
 
   return (
     <div className="page" style={{ paddingBottom: 'calc(72px + var(--safe-bottom))' }}>
+      {/* 浮动搜索框 */}
+      {showSearchBox && (
+        <div ref={searchBoxRef} className="detail-search-box">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              doSearch(e.target.value);
+            }}
+            placeholder="搜索股票..."
+            autoFocus
+          />
+          <button onClick={() => { setShowSearchBox(false); setSearchQuery(''); setSearchResults([]); }}>✕</button>
+          {searchResults.length > 0 && (
+            <div className="search-results">
+              {searchResults.map((item, i) => (
+                <div key={i} onClick={() => selectSearchResult(item)}>
+                  <span>{item.name}</span>
+                  <span className="code">{item.code}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="content-scroll">
         <div className="detail-hdr-bar">
           <div>
@@ -313,10 +423,11 @@ export default function StockDetailPage({ code }: { code: string }) {
             </span>
           </div>
           <div className="acts">
+            <button onClick={() => setShowSearchBox(true)} title="搜索">🔍</button>
+            <button onClick={() => setAiPanelOpen(!aiPanelOpen)} title="AI 分析">🤖</button>
             <button onClick={() => setMoreInfoOpen(!moreInfoOpen)} style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 4, color: 'var(--fg)', cursor: 'pointer' }}>
               {moreInfoOpen ? '收起▲' : '更多▼'}
             </button>
-            <button onClick={() => navigate('/ai')}>🤖</button>
           </div>
         </div>
 
@@ -499,6 +610,50 @@ export default function StockDetailPage({ code }: { code: string }) {
       {toast && (
         <div style={{ position: 'fixed', top: '30%', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,.8)', color: '#fff', padding: '10px 18px', borderRadius: 6, zIndex: 300, fontSize: 13 }}>
           {toast}
+        </div>
+      )}
+
+      {/* AI 分析面板 */}
+      {aiPanelOpen && (
+        <div className="detail-ai-panel">
+          <div className="ai-panel-header">
+            <span>AI 分析助手</span>
+            <button onClick={() => setAiPanelOpen(false)}>✕</button>
+          </div>
+          <div className="ai-quick-actions">
+            <button onClick={() => quickAIAction('analyze')}>📊 基本面分析</button>
+            <button onClick={() => quickAIAction('trend')}>📈 技术走势</button>
+            <button onClick={() => quickAIAction('news')}>📰 最新资讯</button>
+          </div>
+          <div className="ai-messages">
+            {aiMessages.length === 0 && (
+              <div className="empty">点击快捷按钮或输入问题</div>
+            )}
+            {aiMessages.map((msg, i) => (
+              <div key={i} className={`message ${msg.role}`}>
+                {msg.content}
+              </div>
+            ))}
+            {aiLoading && <div className="message assistant loading">思考中...</div>}
+          </div>
+          <div className="ai-input-area">
+            <input
+              type="text"
+              value={aiInput}
+              onChange={(e) => setAiInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendAIMessage(aiInput);
+                }
+              }}
+              placeholder="输入问题..."
+              disabled={aiLoading}
+            />
+            <button onClick={() => sendAIMessage(aiInput)} disabled={aiLoading || !aiInput.trim()}>
+              发送
+            </button>
+          </div>
         </div>
       )}
 

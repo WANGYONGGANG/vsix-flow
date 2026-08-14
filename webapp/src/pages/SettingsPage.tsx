@@ -7,13 +7,26 @@ import { useSettings } from '../store/useSettings';
 import { useRouter } from '../router/useRouter';
 import TradePanel from '../components/TradePanel';
 
+const THEME_OPTIONS: { value: string; name: string; icon: string }[] = [
+  { value: 'classic', name: '经典', icon: '🎨' },
+  { value: 'dark', name: '暗色', icon: '🌙' },
+  { value: 'light', name: '亮色', icon: '☀️' },
+  { value: 'system', name: '跟随系统', icon: '🖥️' },
+];
+
 const VOICE_OPTIONS: { value: string; name: string; desc: string }[] = [
   { value: 'system', name: '跟随系统', desc: '使用系统默认语音' },
   { value: 'zh-CN-XiaoxiaoNeural', name: '晓晓', desc: '女 · 温婉' },
-  { value: 'zh-CN-YunxiNeural', name: '云希', desc: '男 · 沉稳' },
-  { value: 'zh-CN-YunyangNeural', name: '云扬', desc: '男 · 新闻' },
-  { value: 'zh-CN-XiaoyiNeural', name: '晓伊', desc: '女 · 活泼' },
+  { value: 'zh-CN-XiaoyiNeural', name: '晓伊', desc: '女 · 温柔' },
+  { value: 'zh-CN-XiaochenNeural', name: '晓辰', desc: '女 · 清新' },
+  { value: 'zh-CN-XiaohanNeural', name: '晓涵', desc: '女 · 知性' },
+  { value: 'zh-CN-XiaomengNeural', name: '晓梦', desc: '女 · 梦幻' },
+  { value: 'zh-CN-XiaomoNeural', name: '晓墨', desc: '女 · 沉稳' },
+  { value: 'zh-CN-XiaoshuangNeural', name: '晓双', desc: '女 · 儿童' },
   { value: 'zh-CN-YunjianNeural', name: '云健', desc: '男 · 浑厚' },
+  { value: 'zh-CN-YunxiNeural', name: '云希', desc: '男 · 年轻' },
+  { value: 'zh-CN-YunyangNeural', name: '云扬', desc: '男 · 新闻' },
+  { value: 'zh-CN-YunfengNeural', name: '云枫', desc: '男 · 成熟' },
 ];
 
 export default function SettingsPage() {
@@ -57,10 +70,10 @@ export default function SettingsPage() {
           <div className="form-item">
             <div className="lbl">主题</div>
             <div className="val">
-              <div className="flex items-center gap-2">
-                <button className={'pill' + (settings.theme === 'dark' ? ' on' : '')} onClick={() => update({ theme: 'dark' })}>🌙 暗色</button>
-                <button className={'pill' + (settings.theme === 'light' ? ' on' : '')} onClick={() => update({ theme: 'light' })}>☀️ 亮色</button>
-                <button className={'pill' + (settings.theme === 'system' ? ' on' : '')} onClick={() => update({ theme: 'system' })}>🖥️ 跟随系统</button>
+              <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+                {THEME_OPTIONS.map((t) => (
+                  <button key={t.value} className={'pill' + (settings.theme === t.value ? ' on' : '')} onClick={() => update({ theme: t.value as any })}>{t.icon} {t.name}</button>
+                ))}
               </div>
             </div>
           </div>

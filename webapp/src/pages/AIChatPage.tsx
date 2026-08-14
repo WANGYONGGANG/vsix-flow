@@ -26,7 +26,7 @@ function saveHistory(list: any[]) {
 type Session = { id: string; messages: AIChatMessage[]; title: string };
 
 export default function AIChatPage() {
-  const { settings, activeAIModel, getWatchCodes, formulas, updateFormulas } = useSettings();
+  const { settings, activeAIModel, getWatchCodes, formulas, updateFormulas, setActiveAIModel } = useSettings();
   const { navigate } = useRouter();
   const [savedFormulaMsgs, setSavedFormulaMsgs] = useState<Record<string, boolean>>({});
   const [sessions, setSessions] = useState<Session[]>(() => loadHistory());
@@ -201,6 +201,28 @@ export default function AIChatPage() {
     setTimeout(scrollToBottom, 0);
   }
 
+  // ========= 快捷命令：直接发送（对齐扩展 sendAgentQuick） =========
+  async function doSummary() {
+    const r = await api.emNews(1, 15);
+    const list = r?.data?.list || [];
+    const lines = list.slice(0, 15).map((n: any, i: number) => `${i + 1}. [${n.showtime || n.time || ''}] ${n.title || ''}`).join('\n');
+    const text = `最近市场快讯：\n${lines}\n\n请提炼关键信息，帮我解读今日市场情绪。`;
+    send(text);
+  }
+
+  async function doPortfolio() {
+    const codes = getWatchCodes();
+    if (!codes.length) { send('我的自选股有哪些？请帮我分析一下。'); return; }
+    const r = await api.quote(codes);
+    const diff = r?.data?.diff || [];
+    const lines = diff.map((d: any) => {
+      const s = mapEmDiffToStockItem(d);
+      return `- ${s.name}(${s.code})：${s.price} ${upSign(s.changeRate)}${s.changeRate.toFixed(2)}%`;
+    }).join('\n');
+    const text = `这是我当前的自选股行情（${new Date().toLocaleTimeString('zh-CN', { hour12: false })}）：\n${lines}\n\n请给出点评与近期关注点。`;
+    send(text);
+  }
+
   // ========= 工具栏 Chips：预设问题直接填入输入框 =========
   function fillPrompt(text: string) {
     setInput(text);
@@ -228,7 +250,7 @@ export default function AIChatPage() {
 
   return (
     <div className="page ai-page">
-      {/* AI 顶栏：菜单 + 当前标题 + 新建 */}
+      {/* AI 顶栏：菜单 + 当前标题 + 模型选择 + 新建 */}
       <div className="ai-topbar">
         <button type="button" className="ai-tb-btn" onClick={() => setDrawerOpen(true)} title="历史会话" aria-label="历史会话">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -236,6 +258,18 @@ export default function AIChatPage() {
           </svg>
         </button>
         <div className="ai-tb-title" title={currentTitle}>{escapeHtml(currentTitle)}</div>
+        {settings.aiModels.length > 0 && (
+          <select
+            className="ai-model-select"
+            value={activeAIModel?.id || ''}
+            onChange={(e) => setActiveAIModel(e.target.value || null)}
+            title="切换 AI 模型"
+          >
+            {settings.aiModels.map((m: any) => (
+              <option key={m.id} value={m.id}>{m.name || m.provider} · {m.model}</option>
+            ))}
+          </select>
+        )}
         <button type="button" className="ai-tb-btn" onClick={newChat} title="新对话" aria-label="新对话">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14M5 12h14" />
@@ -262,6 +296,8 @@ export default function AIChatPage() {
               <div className="ai-tip" onClick={chipInjectFlashnews}>⚡ 最新快讯解读</div>
               <div className="ai-tip" onClick={chipInjectSectors}>🔥 板块热点解读</div>
               <div className="ai-tip" onClick={chipInjectDeepAnalysis}>📈 深度技术分析</div>
+              <div className="ai-tip" onClick={doSummary}>📊 摘要快讯</div>
+              <div className="ai-tip" onClick={doPortfolio}>💼 自选概览</div>
             </div>
           </div>
         )}
@@ -296,6 +332,8 @@ export default function AIChatPage() {
         <button type="button" className="ai-chip" onClick={() => fillPrompt('用通俗的语言解释 A 股常用术语：换手率、市盈率、主力资金、龙虎榜。')}>📚 概念科普</button>
         <button type="button" className="ai-chip" onClick={() => fillPrompt('根据今日盘面特征，预判明日大盘走势和需要关注的关键信号。')}>🔮 明日预判</button>
         <button type="button" className="ai-chip" onClick={() => fillPrompt('如何判断我的持仓是否健康？给出诊断维度和优化建议。')}>💼 持仓诊断</button>
+        <button type="button" className="ai-chip" onClick={doSummary}>📊 摘要快讯</button>
+        <button type="button" className="ai-chip" onClick={doPortfolio}>💼 自选概览</button>
       </div>
 
       {/* 输入栏 */}

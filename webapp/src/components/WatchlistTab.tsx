@@ -9,12 +9,21 @@ import { api } from '../api/client';
 import Sparkline from './Sparkline';
 import { mapEmDiffToStockItem, fmtPrice, upSign, normalizeCode } from '../../local-shared/utils';
 
+const CHG_TYPES: Record<number, string> = {
+  4: '秒板', 8: '封板', 16: '打开涨停', 32: '大笔买入', 64: '大笔卖出',
+  128: '大笔买入', 8193: '火箭发射', 8194: '快速反弹', 8201: '加速上涨',
+  8202: '高台跳水', 8203: '加速下跌', 8204: '大笔卖出', 8207: '大幅上升',
+  8208: '大幅下降', 8209: '封涨停', 8210: '封跌停', 8211: '打开涨停',
+  8212: '打开跌停', 8213: '创历史新高', 8214: '创历史新低', 8215: '竞价上涨', 8216: '竞价下跌'
+};
+
 export default function WatchlistTab({ onNavigate }: { onNavigate: (to: string) => void }) {
   const { settings, watchlist, delWatch, getWatchCodes, moveWatch, reorderWatch } = useSettings();
   const { holdings } = useSimTrade();
   const [filter, setFilter] = useState('全部');
   const [quotes, setQuotes] = useState<any[]>([]);
   const [sparks, setSparks] = useState<Record<string, number[]>>({});
+  const [alerts, setAlerts] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(false);
   const [swipedCode, setSwipedCode] = useState<string | null>(null);
   const [menuCode, setMenuCode] = useState<string | null>(null);
@@ -38,11 +47,33 @@ export default function WatchlistTab({ onNavigate }: { onNavigate: (to: string) 
   const draggable = filter === '全部';
 
   async function load() {
-    if (!codes.length) { setQuotes([]); setSparks({}); return; }
+    if (!codes.length) { setQuotes([]); setSparks({}); setAlerts({}); return; }
     setLoading(true);
     const r = await api.quote(codes);
     const diff: any[] = r?.data?.diff || [];
     setQuotes(diff);
+    
+    // 加载异动数据
+    try {
+      const alertR = await api.stockChanges();
+      const alertList: any[] = alertR?.data?.list || [];
+      const alertMap: Record<string, any[]> = {};
+      for (const a of alertList) {
+        const code = normalizeCode(a.c || '');
+        if (!codes.includes(code)) continue;
+        if (!alertMap[code]) alertMap[code] = [];
+        alertMap[code].push({
+          t: a.t,
+          i: a.i,
+          label: CHG_TYPES[a.t] || '异动',
+          isUp: [4, 8, 32, 128, 8193, 8194, 8201, 8207, 8209, 8211, 8213, 8215].includes(a.t)
+        });
+      }
+      setAlerts(alertMap);
+    } catch {
+      setAlerts({});
+    }
+    
     // 加载分时 sparkline
     const sparkMap: Record<string, number[]> = {};
     await Promise.all(codes.slice(0, 15).map(async (code) => {
@@ -179,7 +210,14 @@ export default function WatchlistTab({ onNavigate }: { onNavigate: (to: string) 
               }}
             >
               <div className="info">
-                <div className="nm">{nm}</div>
+                <div className="nm">
+                  {nm}
+                  {alerts[code]?.slice(0, 2).map((a, idx) => (
+                    <span key={idx} className={'wl-alert-tag ' + (a.isUp ? 'up' : 'down')}>
+                      {a.label}
+                    </span>
+                  ))}
+                </div>
                 <div className="cd">{code.replace(/^(sh|sz|bj)/, '')}</div>
               </div>
               <div className="spark">
