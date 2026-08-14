@@ -507,7 +507,7 @@ export class ProxyService {
         try {
           const token = '58b2fa8f54638b60b87d69b31969089c';
           const r = await httpGetJson(`https://futsseapi.eastmoney.com/list/COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`);
-          const raw = r?.list || [];
+          const raw = r?.list || r || [];
           const list = raw
             .filter((x: any) => {
               const dm = String(x.dm || '').toLowerCase();

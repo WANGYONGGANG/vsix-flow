@@ -131,8 +131,15 @@ function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code:
     if (!kw) { setList([]); return; }
     let alive = true;
     setLoading(true);
-    api.search(kw).then((r) => { if (alive) setList((r?.data?.list || []).slice(0, 12)); })
-      .finally(() => alive && setLoading(false));
+    Promise.all([
+      api.search(kw).then((r) => r?.data?.list || []),
+      api.futuresSearch(kw).then((r) => r?.data?.list || []),
+    ]).then(([stockList, futuresList]) => {
+      if (alive) {
+        const merged = [...stockList, ...futuresList].slice(0, 15);
+        setList(merged);
+      }
+    }).finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [q]);
 
@@ -141,7 +148,7 @@ function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code:
   return (
     <div className="overlay" onClick={onClose}>
       <div className="dialog search-dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="dialog-head"><b>搜索股票 / 指数</b><button className="icon-btn" onClick={onClose}>✕</button></div>
+        <div className="dialog-head"><b>搜索股票 / 指数 / 期货</b><button className="icon-btn" onClick={onClose}>✕</button></div>
         <div className="dialog-body">
           <div className="search-input-wrap">
             <input ref={inputRef} className="search-input" placeholder="输入代码/拼音/中文名称"

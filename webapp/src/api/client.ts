@@ -53,6 +53,7 @@ export const api = {
   // ===== 扩展适配 - 新增接口 =====
   marketRealtimeBatch: (codes: string[]) => request<any>(`/api/quote?codes=${codes.join(',')}`),
   search: (kw: string) => request<any>(`/api/search?kw=${encodeURIComponent(kw)}`),
+  futuresSearch: (kw: string) => request<any>(`/api/futures-search?kw=${encodeURIComponent(kw)}`),
   stockFlowRank: (pz = 100) => request<any>(`/api/stock-flow-rank?pz=${pz}`),
   allStocks: (market = 'a') => request<any>(`/api/all-stocks?market=${market}`),
   sectorFlowRank: (t: 1 | 2 = 2, pz = 30) => request<any>(`/api/sector-flow-rank?t=${t}&pz=${pz}`),
