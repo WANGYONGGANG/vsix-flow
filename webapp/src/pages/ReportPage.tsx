@@ -509,7 +509,7 @@ function buildReportHtml(opts: {
 
   return `<style>
 *{box-sizing:border-box}
-body{margin:0;background:#f4f5f7;color:#212529;font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif}
+body{margin:0;background:#f4f5f7 !important;color:#212529 !important;font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif}
 .wrap{max-width:100%;margin:0 auto;padding:18px 14px 60px;overflow-x:auto;background:#f4f5f7}
 .up{color:#e03131} .down{color:#0f9960} .flat{color:#868e96}
 .mono{font-family:ui-monospace,Consolas,monospace}
@@ -773,7 +773,7 @@ export default function ReportPage() {
   };
 
   return (
-    <div className="page" style={{ background: '#f4f5f7' }}>
+    <div className="page" style={{ background: '#f4f5f7', color: '#212529' }}>
       <div className="detail-actions" style={{ borderBottom: '1px solid #e9ecef', background: '#fff', flexShrink: 0 }}>
         <button className="btn-back" onClick={() => navigate('/?tab=market')}>← 返回行情</button>
         <button className="btn-back" onClick={run} disabled={loading}>
@@ -784,7 +784,7 @@ export default function ReportPage() {
           {loading ? `扫描中… ${elapsed.toFixed(1)}s` : html ? `耗时 ${elapsed.toFixed(1)}s` : ''}
         </div>
       </div>
-      <div id="report-frame" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', background: '#f4f5f7', paddingBottom: 'calc(20px + var(--safe-bottom))' }}>
+      <div id="report-frame" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', background: '#f4f5f7', color: '#212529', paddingBottom: 'calc(20px + var(--safe-bottom))' }}>
         {loading && (
           <div style={{ textAlign: 'center', padding: '120px 20px', color: '#212529' }}>
             <div style={{ display: 'inline-block', width: 22, height: 22, border: '2px solid #dee2e6', borderTopColor: '#e03131', borderRadius: '50%', animation: 'rp 1s linear infinite', verticalAlign: 'middle', marginRight: 10 }} />
