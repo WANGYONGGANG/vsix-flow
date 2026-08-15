@@ -2,7 +2,7 @@
 // 龙虎榜
 // ============================================
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useRouter } from '../router/useRouter';
 import { escapeHtml, fmtYi, upSign } from '../../local-shared/utils';
@@ -18,6 +18,8 @@ interface LhbItem {
   EXPLAIN?: string;
   EXPLANATION?: string;
   TRADE_DATE?: string;
+  BUY_SEAT?: string | any[];
+  SELL_SEAT?: string | any[];
   f12?: string;
   f14?: string;
   f2?: number;
@@ -25,14 +27,25 @@ interface LhbItem {
   f62?: number;
 }
 
-interface SeatDetail {
-  OPERATEDEPT_NAME?: string;
-  BUY?: number;
-  SELL?: number;
-  NET?: number;
-  TOTAL_BUYRIO?: number;
-  TOTAL_SELLRIO?: number;
-  TOTAL_NETAMT?: number;
+// 席位项兼容两种格式：数组 [name, buy, sell] 或对象 {name, buy, sell}
+function parseSeats(raw: string | any[] | undefined): any[] {
+  if (!raw) return [];
+  try {
+    const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function seatName(s: any): string {
+  return s[0] || s.name || '';
+}
+function seatBuy(s: any): number {
+  return Number(s[1] || s.buy || 0);
+}
+function seatSell(s: any): number {
+  return Number(s[2] || s.sell || 0);
 }
 
 export default function LhbPage() {
@@ -40,9 +53,6 @@ export default function LhbPage() {
   const [list, setList] = useState<LhbItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [buySeats, setBuySeats] = useState<SeatDetail[]>([]);
-  const [sellSeats, setSellSeats] = useState<SeatDetail[]>([]);
 
   useEffect(() => {
     setLoading(true);
@@ -61,28 +71,8 @@ export default function LhbPage() {
     navigate(`/stock/${m}${c}?name=${encodeURIComponent(name || '')}`);
   };
 
-  const fetchDetail = useCallback(async (code: string, date: string) => {
-    setDetailLoading(true);
-    try {
-      const r = await api.lhbDetail(code, date);
-      setBuySeats(r?.data?.buyList || []);
-      setSellSeats(r?.data?.sellList || []);
-    } catch {
-      setBuySeats([]);
-      setSellSeats([]);
-    }
-    setDetailLoading(false);
-  }, []);
-
-  const toggleExpand = async (idx: number, code: string, date: string) => {
-    if (expandedIdx === idx) {
-      setExpandedIdx(null);
-      setBuySeats([]);
-      setSellSeats([]);
-      return;
-    }
-    setExpandedIdx(idx);
-    await fetchDetail(code, date);
+  const toggleExpand = (idx: number) => {
+    setExpandedIdx(expandedIdx === idx ? null : idx);
   };
 
   return (
@@ -102,9 +92,12 @@ export default function LhbPage() {
         const up = chg >= 0;
         const expanded = expandedIdx === i;
 
+        const buySeats = parseSeats(x.BUY_SEAT);
+        const sellSeats = parseSeats(x.SELL_SEAT);
+
         return (
           <div key={code + i} style={{ borderBottom: '1px solid var(--border)' }}>
-            <div className="watchlist-row" onClick={() => toggleExpand(i, code, tradeDate)}>
+            <div className="watchlist-row" onClick={() => toggleExpand(i)}>
               <div className="info" style={{ minWidth: 72 }}>
                 <div className="nm">{escapeHtml(name)}</div>
                 <div className="cd">{code}</div>
@@ -137,36 +130,30 @@ export default function LhbPage() {
                   <span>卖出额：{fmtYi(sellAmt)}</span>
                   <span>日期：{tradeDate}</span>
                 </div>
-                {detailLoading ? (
-                  <div className="text-muted" style={{ fontSize: 11 }}>加载席位数据中…</div>
-                ) : (
-                  <>
-                    {buySeats.length > 0 && (
-                      <div style={{ marginBottom: 8 }}>
-                        <div style={{ fontSize: 11, color: '#23c343', marginBottom: 4, fontWeight: 500 }}>买入席位</div>
-                        {buySeats.map((s, j) => (
-                          <div key={j} style={{ fontSize: 11, color: 'var(--fg)', lineHeight: 1.8, paddingLeft: 8 }}>
-                            {j + 1}. {escapeHtml(s.OPERATEDEPT_NAME || '')} <span className="text-up">{fmtYi(s.BUY || 0)}</span>
-                            {(s.SELL || 0) > 0 && <span className="text-muted" style={{ marginLeft: 8 }}>卖出 {fmtYi(s.SELL || 0)}</span>}
-                          </div>
-                        ))}
+                {buySeats.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, color: '#23c343', marginBottom: 4, fontWeight: 500 }}>买入席位</div>
+                    {buySeats.map((s, j) => (
+                      <div key={j} style={{ fontSize: 11, color: 'var(--fg)', lineHeight: 1.8, paddingLeft: 8 }}>
+                        {j + 1}. {escapeHtml(seatName(s))} <span className="text-up">{fmtYi(seatBuy(s))}</span>
+                        {seatSell(s) > 0 && <span className="text-muted" style={{ marginLeft: 8 }}>卖出 {fmtYi(seatSell(s))}</span>}
                       </div>
-                    )}
-                    {sellSeats.length > 0 && (
-                      <div>
-                        <div style={{ fontSize: 11, color: '#ff4d4f', marginBottom: 4, fontWeight: 500 }}>卖出席位</div>
-                        {sellSeats.map((s, j) => (
-                          <div key={j} style={{ fontSize: 11, color: 'var(--fg)', lineHeight: 1.8, paddingLeft: 8 }}>
-                            {j + 1}. {escapeHtml(s.OPERATEDEPT_NAME || '')} <span className="text-down">{fmtYi(s.SELL || 0)}</span>
-                            {(s.BUY || 0) > 0 && <span className="text-muted" style={{ marginLeft: 8 }}>买入 {fmtYi(s.BUY || 0)}</span>}
-                          </div>
-                        ))}
+                    ))}
+                  </div>
+                )}
+                {sellSeats.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: '#ff4d4f', marginBottom: 4, fontWeight: 500 }}>卖出席位</div>
+                    {sellSeats.map((s, j) => (
+                      <div key={j} style={{ fontSize: 11, color: 'var(--fg)', lineHeight: 1.8, paddingLeft: 8 }}>
+                        {j + 1}. {escapeHtml(seatName(s))} <span className="text-down">{fmtYi(seatSell(s))}</span>
+                        {seatBuy(s) > 0 && <span className="text-muted" style={{ marginLeft: 8 }}>买入 {fmtYi(seatBuy(s))}</span>}
                       </div>
-                    )}
-                    {buySeats.length === 0 && sellSeats.length === 0 && (
-                      <div className="text-muted" style={{ fontSize: 11 }}>暂无席位数据</div>
-                    )}
-                  </>
+                    ))}
+                  </div>
+                )}
+                {buySeats.length === 0 && sellSeats.length === 0 && (
+                  <div className="text-muted" style={{ fontSize: 11 }}>暂无席位数据</div>
                 )}
               </div>
             )}
