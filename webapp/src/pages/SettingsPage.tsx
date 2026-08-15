@@ -8,7 +8,6 @@ import { useRouter } from '../router/useRouter';
 import TradePanel from '../components/TradePanel';
 
 const THEME_OPTIONS: { value: string; name: string; icon: string }[] = [
-  { value: 'classic', name: '经典', icon: '🎨' },
   { value: 'dark', name: '暗色', icon: '🌙' },
   { value: 'light', name: '亮色', icon: '☀️' },
   { value: 'system', name: '跟随系统', icon: '🖥️' },

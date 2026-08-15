@@ -564,14 +564,15 @@ export default function StockDetailPage({ code }: { code: string }) {
               </div>
             </div>
             <div style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>大单占比趋势</div>
-            <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 60, background: 'rgba(255,255,255,.02)', padding: '8px', borderRadius: 6 }}>
+            <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 56, background: 'rgba(255,255,255,.02)', padding: '6px 8px', borderRadius: 6, overflow: 'hidden' }}>
               {fundFlowData.slice(-10).map((d, i) => {
                 const maxRatio = Math.max(...fundFlowData.slice(-10).map(x => Math.abs(x.mainRatio || 0)), 1);
                 const height = Math.abs(d.mainRatio || 0) / maxRatio * 100;
                 const isUp = (d.mainRatio || 0) >= 0;
+                const pct = (d.mainRatio || 0).toFixed(1);
                 return (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                    <div style={{ fontSize: 9, color: '#999' }}>{(d.mainRatio || 0).toFixed(0)}%</div>
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, minWidth: 0, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 8, color: '#999', whiteSpace: 'nowrap', overflow: 'hidden' }}>{pct}%</div>
                     <div style={{
                       width: '100%',
                       height: `${height}%`,
