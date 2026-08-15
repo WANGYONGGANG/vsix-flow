@@ -3824,7 +3824,7 @@ var require_lib = __commonJS({
 // api/all.ts
 var all_exports = {};
 __export(all_exports, {
-  default: () => handler26
+  default: () => handler27
 });
 module.exports = __toCommonJS(all_exports);
 
@@ -4345,9 +4345,32 @@ async function handler7(req, res) {
   json(res, 200, { data: { list: r?.result?.data || [] } });
 }
 
+// api/_handlers/lhb-detail.ts
+async function handler8(req, res) {
+  if (handleOptions(req, res)) return;
+  const code = getQuery(req, "code");
+  const date = getQuery(req, "date");
+  if (!code || !date) {
+    json(res, 200, { data: { buyList: [], sellList: [] } });
+    return;
+  }
+  const baseFilter = `(SECURITY_CODE=%22${code}%22)(TRADE_DATE='${date}')`;
+  const sortTypes = "-1";
+  const [rBuy, rSell] = await Promise.all([
+    httpGetJson(`https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_BILLBOARD_DAILYDETAILSBUY&columns=ALL&pageSize=100&pageNumber=1&source=WEB&client=WEB&filter=${baseFilter}&sortTypes=${sortTypes}`),
+    httpGetJson(`https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_BILLBOARD_DAILYDETAILSSELL&columns=ALL&pageSize=100&pageNumber=1&source=WEB&client=WEB&filter=${baseFilter}&sortTypes=${sortTypes}`)
+  ]);
+  json(res, 200, {
+    data: {
+      buyList: rBuy?.result?.data || [],
+      sellList: rSell?.result?.data || []
+    }
+  });
+}
+
 // api/_handlers/market-overview.ts
 var MARKET_INDEX_CODES = "sh000001,sz399001,sz399006,sh000016,sh000688,sh000300,sz399005";
-async function handler8(req, res) {
+async function handler9(req, res) {
   if (handleOptions(req, res)) return;
   const codes = MARKET_INDEX_CODES.split(",").filter(Boolean).map(toTencentCode).join(",");
   const text = await httpsGetText(`https://qt.gtimg.cn/q=${codes}`, "https://finance.qq.com/");
@@ -4356,7 +4379,7 @@ async function handler8(req, res) {
 }
 
 // api/_handlers/market-overview-detail.ts
-async function handler9(req, res) {
+async function handler10(req, res) {
   if (handleOptions(req, res)) return;
   let shAmt = 0, szAmt = 0, cybAmt = 0;
   try {
@@ -4485,7 +4508,7 @@ async function handler9(req, res) {
 
 // api/_handlers/quote.ts
 var MARKET_INDEX_CODES2 = "sh000001,sz399001,sz399006,sh000016,sh000688,sh000300,sz399005";
-async function handler10(req, res) {
+async function handler11(req, res) {
   if (handleOptions(req, res)) return;
   const path = req.url?.split("?")[0] || "";
   const isOverview = path.includes("/api/market-overview") && !path.includes("detail");
@@ -4501,7 +4524,7 @@ async function handler10(req, res) {
 }
 
 // api/_handlers/quote-detail.ts
-async function handler11(req, res) {
+async function handler12(req, res) {
   if (handleOptions(req, res)) return;
   const rawCode = getQuery(req, "code");
   if (!rawCode) {
@@ -4634,7 +4657,7 @@ async function handler11(req, res) {
 }
 
 // api/_handlers/search.ts
-async function handler12(req, res) {
+async function handler13(req, res) {
   if (handleOptions(req, res)) return;
   const kw = decodeURIComponent(getQuery(req, "kw")).trim();
   if (!kw) {
@@ -4721,7 +4744,7 @@ function friendlyName(sinaName, rawKey) {
   if (SINA_NAME_MAP[rawKey]) return SINA_NAME_MAP[rawKey];
   return sinaName || rawKey;
 }
-async function handler13(req, res) {
+async function handler14(req, res) {
   if (handleOptions(req, res)) return;
   const t = parseInt(getQuery(req, "t", "2")) || 2;
   const pz = Math.max(1, Math.min(100, parseInt(getQuery(req, "pz", "30")) || 30));
@@ -4772,7 +4795,7 @@ async function handler13(req, res) {
 }
 
 // api/_handlers/sector-limit.ts
-async function handler14(req, res) {
+async function handler15(req, res) {
   if (handleOptions(req, res)) return;
   const fs = "m:90+t:2+f:!50";
   const fields = "f2,f3,f4,f12,f14,f20,f62,f66,f104,f105,f204,f205";
@@ -4804,7 +4827,7 @@ async function handler14(req, res) {
 }
 
 // api/_handlers/sina-bkzj.ts
-async function handler15(req, res) {
+async function handler16(req, res) {
   if (handleOptions(req, res)) return;
   const fenlei = getQuery(req, "fenlei", "1");
   const txt = await httpsGetText(
@@ -4820,7 +4843,7 @@ async function handler15(req, res) {
 
 // api/_handlers/stock-changes.ts
 var TYPES = "8201,8202,8193,4,32,64,8207,8209,8211,8213,8215,8204,8203,8194,8,16,128,8208,8210,8212,8214,8216";
-async function handler16(req, res) {
+async function handler17(req, res) {
   if (handleOptions(req, res)) return;
   const ut = "7eea3edcaed734bea9cbfc24409ed989";
   const r = await httpGetJson(
@@ -4840,7 +4863,7 @@ function fmtHoldNum(v) {
 function prefixOf(code) {
   return /^(60|68|90|11|13|50|56|51|58)/.test(code) ? "SH" : "SZ";
 }
-async function handler17(req, res) {
+async function handler18(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const sub = getQuery(req, "sub", "essential");
@@ -4963,7 +4986,7 @@ async function fallbackFromSina(code, lmt) {
   }
   return list.slice(0, lmt);
 }
-async function handler18(req, res) {
+async function handler19(req, res) {
   if (handleOptions(req, res)) return;
   const code = getQuery(req, "code");
   const lmt = Math.max(1, Math.min(120, parseInt(getQuery(req, "lmt", "30")) || 30));
@@ -5012,7 +5035,7 @@ function fmtAmt(v) {
   if (n >= 1e4) return (n / 1e4).toFixed(2) + "\u4E07";
   return n.toFixed(2);
 }
-async function handler19(req, res) {
+async function handler20(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const r = await httpGetJson(
@@ -5046,7 +5069,7 @@ async function handler19(req, res) {
 }
 
 // api/_handlers/stock-flow-rank.ts
-async function handler20(req, res) {
+async function handler21(req, res) {
   if (handleOptions(req, res)) return;
   const pz = Math.max(1, Math.min(400, parseInt(getQuery(req, "pz", "100")) || 100));
   const fs = "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2";
@@ -5122,7 +5145,7 @@ async function handler20(req, res) {
 }
 
 // api/_handlers/stock-holder.ts
-async function handler21(req, res) {
+async function handler22(req, res) {
   if (handleOptions(req, res)) return;
   const raw = getQuery(req, "code");
   const code = String(raw || "").replace(/^(sh|sz|bj)/i, "");
@@ -5153,7 +5176,7 @@ async function handler21(req, res) {
 }
 
 // api/_handlers/stock-news.ts
-async function handler22(req, res) {
+async function handler23(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const pageSize = getQuery(req, "pageSize", "10");
@@ -5182,7 +5205,7 @@ async function handler22(req, res) {
 }
 
 // api/_handlers/stock-notice.ts
-async function handler23(req, res) {
+async function handler24(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const r = await httpsGetText(
@@ -5200,7 +5223,7 @@ async function handler23(req, res) {
 }
 
 // api/_handlers/zt-pool.ts
-async function handler24(req, res) {
+async function handler25(req, res) {
   if (handleOptions(req, res)) return;
   const date = getQuery(req, "date");
   const d = date || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
@@ -5227,7 +5250,7 @@ function readBody(req) {
 function ensureSlash(u) {
   return u.endsWith("/") ? u : u + "/";
 }
-async function handler25(req, res) {
+async function handler26(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -5328,27 +5351,28 @@ var routes = {
   "intraday": handler5,
   "kline": handler6,
   "lhb": handler7,
-  "market-overview": handler8,
-  "market-overview-detail": handler9,
-  "quote": handler10,
-  "quote-detail": handler11,
-  "search": handler12,
-  "sector-flow-rank": handler13,
-  "sector-limit": handler14,
-  "sina-bkzj": handler15,
-  "stock-changes": handler16,
-  "stock-essential": handler17,
-  "stock-fflow-day": handler18,
-  "stock-finance": handler19,
-  "stock-flow-rank": handler20,
-  "stock-holder": handler21,
-  "stock-news": handler22,
-  "stock-notice": handler23,
-  "stock-profile": handler17,
-  "zt-pool": handler24,
-  "ai/chat": handler25
+  "lhb-detail": handler8,
+  "market-overview": handler9,
+  "market-overview-detail": handler10,
+  "quote": handler11,
+  "quote-detail": handler12,
+  "search": handler13,
+  "sector-flow-rank": handler14,
+  "sector-limit": handler15,
+  "sina-bkzj": handler16,
+  "stock-changes": handler17,
+  "stock-essential": handler18,
+  "stock-fflow-day": handler19,
+  "stock-finance": handler20,
+  "stock-flow-rank": handler21,
+  "stock-holder": handler22,
+  "stock-news": handler23,
+  "stock-notice": handler24,
+  "stock-profile": handler18,
+  "zt-pool": handler25,
+  "ai/chat": handler26
 };
-async function handler26(req, res) {
+async function handler27(req, res) {
   const ep = String(req.query.ep || "");
   const h = routes[ep];
   if (!h) {
