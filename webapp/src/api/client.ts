@@ -39,6 +39,7 @@ export const api = {
   emNewsSearch: (keyword = 'A股', page = 1, pageSize = 50) => request<any>(`/api/em-news-search?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`),
   ztPool: (date?: string) => request<any>(`/api/zt-pool${date ? `?date=${date}` : ''}`),
   lhb: () => request<any>('/api/lhb'),
+  lhbDetail: (code: string, date: string) => request<any>(`/api/lhb-detail?code=${encodeURIComponent(code)}&date=${encodeURIComponent(date)}`),
   stockChanges: () => request<any>('/api/stock-changes'),
   hotStocks: () => request<any>('/api/hot-stocks'),
   sectorLimit: () => request<any>('/api/sector-limit'),

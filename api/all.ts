@@ -10,6 +10,7 @@ import hotStocks from './_handlers/hot-stocks';
 import intraday from './_handlers/intraday';
 import kline from './_handlers/kline';
 import lhb from './_handlers/lhb';
+import lhbDetail from './_handlers/lhb-detail';
 import marketOverview from './_handlers/market-overview';
 import marketOverviewDetail from './_handlers/market-overview-detail';
 import quote from './_handlers/quote';
@@ -40,6 +41,7 @@ const routes: Record<string, Handler> = {
   'intraday': intraday,
   'kline': kline,
   'lhb': lhb,
+  'lhb-detail': lhbDetail,
   'market-overview': marketOverview,
   'market-overview-detail': marketOverviewDetail,
   'quote': quote,
