@@ -3,7 +3,7 @@
 // 六维评分（资金/行业/走势/财务/基本面/股东）+ SVG 雷达/K线/资金流图 + 完整报告
 // ============================================
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from '../router/useRouter';
 import { api } from '../api/client';
 
@@ -742,8 +742,8 @@ export default function ReportPage() {
   const [elapsed, setElapsed] = useState<number>(0);
   const tRef = useRef<number | null>(null);
 
-  // 报告页强制浅色主题，离开时恢复
-  useEffect(() => {
+  // 报告页强制浅色主题（useLayoutEffect 在渲染前同步执行，避免暗色闪烁）
+  useLayoutEffect(() => {
     const el = document.documentElement;
     const prev = el.getAttribute('data-theme') || '';
     el.setAttribute('data-theme', 'light');
@@ -781,7 +781,19 @@ export default function ReportPage() {
   };
 
   return (
-    <div className="page" style={{ background: '#f4f5f7', color: '#212529' }}>
+    <div className="page" style={{
+      background: '#f4f5f7', color: '#212529',
+      // 覆盖 dark 主题 CSS 变量，确保容器内所有引用变量的元素都是浅色
+      ['--bg' as any]: '#f4f5f7',
+      ['--bg-2' as any]: '#fff',
+      ['--fg' as any]: '#212529',
+      ['--fg-2' as any]: '#495057',
+      ['--fg-dim' as any]: '#868e96',
+      ['--border' as any]: '#e9ecef',
+      ['--card' as any]: '#fff',
+      ['--up' as any]: '#e03131',
+      ['--down' as any]: '#0f9960',
+    }}>
       <div className="detail-actions" style={{ borderBottom: '1px solid #e9ecef', background: '#fff', flexShrink: 0 }}>
         <button className="btn-back" onClick={() => navigate('/?tab=market')}>← 返回行情</button>
         <button className="btn-back" onClick={run} disabled={loading}>
