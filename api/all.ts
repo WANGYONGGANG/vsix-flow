@@ -4,6 +4,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 import allStocks from './_handlers/all-stocks';
+import futuresSearch from './_handlers/futures-search';
 import emNews from './_handlers/em-news';
 import emNewsSearch from './_handlers/em-news-search';
 import hotStocks from './_handlers/hot-stocks';
@@ -37,6 +38,7 @@ const routes: Record<string, Handler> = {
   'all-stocks': allStocks,
   'em-news': emNews,
   'em-news-search': emNewsSearch,
+  'futures-search': futuresSearch,
   'hot-stocks': hotStocks,
   'intraday': intraday,
   'kline': kline,

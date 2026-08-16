@@ -3824,7 +3824,7 @@ var require_lib = __commonJS({
 // api/all.ts
 var all_exports = {};
 __export(all_exports, {
-  default: () => handler27
+  default: () => handler28
 });
 module.exports = __toCommonJS(all_exports);
 
@@ -4117,8 +4117,43 @@ async function handler(req, res) {
   });
 }
 
-// api/_handlers/em-news.ts
+// api/_handlers/futures-search.ts
+var EXCHANGES = "COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE";
 async function handler2(req, res) {
+  if (handleOptions(req, res)) return;
+  const kw = getQuery(req, "kw").trim().toLowerCase();
+  if (!kw) {
+    json(res, 200, { data: { list: [] } });
+    return;
+  }
+  try {
+    const token = "58b2fa8f54638b60b87d69b31969089c";
+    const text = await httpsGetText(
+      `https://futsseapi.eastmoney.com/list/${EXCHANGES}?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`,
+      "https://quote.eastmoney.com/"
+    );
+    const r = stripJsonp(text);
+    const raw = r?.list || r || [];
+    const list = raw.filter((x) => {
+      const dm = String(x.dm || "").toLowerCase();
+      const name = String(x.name || "").toLowerCase();
+      return dm.includes(kw) || name.includes(kw);
+    }).map((x) => ({
+      code: "f_" + String(x.dm || ""),
+      name: x.name || "",
+      type: "\u671F\u8D27",
+      display_code: String(x.dm || ""),
+      price: x.p,
+      change: x.zdf
+    }));
+    json(res, 200, { data: { list } });
+  } catch {
+    json(res, 200, { data: { list: [] } });
+  }
+}
+
+// api/_handlers/em-news.ts
+async function handler3(req, res) {
   if (handleOptions(req, res)) return;
   const page = getQuery(req, "page", "1");
   const pageSize = getQuery(req, "pageSize", "50");
@@ -4172,7 +4207,7 @@ async function trySinaRoll(pageSize) {
     return [];
   }
 }
-async function handler3(req, res) {
+async function handler4(req, res) {
   if (handleOptions(req, res)) return;
   const keyword = getQuery(req, "keyword", "A\u80A1 \u80A1\u5E02");
   const pageIndex = getQuery(req, "page", "1");
@@ -4223,7 +4258,7 @@ async function handler3(req, res) {
 
 // api/_handlers/hot-stocks.ts
 var FALLBACK = "sh600519,sz000858,sh601318,sh600036,sz300750,sh688981,sz000001,sh601899,sz002594,sh600900";
-async function handler4(req, res) {
+async function handler5(req, res) {
   if (handleOptions(req, res)) return;
   const ranks = [];
   try {
@@ -4285,7 +4320,7 @@ function deriveTicks(minutes, preClose) {
   }
   return ticks;
 }
-async function handler5(req, res) {
+async function handler6(req, res) {
   if (handleOptions(req, res)) return;
   const code = toTencentCode(getQuery(req, "code", "sh000001"));
   const days = parseInt(getQuery(req, "days", "1")) || 1;
@@ -4309,7 +4344,7 @@ async function handler5(req, res) {
 }
 
 // api/_handlers/kline.ts
-async function handler6(req, res) {
+async function handler7(req, res) {
   if (handleOptions(req, res)) return;
   const code = getQuery(req, "code", "sh000001");
   const period = getQuery(req, "period", "day");
@@ -4337,7 +4372,7 @@ async function handler6(req, res) {
 
 // api/_handlers/lhb.ts
 var COLUMNS = "SECURITY_CODE,SECURITY_NAME_ABBR,CLOSE_PRICE,CHANGE_RATE,EXPLAIN,EXPLANATION,TRADE_DATE,BILLBOARD_NET_AMT,BUY_SEAT,SELL_SEAT,ACCUM_AMOUNT,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT";
-async function handler7(req, res) {
+async function handler8(req, res) {
   if (handleOptions(req, res)) return;
   const r = await httpGetJson(
     `https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DAILYBILLBOARD_DETAILSNEW&columns=${COLUMNS}&pageNumber=1&pageSize=30&sortColumns=TRADE_DATE&sortTypes=-1&source=WEB&client=WEB`
@@ -4346,7 +4381,7 @@ async function handler7(req, res) {
 }
 
 // api/_handlers/lhb-detail.ts
-async function handler8(req, res) {
+async function handler9(req, res) {
   if (handleOptions(req, res)) return;
   const code = getQuery(req, "code");
   const date = getQuery(req, "date");
@@ -4370,7 +4405,7 @@ async function handler8(req, res) {
 
 // api/_handlers/market-overview.ts
 var MARKET_INDEX_CODES = "sh000001,sz399001,sz399006,sh000016,sh000688,sh000300,sz399005";
-async function handler9(req, res) {
+async function handler10(req, res) {
   if (handleOptions(req, res)) return;
   const codes = MARKET_INDEX_CODES.split(",").filter(Boolean).map(toTencentCode).join(",");
   const text = await httpsGetText(`https://qt.gtimg.cn/q=${codes}`, "https://finance.qq.com/");
@@ -4379,7 +4414,7 @@ async function handler9(req, res) {
 }
 
 // api/_handlers/market-overview-detail.ts
-async function handler10(req, res) {
+async function handler11(req, res) {
   if (handleOptions(req, res)) return;
   let shAmt = 0, szAmt = 0, cybAmt = 0;
   try {
@@ -4508,7 +4543,7 @@ async function handler10(req, res) {
 
 // api/_handlers/quote.ts
 var MARKET_INDEX_CODES2 = "sh000001,sz399001,sz399006,sh000016,sh000688,sh000300,sz399005";
-async function handler11(req, res) {
+async function handler12(req, res) {
   if (handleOptions(req, res)) return;
   const path = req.url?.split("?")[0] || "";
   const isOverview = path.includes("/api/market-overview") && !path.includes("detail");
@@ -4524,7 +4559,7 @@ async function handler11(req, res) {
 }
 
 // api/_handlers/quote-detail.ts
-async function handler12(req, res) {
+async function handler13(req, res) {
   if (handleOptions(req, res)) return;
   const rawCode = getQuery(req, "code");
   if (!rawCode) {
@@ -4657,7 +4692,7 @@ async function handler12(req, res) {
 }
 
 // api/_handlers/search.ts
-async function handler13(req, res) {
+async function handler14(req, res) {
   if (handleOptions(req, res)) return;
   const kw = decodeURIComponent(getQuery(req, "kw")).trim();
   if (!kw) {
@@ -4665,8 +4700,9 @@ async function handler13(req, res) {
     return;
   }
   const token = "D43BF722C8E33BDC906FB84D85E326E8";
-  const url2 = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=14&token=${token}`;
-  const r = await httpGetJson(url2, "https://quote.eastmoney.com/");
+  const url2 = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=14&token=${token}&count=10`;
+  const text = await httpsGetText(url2, "https://quote.eastmoney.com/");
+  const r = stripJsonp(text);
   const arr = r?.QuotationCodeTable?.Data || [];
   const list = arr.map((d) => {
     const code = d.Code || "";
@@ -4744,7 +4780,7 @@ function friendlyName(sinaName, rawKey) {
   if (SINA_NAME_MAP[rawKey]) return SINA_NAME_MAP[rawKey];
   return sinaName || rawKey;
 }
-async function handler14(req, res) {
+async function handler15(req, res) {
   if (handleOptions(req, res)) return;
   const t = parseInt(getQuery(req, "t", "2")) || 2;
   const pz = Math.max(1, Math.min(100, parseInt(getQuery(req, "pz", "30")) || 30));
@@ -4795,7 +4831,7 @@ async function handler14(req, res) {
 }
 
 // api/_handlers/sector-limit.ts
-async function handler15(req, res) {
+async function handler16(req, res) {
   if (handleOptions(req, res)) return;
   const fs = "m:90+t:2+f:!50";
   const fields = "f2,f3,f4,f12,f14,f20,f62,f66,f104,f105,f204,f205";
@@ -4827,7 +4863,7 @@ async function handler15(req, res) {
 }
 
 // api/_handlers/sina-bkzj.ts
-async function handler16(req, res) {
+async function handler17(req, res) {
   if (handleOptions(req, res)) return;
   const fenlei = getQuery(req, "fenlei", "1");
   const txt = await httpsGetText(
@@ -4843,7 +4879,7 @@ async function handler16(req, res) {
 
 // api/_handlers/stock-changes.ts
 var TYPES = "8201,8202,8193,4,32,64,8207,8209,8211,8213,8215,8204,8203,8194,8,16,128,8208,8210,8212,8214,8216";
-async function handler17(req, res) {
+async function handler18(req, res) {
   if (handleOptions(req, res)) return;
   const ut = "7eea3edcaed734bea9cbfc24409ed989";
   const r = await httpGetJson(
@@ -4863,7 +4899,7 @@ function fmtHoldNum(v) {
 function prefixOf(code) {
   return /^(60|68|90|11|13|50|56|51|58)/.test(code) ? "SH" : "SZ";
 }
-async function handler18(req, res) {
+async function handler19(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const sub = getQuery(req, "sub", "essential");
@@ -4986,7 +5022,7 @@ async function fallbackFromSina(code, lmt) {
   }
   return list.slice(0, lmt);
 }
-async function handler19(req, res) {
+async function handler20(req, res) {
   if (handleOptions(req, res)) return;
   const code = getQuery(req, "code");
   const lmt = Math.max(1, Math.min(120, parseInt(getQuery(req, "lmt", "30")) || 30));
@@ -5035,7 +5071,7 @@ function fmtAmt(v) {
   if (n >= 1e4) return (n / 1e4).toFixed(2) + "\u4E07";
   return n.toFixed(2);
 }
-async function handler20(req, res) {
+async function handler21(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const r = await httpGetJson(
@@ -5069,7 +5105,7 @@ async function handler20(req, res) {
 }
 
 // api/_handlers/stock-flow-rank.ts
-async function handler21(req, res) {
+async function handler22(req, res) {
   if (handleOptions(req, res)) return;
   const pz = Math.max(1, Math.min(400, parseInt(getQuery(req, "pz", "100")) || 100));
   const fs = "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2";
@@ -5145,7 +5181,7 @@ async function handler21(req, res) {
 }
 
 // api/_handlers/stock-holder.ts
-async function handler22(req, res) {
+async function handler23(req, res) {
   if (handleOptions(req, res)) return;
   const raw = getQuery(req, "code");
   const code = String(raw || "").replace(/^(sh|sz|bj)/i, "");
@@ -5176,7 +5212,7 @@ async function handler22(req, res) {
 }
 
 // api/_handlers/stock-news.ts
-async function handler23(req, res) {
+async function handler24(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const pageSize = getQuery(req, "pageSize", "10");
@@ -5205,7 +5241,7 @@ async function handler23(req, res) {
 }
 
 // api/_handlers/stock-notice.ts
-async function handler24(req, res) {
+async function handler25(req, res) {
   if (handleOptions(req, res)) return;
   const code = toCleanCode(toSinaCode(getQuery(req, "code", "")));
   const r = await httpsGetText(
@@ -5223,7 +5259,7 @@ async function handler24(req, res) {
 }
 
 // api/_handlers/zt-pool.ts
-async function handler25(req, res) {
+async function handler26(req, res) {
   if (handleOptions(req, res)) return;
   const date = getQuery(req, "date");
   const d = date || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
@@ -5250,7 +5286,7 @@ function readBody(req) {
 function ensureSlash(u) {
   return u.endsWith("/") ? u : u + "/";
 }
-async function handler26(req, res) {
+async function handler27(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -5345,34 +5381,35 @@ async function handler26(req, res) {
 // api/all.ts
 var routes = {
   "all-stocks": handler,
-  "em-news": handler2,
-  "em-news-search": handler3,
-  "hot-stocks": handler4,
-  "intraday": handler5,
-  "kline": handler6,
-  "lhb": handler7,
-  "lhb-detail": handler8,
-  "market-overview": handler9,
-  "market-overview-detail": handler10,
-  "quote": handler11,
-  "quote-detail": handler12,
-  "search": handler13,
-  "sector-flow-rank": handler14,
-  "sector-limit": handler15,
-  "sina-bkzj": handler16,
-  "stock-changes": handler17,
-  "stock-essential": handler18,
-  "stock-fflow-day": handler19,
-  "stock-finance": handler20,
-  "stock-flow-rank": handler21,
-  "stock-holder": handler22,
-  "stock-news": handler23,
-  "stock-notice": handler24,
-  "stock-profile": handler18,
-  "zt-pool": handler25,
-  "ai/chat": handler26
+  "em-news": handler3,
+  "em-news-search": handler4,
+  "futures-search": handler2,
+  "hot-stocks": handler5,
+  "intraday": handler6,
+  "kline": handler7,
+  "lhb": handler8,
+  "lhb-detail": handler9,
+  "market-overview": handler10,
+  "market-overview-detail": handler11,
+  "quote": handler12,
+  "quote-detail": handler13,
+  "search": handler14,
+  "sector-flow-rank": handler15,
+  "sector-limit": handler16,
+  "sina-bkzj": handler17,
+  "stock-changes": handler18,
+  "stock-essential": handler19,
+  "stock-fflow-day": handler20,
+  "stock-finance": handler21,
+  "stock-flow-rank": handler22,
+  "stock-holder": handler23,
+  "stock-news": handler24,
+  "stock-notice": handler25,
+  "stock-profile": handler19,
+  "zt-pool": handler26,
+  "ai/chat": handler27
 };
-async function handler27(req, res) {
+async function handler28(req, res) {
   const ep = String(req.query.ep || "");
   const h = routes[ep];
   if (!h) {

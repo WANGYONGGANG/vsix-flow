@@ -1,7 +1,7 @@
 // 股票代码/名称搜索（东方财富 suggest 真实接口）
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { json, handleOptions, getQuery } from './_shared/response';
-import { httpGetJson } from './_shared/http';
+import { httpsGetText, stripJsonp } from './_shared/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
@@ -9,8 +9,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!kw) { json(res, 200, { data: { list: [] } }); return; }
 
   const token = 'D43BF722C8E33BDC906FB84D85E326E8';
-  const url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=14&token=${token}`;
-  const r = await httpGetJson(url, 'https://quote.eastmoney.com/');
+  const url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=14&token=${token}&count=10`;
+  const text = await httpsGetText(url, 'https://quote.eastmoney.com/');
+  // 搜索 API 可能返回 JSONP 格式，用 stripJsonp 解析
+  const r = stripJsonp(text);
 
   const arr: any[] = r?.QuotationCodeTable?.Data || [];
   const list = arr.map((d: any) => {
