@@ -1,8 +1,9 @@
 // ============================================
 // 全局设置 + 自选/AI 模型配置 Hook (localStorage 持久化)
+// 使用 useSyncExternalStore 实现跨组件共享状态
 // ============================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { DEFAULT_SETTINGS } from '../../local-shared/constants';
 import { AppSettings, AIModelConfig, WatchEntry, FormulaConfig } from '../../local-shared/types';
 import { normalizeCode, uid } from '../../local-shared/utils';
@@ -22,72 +23,100 @@ function loadSettings(): AppSettings {
 
 function deepClone<T>(o: T): T { return JSON.parse(JSON.stringify(o)); }
 
+// ======== 外部单例 store ========
+let _state: AppSettings = loadSettings();
+const _listeners = new Set<() => void>();
+
+function _notify() { _listeners.forEach((l) => l()); }
+
+function _setState(next: AppSettings) {
+  _state = next;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* empty */ }
+  _notify();
+}
+
+function _subscribe(cb: () => void): () => void {
+  _listeners.add(cb);
+  return () => { _listeners.delete(cb); };
+}
+
+function _getSnapshot(): AppSettings { return _state; }
+
+// 主题应用副作用——在模块层维护，避免每个组件重复执行
+let _lastThemeKey = '';
+function _applyThemeEffect(settings: AppSettings) {
+  const root = document.documentElement;
+  root.style.setProperty('--up', settings.riseColor);
+  root.style.setProperty('--down', settings.fallColor);
+  const resolved = settings.theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+    : settings.theme;
+  root.setAttribute('data-theme', resolved);
+  if (resolved === 'light') root.classList.add('theme-light'); else root.classList.remove('theme-light');
+}
+
+// 在模块加载时立即应用主题
+_applyThemeEffect(_state);
+
+// 监听系统主题变化
+if (typeof window !== 'undefined' && window.matchMedia) {
+  const mq = window.matchMedia('(prefers-color-scheme: light)');
+  mq.addEventListener('change', () => {
+    if (_state.theme === 'system') _applyThemeEffect(_state);
+  });
+}
+
+// 跟踪主题变化并触发 DOM 更新
+let _prevTheme = JSON.stringify({ rise: _state.riseColor, fall: _state.fallColor, theme: _state.theme });
+
 export function useSettings() {
-  const [settings, setSettingsState] = useState<AppSettings>(() => loadSettings());
+  const settings = useSyncExternalStore(_subscribe, _getSnapshot);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty('--up', settings.riseColor);
-    root.style.setProperty('--down', settings.fallColor);
-
-    // 计算实际生效的主题（system → 跟随 prefers-color-scheme）
-    const resolved = settings.theme === 'system'
-      ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-      : settings.theme;
-    root.setAttribute('data-theme', resolved);
-    if (resolved === 'light') root.classList.add('theme-light'); else root.classList.remove('theme-light');
-  }, [settings.riseColor, settings.fallColor, settings.theme]);
-
-  // 监听系统主题变化（仅 theme === 'system' 时生效）
-  useEffect(() => {
-    if (settings.theme !== 'system') return;
-    const mq = window.matchMedia('(prefers-color-scheme: light)');
-    const handler = () => {
-      const root = document.documentElement;
-      const resolved = mq.matches ? 'light' : 'dark';
-      root.setAttribute('data-theme', resolved);
-      if (resolved === 'light') root.classList.add('theme-light'); else root.classList.remove('theme-light');
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [settings.theme]);
+  // 主题副作用：仅在相关字段变化时执行
+  const themeKey = JSON.stringify({ rise: settings.riseColor, fall: settings.fallColor, theme: settings.theme });
+  if (themeKey !== _prevTheme) {
+    _prevTheme = themeKey;
+    _applyThemeEffect(settings);
+  }
 
   const save = useCallback((next: AppSettings) => {
-    setSettingsState(next);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* empty */ }
+    _setState(next);
   }, []);
 
   const update = useCallback((patch: Partial<AppSettings>) => {
-    save({ ...settings, ...patch });
-  }, [settings, save]);
+    _setState({ ..._state, ...patch });
+  }, []);
 
   // ======== 自选 ========
   const addWatch = useCallback((raw: string | WatchEntry) => {
     const codeStr: string = typeof raw === 'string' ? raw : (raw?.code || '');
     const name: string | undefined = typeof raw === 'string' ? undefined : raw?.name;
     const code = normalizeCode(codeStr);
-    const groups = settings.stockPortfolio.groups.length
-      ? settings.stockPortfolio.groups
+    const s = _state;
+    const groups = s.stockPortfolio.groups.length
+      ? s.stockPortfolio.groups
       : [{ name: '默认分组', codes: [] as string[] }];
     if (groups[0].codes.includes(code)) return;
     groups[0].codes.push(code);
-    const oldWatch: WatchEntry[] = Array.isArray(settings.watchlist) ? settings.watchlist.slice() : [];
+    const oldWatch: WatchEntry[] = Array.isArray(s.watchlist) ? s.watchlist.slice() : [];
     if (name && !oldWatch.find((w) => w.code === code)) oldWatch.push({ code, name });
-    update({ stockPortfolio: { ...settings.stockPortfolio, groups }, watchlist: oldWatch });
-  }, [settings, update]);
+    _setState({ ...s, stockPortfolio: { ...s.stockPortfolio, groups }, watchlist: oldWatch });
+  }, []);
 
   const delWatch = useCallback((rawCode: string) => {
     const code = normalizeCode(rawCode);
-    const groups = (settings.stockPortfolio.groups || []).map((g) => ({
+    const s = _state;
+    const groups = (s.stockPortfolio.groups || []).map((g) => ({
       ...g, codes: g.codes.filter((c) => c !== code),
     }));
-    update({ stockPortfolio: { ...settings.stockPortfolio, groups } });
-  }, [settings, update]);
+    _setState({ ...s, stockPortfolio: { ...s.stockPortfolio, groups } });
+  }, []);
 
   const moveWatch = useCallback((rawCode: string, dir: 'up' | 'down' | 'top' | 'bottom') => {
     const code = normalizeCode(rawCode);
-    const groups = settings.stockPortfolio.groups.length
-      ? settings.stockPortfolio.groups
+    const s = _state;
+    const groups = s.stockPortfolio.groups.length
+      ? s.stockPortfolio.groups
       : [{ name: '默认分组', codes: [] as string[] }];
     const g = groups[0];
     const codes = [...(g.codes || [])];
@@ -99,43 +128,46 @@ export function useSettings() {
     else if (dir === 'up') codes.splice(Math.max(0, i - 1), 0, code);
     else codes.splice(Math.min(codes.length, i + 1), 0, code);
     groups[0] = { ...g, codes };
-    update({ stockPortfolio: { ...settings.stockPortfolio, groups } });
-  }, [settings, update]);
+    _setState({ ...s, stockPortfolio: { ...s.stockPortfolio, groups } });
+  }, []);
 
   const reorderWatch = useCallback((codes: string[]) => {
-    const groups = settings.stockPortfolio.groups.length
-      ? settings.stockPortfolio.groups
+    const s = _state;
+    const groups = s.stockPortfolio.groups.length
+      ? s.stockPortfolio.groups
       : [{ name: '默认分组', codes: [] as string[] }];
     groups[0] = { ...(groups[0] || { name: '默认分组' }), codes: codes.map(normalizeCode) };
-    update({ stockPortfolio: { ...settings.stockPortfolio, groups } });
-  }, [settings, update]);
+    _setState({ ...s, stockPortfolio: { ...s.stockPortfolio, groups } });
+  }, []);
 
   const getWatchCodes = useCallback((): string[] => {
-    return (settings.stockPortfolio.groups || []).flatMap((g) => g.codes || []);
-  }, [settings]);
+    return (_state.stockPortfolio.groups || []).flatMap((g) => g.codes || []);
+  }, []);
 
   // ======== AI 模型 ========
   const saveAIModel = useCallback((m: AIModelConfig) => {
-    const exists = settings.aiModels.find((x) => x.id === m.id);
+    const s = _state;
+    const exists = s.aiModels.find((x) => x.id === m.id);
     let list: AIModelConfig[];
     if (exists) {
-      list = settings.aiModels.map((x) => x.id === m.id ? { ...x, ...m } : x);
+      list = s.aiModels.map((x) => x.id === m.id ? { ...x, ...m } : x);
     } else {
-      list = [...settings.aiModels, { ...m, id: m.id || uid() }];
+      list = [...s.aiModels, { ...m, id: m.id || uid() }];
     }
-    const activeId = settings.activeAIModelId ?? (list.length ? list[0].id : null);
-    update({ aiModels: list, activeAIModelId: activeId });
-  }, [settings, update]);
+    const activeId = s.activeAIModelId ?? (list.length ? list[0].id : null);
+    _setState({ ...s, aiModels: list, activeAIModelId: activeId });
+  }, []);
 
   const deleteAIModel = useCallback((id: string) => {
-    const list = settings.aiModels.filter((x) => x.id !== id);
-    const activeId = settings.activeAIModelId === id ? (list[0]?.id ?? null) : settings.activeAIModelId;
-    update({ aiModels: list, activeAIModelId: activeId });
-  }, [settings, update]);
+    const s = _state;
+    const list = s.aiModels.filter((x) => x.id !== id);
+    const activeId = s.activeAIModelId === id ? (list[0]?.id ?? null) : s.activeAIModelId;
+    _setState({ ...s, aiModels: list, activeAIModelId: activeId });
+  }, []);
 
   const setActiveAIModel = useCallback((id: string | null) => {
-    update({ activeAIModelId: id });
-  }, [update]);
+    _setState({ ..._state, activeAIModelId: id });
+  }, []);
 
   const activeAIModel: AIModelConfig | null =
     settings.aiModels.find((m) => m.id === settings.activeAIModelId) ?? settings.aiModels[0] ?? null;
@@ -171,7 +203,7 @@ export function useSettings() {
       const text = await file.text();
       const parsed = JSON.parse(text);
       const merged = { ...deepClone(DEFAULT_SETTINGS), ...parsed };
-      save(merged);
+      _setState(merged);
       return true;
     } catch { return false; }
   };
@@ -180,8 +212,8 @@ export function useSettings() {
   const formulas = useMemo(() => settings.formulas || [], [settings.formulas]);
   
   const updateFormulas = useCallback((newFormulas: FormulaConfig[]) => {
-    update({ formulas: newFormulas });
-  }, [update]);
+    _setState({ ..._state, formulas: newFormulas });
+  }, []);
 
   return {
     settings, update, save,
