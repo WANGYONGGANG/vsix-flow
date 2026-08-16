@@ -123,6 +123,7 @@ function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code:
   const [q, setQ] = useState('');
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [addedCodes, setAddedCodes] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -145,6 +146,15 @@ function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code:
 
   const watchSet = new Set<string>((settings.watchlist || []).map((w: any) => String(w.code)));
 
+  const handleAddWatch = (d: any) => {
+    const rawCode = String(d.code || '');
+    // 期货代码加 f_ 前缀，和扩展端一致
+    const code = /^\d{4}$/.test(rawCode) ? 'f_' + rawCode : rawCode;
+    const name = d.name || rawCode;
+    addWatch({ code, name });
+    setAddedCodes((prev) => new Set(prev).add(rawCode));
+  };
+
   return (
     <div className="overlay" onClick={onClose}>
       <div className="dialog search-dialog" onClick={(e) => e.stopPropagation()}>
@@ -157,17 +167,18 @@ function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code:
           </div>
           <div className="search-list">
             {list.map((d: any, i: number) => {
-              const inWatch = watchSet.has(String(d.code));
+              const rawCode = String(d.code || '');
+              const inWatch = watchSet.has(rawCode) || watchSet.has('f_' + rawCode) || addedCodes.has(rawCode);
               return (
-                <div key={i} className="search-row" onClick={() => onPick(d.code)}>
+                <div key={i} className="search-row" onClick={() => onPick(rawCode)}>
                   <div>
                     <b>{d.name}</b> <span className="cc">{d.display_code || d.code}</span>
                     <span className="tag">{d.market || ''}{d.type ? ' · ' + d.type : ''}</span>
                   </div>
                   <div className="search-actions" onClick={(e) => e.stopPropagation()}>
                     {!inWatch
-                      ? <button className="mt-btn" onClick={() => { addWatch({ code: String(d.code), name: d.name || String(d.code) }); onPick(d.code); }}>+ 自选</button>
-                      : <button className="mt-btn" onClick={() => onPick(d.code)}>查看 →</button>}
+                      ? <button className="mt-btn" onClick={() => handleAddWatch(d)}>+ 自选</button>
+                      : <button className="mt-btn" onClick={() => onPick(rawCode)}>查看 →</button>}
                   </div>
                 </div>
               );
