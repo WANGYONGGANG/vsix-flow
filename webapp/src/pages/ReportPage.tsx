@@ -586,7 +586,7 @@ section{background:#fff;border:1px solid #e9ecef;border-radius:12px;padding:16px
 .kline,.flowchart{width:100%;display:block;background:#fcfcfd;border:1px solid #f1f3f5;border-radius:8px}
 .kline{height:130px} .flowchart{height:92px}
 .mini{font-size:9px;fill:#adb5bd}
-.nodata{color:#adb5bd;font-size:12px;padding:16px;text-align:center;background:#f8f9fa;border-radius:8px}
+.nodata{color:#adb5bd;font-size:13px;padding:24px 16px;text-align:center;background:#f8f9fa;border-radius:8px;margin:8px 0}
 .plan{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#f1f3f5;border:1px solid #f1f3f5;border-radius:8px;overflow:hidden}
 .pitem{background:#fff;padding:8px 8px}
 .pitem span{display:block;font-size:11px;color:#adb5bd}
@@ -609,31 +609,31 @@ section{background:#fff;border:1px solid #e9ecef;border-radius:12px;padding:16px
   <h1>A股智能选股报告</h1>
   <div class="sub">生成时间 ${opts.generatedAt} · 全市场扫描 → 资金流初筛 → 行业异动 →
     基本面/股东/财务/走势四维分析 · 耗时 ${opts.elapsedSec.toFixed(1)} 秒</div>
-  <div class="idxbar">${idxHtml}</div>
+  <div class="idxbar">${idxHtml || '<span class="sub">指数数据加载中…</span>'}</div>
 </div>
 
 <section><h2>选股漏斗</h2><div class="funnel"><div class="fstep"><div class="fnum">100</div><div class="ftitle">资金流榜单</div><div class="fdesc">全市场按主力净流入排序</div></div><div class="farrow">›</div><div class="fstep"><div class="fnum">${opts.filteredCount}</div><div class="ftitle">资金初筛</div><div class="fdesc">剔除 ${opts.excludedCount} 只 ST/一字板/微盘</div></div><div class="farrow">›</div><div class="fstep"><div class="fnum">${pool.length}</div><div class="ftitle">行业异动收敛</div><div class="fdesc">资金 60% + 行业 40%</div></div><div class="farrow">›</div><div class="fstep"><div class="fnum">${hits.length}</div><div class="ftitle">六维加权优选</div><div class="fdesc">四维深度分析后定稿</div></div></div></section>
 
 <section><h2>阶段一 · 全市场主力资金净流入 TOP 20</h2>
   <p class="sub" style="margin-top:-6px;margin-bottom:12px">资金是行情的先行指标。以东财实时资金流为口径，按当日主力（大单+超大单）净流入金额排序，并剔除 ST 股、一字板封死股、市值低于 25 亿的微盘股。</p>
-  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th>代码</th><th>名称</th><th>涨跌幅</th><th>主力净流入(亿)</th><th>净占比</th><th>超大单(亿)</th><th>所属行业</th><th>换手率</th><th>市值(亿)</th></tr></thead><tbody>${top20Rows}</tbody></table></div>
+  ${top20Rows ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th>代码</th><th>名称</th><th>涨跌幅</th><th>主力净流入(亿)</th><th>净占比</th><th>超大单(亿)</th><th>所属行业</th><th>换手率</th><th>市值(亿)</th></tr></thead><tbody>${top20Rows}</tbody></table></div>` : '<div class="nodata">资金流数据暂不可用，可能非交易时段或接口异常</div>'}
 </section>
 
 <section><h2>阶段二 · 行业板块异动</h2>
   <p class="sub" style="margin-top:-6px;margin-bottom:14px">个股的资金流入若无板块效应支撑，往往是孤立行为、持续性弱。这一步核对候选股所属行业的资金流向、涨跌幅与赚钱效应（上涨家数占比）。</p>
-  <div class="ibars">${ibars}</div>
+  ${ibars ? `<div class="ibars">${ibars}</div>` : '<div class="nodata">行业板块数据暂不可用</div>'}
   <h4 style="margin-top:20px">概念题材资金流向 TOP 16</h4>
-  <div class="chips">${chips}</div>
+  ${chips ? `<div class="chips">${chips}</div>` : '<div class="nodata">概念题材数据暂不可用</div>'}
 </section>
 
 <section><h2>阶段三 / 四 · 最可能继续上涨的 ${hits.length} 只个股</h2>
   <p class="sub" style="margin-top:-6px;margin-bottom:16px">对入围个股逐一执行基本面（估值与市值结构）、股东分析（筹码集中度）、财务分析（盈利能力与成长性）、走势分析（均线/量价/超买）四维检验，与资金面、行业异动一起加权得出综合得分。</p>
-  ${cards2}
+  ${cards2 || '<div class="nodata">候选个股深度分析数据暂不可用</div>'}
 </section>
 
 <section><h2>候选池完整评分（${pool.length} 只）</h2>
   <p class="sub" style="margin-top:-6px;margin-bottom:12px">带 ★ 者为最终入选标的。各维度分数经权重加权后得到综合分，可据此复核模型的每一步判断。</p>
-  <div class="tbl-wrap"><table class="tbl pool"><thead><tr><th>#</th><th>代码</th><th>名称</th><th>行业</th><th>涨跌幅</th><th>资金面<br><i>25%</i></th><th>行业异动<br><i>15%</i></th><th>走势分析<br><i>25%</i></th><th>财务分析<br><i>13%</i></th><th>基本面<br><i>12%</i></th><th>股东分析<br><i>10%</i></th><th>综合</th></tr></thead><tbody>${poolRows}</tbody></table></div>
+  ${poolRows ? `<div class="tbl-wrap"><table class="tbl pool"><thead><tr><th>#</th><th>代码</th><th>名称</th><th>行业</th><th>涨跌幅</th><th>资金面<br><i>25%</i></th><th>行业异动<br><i>15%</i></th><th>走势分析<br><i>25%</i></th><th>财务分析<br><i>13%</i></th><th>基本面<br><i>12%</i></th><th>股东分析<br><i>10%</i></th><th>综合</th></tr></thead><tbody>${poolRows}</tbody></table></div>` : '<div class="nodata">候选池数据暂不可用</div>'}
 </section>
 
 <section><h2>方法论说明</h2><div class="method">
@@ -741,6 +741,14 @@ export default function ReportPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [elapsed, setElapsed] = useState<number>(0);
   const tRef = useRef<number | null>(null);
+
+  // 报告页强制浅色主题，离开时恢复
+  useEffect(() => {
+    const el = document.documentElement;
+    const prev = el.getAttribute('data-theme') || '';
+    el.setAttribute('data-theme', 'light');
+    return () => { el.setAttribute('data-theme', prev || 'dark'); };
+  }, []);
 
   const run = useCallback(async () => {
     setLoading(true); setHtml(''); setElapsed(0);
