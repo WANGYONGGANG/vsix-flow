@@ -5144,11 +5144,13 @@ async function handler20(req, res) {
       const p = row.split(",");
       let mr = parseFloat(p[4]) || 0;
       if (Math.abs(mr) > 100) mr = 0;
+      const close = parseFloat(p[1]) || 0;
+      const main = parseFloat(p[3]) || 0;
       return {
         date: p[0] || "",
-        close: parseFloat(p[1]) || 0,
+        close,
         pct: parseFloat(p[2]) || 0,
-        main: parseFloat(p[3]) || 0,
+        main,
         mainRatio: mr,
         super: parseFloat(p[5]) || 0,
         superRatio: parseFloat(p[6]) || 0,
@@ -5158,10 +5160,11 @@ async function handler20(req, res) {
         midRatio: parseFloat(p[10]) || 0,
         small: parseFloat(p[11]) || 0,
         smallRatio: parseFloat(p[12]) || 0,
-        main_amount: parseFloat(p[3]) || 0
+        main_amount: main
       };
-    });
-  } else {
+    }).filter((x) => x.close > 0);
+  }
+  if (!list.length) {
     list = await fallbackFromSina(code, lmt);
   }
   json(res, 200, { data: { list } });

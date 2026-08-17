@@ -499,7 +499,7 @@ export default function StockDetailPage({ code }: { code: string }) {
         </div>
 
         <div className="detail-chart-wrap">
-          <div className="detail-chart-main" style={{ flex: 1, minWidth: 0 }}>
+          <div className="detail-chart-main">
             <KLineChart
               rows={klineRows}
               intraday={intraday || undefined}
@@ -510,17 +510,13 @@ export default function StockDetailPage({ code }: { code: string }) {
             />
           </div>
           <button
+            className="detail-side-toggle"
             onClick={() => setSideCollapsed(!sideCollapsed)}
-            style={{
-              flexShrink: 0, width: 20, background: 'rgba(255,255,255,.04)', border: 'none',
-              borderLeft: '1px solid var(--border)', color: '#999', cursor: 'pointer',
-              fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
             title={sideCollapsed ? '展开侧栏' : '收起侧栏'}
           >
             {sideCollapsed ? '◀' : '▶'}
           </button>
-          <div className="detail-orderbook" style={{ width: sideCollapsed ? 0 : 118, flexShrink: 0, overflow: 'hidden', borderLeft: sideCollapsed ? 'none' : '1px solid var(--border)', padding: sideCollapsed ? 0 : '6px', transition: 'width .2s ease, padding .2s ease, border-left .2s ease' }}>
+          <div className="detail-orderbook" style={{ width: sideCollapsed ? 0 : 118, padding: sideCollapsed ? 0 : '6px', borderLeft: sideCollapsed ? 'none' : '1px solid var(--border)' }}>
             <div className="kl-side-tabs">
               <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
               <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>

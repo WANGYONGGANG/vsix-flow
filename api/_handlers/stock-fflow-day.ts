@@ -87,11 +87,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // date,close,pct,主力净流入,主力净占比,超大单,超大单占比,大单,大单占比,中单,中单占比,小单,小单占比
       let mr = parseFloat(p[4]) || 0;
       if (Math.abs(mr) > 100) mr = 0; // 异常值清零（和扩展一致）
+      const close = parseFloat(p[1]) || 0;
+      const main = parseFloat(p[3]) || 0;
       return {
         date: p[0] || '',
-        close: parseFloat(p[1]) || 0,
+        close,
         pct: parseFloat(p[2]) || 0,
-        main: parseFloat(p[3]) || 0,
+        main,
         mainRatio: mr,
         super: parseFloat(p[5]) || 0,
         superRatio: parseFloat(p[6]) || 0,
@@ -101,10 +103,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         midRatio: parseFloat(p[10]) || 0,
         small: parseFloat(p[11]) || 0,
         smallRatio: parseFloat(p[12]) || 0,
-        main_amount: parseFloat(p[3]) || 0,
+        main_amount: main,
       };
-    });
-  } else {
+    }).filter((x: any) => x.close > 0); // 过滤 push2delay 返回的乱数据（close<=0）
+  }
+  if (!list.length) {
     list = await fallbackFromSina(code, lmt);
   }
   json(res, 200, { data: { list } });
