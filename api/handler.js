@@ -5098,28 +5098,29 @@ async function fallbackFromSina(code, lmt) {
     if (!date) continue;
     const close = Number(row.trade || 0);
     const pct = Number(row.changeratio || 0) * 100;
-    const r0Net = Number(row.r0_net || 0);
-    const r1Net = Number(row.r1_net || 0);
-    const r2Net = Number(row.r2_net || 0);
-    const r3Net = Number(row.r3_net || 0);
+    const r0Net = Math.round(Number(row.r0_net || 0));
+    const r1Net = Math.round(Number(row.r1_net || 0));
+    const r2Net = Math.round(Number(row.r2_net || 0));
+    const r3Net = Math.round(Number(row.r3_net || 0));
     const sum = byDate.get(date);
+    const ratio = sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : 0;
     const estSuper = Math.round(r0Net * 0.4);
     const estBig = Math.round(r0Net * 0.6);
     list.push({
       date,
       close,
       pct: Number(pct.toFixed(2)),
-      main: Math.round(r0Net),
-      mainRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : null,
+      main: r0Net,
+      mainRatio: ratio,
       super: estSuper,
-      superRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.4).toFixed(3)) : null,
+      superRatio: sum ? Number((ratio * 0.4).toFixed(3)) : 0,
       big: estBig,
-      bigRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.6).toFixed(3)) : null,
-      mid: Math.round(r1Net),
-      midRatio: null,
-      small: Math.round(r2Net + r3Net),
-      smallRatio: null,
-      main_amount: Math.round(r0Net)
+      bigRatio: sum ? Number((ratio * 0.6).toFixed(3)) : 0,
+      mid: r1Net,
+      midRatio: 0,
+      small: r2Net + r3Net,
+      smallRatio: 0,
+      main_amount: r0Net
     });
   }
   return list.slice(0, lmt);
