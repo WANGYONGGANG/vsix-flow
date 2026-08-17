@@ -2339,6 +2339,16 @@ function drawIntraday(d){
     var y=padT+cH*(1-(data[i].price-minP)/pR);
     if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   }ctx.stroke();
+  // 分时均线（黄色）
+  var avgSum=0;
+  ctx.beginPath();ctx.strokeStyle='#f59f00';ctx.lineWidth=1;
+  for(var i=0;i<data.length;i++){
+    avgSum+=data[i].price;
+    var avg=avgSum/(i+1);
+    var x=padL+cW*(data[i].min-_idView.s)/(_idView.e-_idView.s);
+    var y=padT+cH*(1-(avg-minP)/pR);
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }ctx.stroke();
   var grad=ctx.createLinearGradient(0,padT,0,padT+cH);grad.addColorStop(0,'rgba(54,162,235,.2)');grad.addColorStop(1,'rgba(54,162,235,.02)');
   ctx.lineTo(padL+cW*(data[data.length-1].min-_idView.s)/(_idView.e-_idView.s),padT+cH);ctx.lineTo(padL,padT+cH);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
   ctx.fillStyle='#666';ctx.font='10px monospace';ctx.textAlign='center';

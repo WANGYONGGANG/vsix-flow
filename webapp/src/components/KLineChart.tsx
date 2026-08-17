@@ -847,6 +847,17 @@ function drawIntraday(ctx: CanvasRenderingContext2D, W: number, H: number, id: N
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
+  // 分时均线（黄色）
+  let avgSum = 0;
+  ctx.strokeStyle = '#f59f00'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < points.length; i++) {
+    avgSum += points[i].p;
+    const avg = avgSum / (i + 1);
+    const x = xs(i), y = yp(avg);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
   ctx.fillStyle = '#666'; ctx.font = '10px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   const fmt = (t: string) => t.length >= 4 ? `${t.slice(0,2)}:${t.slice(2,4)}` : t;
   const keyPoints = ['0930','1030','1130','1300','1400','1500'];
