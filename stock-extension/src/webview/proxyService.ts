@@ -708,8 +708,10 @@ export class ProxyService {
         const lmt = (parsed.query.lmt as string) || '30';
         const secid = (/^(60|68|90|11|13|50|56|51|58)/.test(code) ? '1.' : '0.') + code;
         const fields = 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65';
+        console.log(`[StockExt] proxy stock-fflow-day: code=${code} secid=${secid}`);
         const r = await httpGetJson(`https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=${lmt}&klt=101&secid=${secid}&fields1=f1,f2,f3,f7&fields2=${fields}`, 'https://data.eastmoney.com/');
         const klines: string[] = r?.data?.klines || [];
+        console.log(`[StockExt] proxy stock-fflow-day result: rc=${r?.rc} klines=${klines.length}`);
         const list = klines.map((line: string) => {
           const p = line.split(',');
           // date,主力,小单,中单,大单,超大单,主力净占比,小单净占比,中单净占比,大单净占比,超大单净占比,收盘,涨跌幅
@@ -729,6 +731,36 @@ export class ProxyService {
             pct: parseFloat(p[12]) || 0,
           };
         });
+        // 东财数据为空时用新浪备用接口
+        if (!list.length) {
+          console.log(`[StockExt] stock-fflow-day: eastmoney returned empty, trying sina fallback`);
+          try {
+            const daima = toSinaCode((parsed.query.code as string) || '');
+            const base = 'https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow';
+            const lscjfb = await httpsGetText(`${base}.ssl_qsfx_lscjfb?page=1&num=${lmt}&sort=opendate&asc=0&daima=${daima}`, 'https://finance.sina.com.cn/', 'utf8');
+            const arr: any[] = Array.isArray(lscjfb) ? lscjfb : [];
+            if (arr.length) {
+              const zjlrqs = await httpsGetText(`${base}.ssl_qsfx_zjlrqs?page=1&num=${lmt}&sort=opendate&asc=0&daima=${daima}`, 'https://finance.sina.com.cn/', 'utf8');
+              const arr2: any[] = Array.isArray(zjlrqs) ? zjlrqs : [];
+              const byDate = new Map<string, any>();
+              for (const x of arr2) { const d = String(x.opendate || ''); if (d) byDate.set(d, x); }
+              for (const row of arr) {
+                const date = String(row.opendate || '');
+                if (!date) continue;
+                const sum = byDate.get(date);
+                list.push({
+                  date, main: Math.round(Number(row.r0_net || 0)),
+                  mainRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : 0,
+                  super: 0, superRatio: 0, big: 0, bigRatio: 0,
+                  mid: Math.round(Number(row.r1_net || 0)), midRatio: 0,
+                  small: Math.round(Number(row.r2_net || 0) + Number(row.r3_net || 0)), smallRatio: 0,
+                  close: Number(row.trade || 0), pct: Number(row.changeratio || 0) * 100,
+                });
+              }
+              console.log(`[StockExt] stock-fflow-day: sina fallback returned ${list.length} items`);
+            }
+          } catch (e: any) { console.log(`[StockExt] sina fallback error: ${e?.message}`); }
+        }
         this.json(res, 200, { data: { list } });
         return;
       }

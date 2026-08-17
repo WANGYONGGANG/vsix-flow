@@ -1629,6 +1629,7 @@ function renderStockDetail(s){
 
 function renderDetailFundFlow(){
   var el=document.getElementById('detailFundFlow');
+  console.log('[StockExt] renderDetailFundFlow: el=',!!el,'dataLen=',_fundFlowData.length,'rendered=',_fundFlowRendered);
   if(!el||!_fundFlowData.length||_fundFlowRendered)return;
   _fundFlowRendered=true;
   var d=_fundFlowData;
@@ -2818,6 +2819,7 @@ window.addEventListener('message',function(e){
     updateDetailQuote(msg.data);
   }else if(msg.type==='fundFlowData'&&msg.code===_detailCode){
     _fundFlowData=msg.data||[];
+    console.log('[StockExt] fundFlowData received:',_fundFlowData.length,'items');
     renderDetailFundFlow();
   }else if(msg.type==='inWatchResult'&&msg.code){
     var wbtn=document.getElementById('detailWatchBtn');

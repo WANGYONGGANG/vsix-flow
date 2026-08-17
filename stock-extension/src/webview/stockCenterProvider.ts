@@ -146,8 +146,11 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
         const diff = r?.data?.diff || [];
         if (diff.length) webviewView.webview.postMessage({ type: 'quoteData', code: msg.code, data: diff[0] });
       } else if (msg.type === 'fetchFundFlow' && msg.code) {
+        console.log(`[StockExt] fetchFundFlow: code=${msg.code}`);
         const r = await proxyGet(`/api/stock-fflow-day?code=${msg.code}&lmt=30`);
-        webviewView.webview.postMessage({ type: 'fundFlowData', code: msg.code, data: r?.data?.list || [] });
+        const list = r?.data?.list || [];
+        console.log(`[StockExt] fetchFundFlow result: ${list.length} items`);
+        webviewView.webview.postMessage({ type: 'fundFlowData', code: msg.code, data: list });
       } else if (msg.type === 'moveWatch' && msg.code) {
         await this.moveWatch(msg.code, msg.dir || 'up');
         webviewView.webview.postMessage({ type: 'refreshTab', tab: 'watchlist' });
