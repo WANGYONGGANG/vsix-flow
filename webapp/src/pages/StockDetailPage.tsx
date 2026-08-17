@@ -520,7 +520,7 @@ export default function StockDetailPage({ code }: { code: string }) {
           >
             {sideCollapsed ? '◀' : '▶'}
           </button>
-          <div className="detail-orderbook" style={{ width: sideCollapsed ? 0 : 118, flexShrink: 0, overflow: 'hidden', borderLeft: sideCollapsed ? 'none' : undefined, padding: sideCollapsed ? 0 : undefined }}>
+          <div className="detail-orderbook" style={{ width: sideCollapsed ? 0 : 118, flexShrink: 0, overflow: 'hidden', borderLeft: sideCollapsed ? 'none' : '1px solid var(--border)', padding: sideCollapsed ? 0 : '6px', transition: 'width .2s ease, padding .2s ease, border-left .2s ease' }}>
             <div className="kl-side-tabs">
               <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
               <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>

@@ -92,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         close: parseFloat(p[1]) || 0,
         pct: parseFloat(p[2]) || 0,
         main: parseFloat(p[3]) || 0,
-        mainRatio: parseFloat(p[4]) || 0,
+        mainRatio: mr,
         super: parseFloat(p[5]) || 0,
         superRatio: parseFloat(p[6]) || 0,
         big: parseFloat(p[7]) || 0,
