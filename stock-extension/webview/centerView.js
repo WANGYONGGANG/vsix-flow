@@ -1657,12 +1657,13 @@ function renderDetailFundFlow(){
   html+='</div>';
   html+='</div>';
   // 主力占比趋势（每日主力净流入占成交额比例）
-  html+='<div style="font-size:12px;color:#999;margin-bottom:6px">主力占比趋势（主力净流入/成交额）</div>';
+  html+='<div style="font-size:12px;color:#999;margin-bottom:4px">主力占比趋势</div>';
+  html+='<div style="font-size:10px;color:#666;margin-bottom:6px">主力净流入额 ÷ 当日成交额 = 主力占比（%），正值=主力净买入，负值=主力净卖出</div>';
   var recent=d.slice(0,10).reverse();
   var maxRatio=1;
   for(var i=0;i<recent.length;i++){var r=Math.abs(Number(recent[i].mainRatio||0));if(r>maxRatio)maxRatio=r}
-  var barAreaH=44;
-  html+='<div style="display:flex;gap:2px;background:rgba(255,255,255,.02);padding:4px 6px;border-radius:6px">';
+  var barAreaH=40;
+  html+='<div style="display:flex;gap:2px;background:rgba(255,255,255,.02);padding:4px 6px 2px;border-radius:6px">';
   for(var i=0;i<recent.length;i++){
     var item=recent[i];
     var ratio=Number(item.mainRatio||0);
@@ -1670,9 +1671,11 @@ function renderDetailFundFlow(){
     if(barH<2)barH=2;
     var isUp=ratio>=0;
     var pct=ratio.toFixed(1);
-    html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;height:60px">';
+    var dt=(item.date||'').slice(5,10);
+    html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;height:68px">';
     html+='<div style="font-size:7px;color:#999;white-space:nowrap;overflow:hidden;margin-bottom:1px">'+pct+'%</div>';
     html+='<div style="width:100%;height:'+barH+'px;background:'+(isUp?'var(--up)':'var(--down)')+';border-radius:2px"></div>';
+    html+='<div style="font-size:7px;color:#666;margin-top:2px;white-space:nowrap;overflow:hidden">'+dt+'</div>';
     html+='</div>';
   }
   html+='</div>';
