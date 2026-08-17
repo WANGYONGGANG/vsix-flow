@@ -94,7 +94,7 @@ export default function StockDetailPage({ code }: { code: string }) {
           if (!Number(n.f20)) n.f20 = prev.f20;
           if (!Number(n.f21)) n.f21 = prev.f21;
           if (!Number(n.f7)) n.f7 = prev.f7;
-          if (!n.f127) n.f127 = prev.f127;
+          if (n.f127 === undefined || n.f127 === null) n.f127 = prev.f127;
         }
         return n;
       });
