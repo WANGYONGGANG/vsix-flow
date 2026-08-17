@@ -708,7 +708,7 @@ export class ProxyService {
         const lmt = (parsed.query.lmt as string) || '30';
         const secid = (/^(60|68|90|11|13|50|56|51|58)/.test(code) ? '1.' : '0.') + code;
         const fields = 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65';
-        const r = await httpGetJson(`https://push2delay.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=${lmt}&klt=101&secid=${secid}&fields1=f1,f2,f3,f7&fields2=${fields}`, 'https://quote.eastmoney.com/');
+        const r = await httpGetJson(`https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=${lmt}&klt=101&secid=${secid}&fields1=f1,f2,f3,f7&fields2=${fields}`, 'https://data.eastmoney.com/');
         const klines: string[] = r?.data?.klines || [];
         const list = klines.map((line: string) => {
           const p = line.split(',');
