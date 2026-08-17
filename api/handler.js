@@ -4019,14 +4019,14 @@ function toCleanCode(sinaCode) {
 }
 function stripJsonp(text) {
   let t = String(text || "").replace(/^\/\*<script>[\s\S]*?<\/script>\*\/\s*/, "");
-  const m1 = t.match(/=\(([\s\S]+)\)$/);
+  const m1 = t.match(/=\(([\s\S]+)\)\s*;?\s*$/);
   if (m1) {
     try {
       return JSON.parse(m1[1]);
     } catch {
     }
   }
-  const m2 = t.match(/^\w+\(([\s\S]+)\)$/);
+  const m2 = t.match(/^\w+\(([\s\S]+)\)\s*;?\s*$/);
   if (m2) {
     try {
       return JSON.parse(m2[1]);

@@ -175,9 +175,10 @@ export function toCleanCode(sinaCode: string): string { return sinaCode.replace(
 // ============ JSONP 解析 ============
 export function stripJsonp(text: string): any {
   let t = String(text || '').replace(/^\/\*<script>[\s\S]*?<\/script>\*\/\s*/, '');
-  const m1 = t.match(/=\(([\s\S]+)\)$/);
+  // Sina JSONP: =([...]);  东财 JSONP: callback({...})  普通JSON: {...}
+  const m1 = t.match(/=\(([\s\S]+)\)\s*;?\s*$/);
   if (m1) { try { return JSON.parse(m1[1]); } catch { /* empty */ } }
-  const m2 = t.match(/^\w+\(([\s\S]+)\)$/);
+  const m2 = t.match(/^\w+\(([\s\S]+)\)\s*;?\s*$/);
   if (m2) { try { return JSON.parse(m2[1]); } catch { /* empty */ } }
   try { return JSON.parse(t); } catch { return null; }
 }
