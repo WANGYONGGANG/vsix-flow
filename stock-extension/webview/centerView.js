@@ -1416,6 +1416,7 @@ function setupWatchlistDrag(){
 }
 
 function renderStockDetail(s){
+  _fundFlowData=[];_fundFlowRendered=false;
   var code=esc(s.code||'');var rawCode=s.code||'';var name=esc(s.name||_detailName||'');var price=Number(s.price||0).toFixed(2);
   var rate=Number(s.changeRate||0);var up=rate>=0;
   var preClose=Number(s.preClose||0).toFixed(2);
@@ -1488,7 +1489,7 @@ function renderStockDetail(s){
   html+='<div class="kl-sub" id="klSubVol"><div class="kl-sub-hdr"><span>成交量</span></div><canvas class="kl-canvas" id="klVol"></canvas></div>';
   html+='<canvas id="klOverlay" style="position:absolute;top:0;left:0;pointer-events:none;z-index:20"></canvas>';
   html+='</div>';
-  html+='<button id="klSideToggle" style="flex-shrink:0;width:20px;background:rgba(255,255,255,.04);border:none;border-left:1px solid #1f2124;color:#999;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center" title="收起/展开侧栏">▶</button>';
+  html+='<button id="klSideToggle" style="position:absolute;right:0;top:50%;transform:translateY(-50%);z-index:30;width:16px;height:40px;background:rgba(255,255,255,.08);border:none;border-radius:4px 0 0 4px;color:#999;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center" title="收起/展开侧栏">▶</button>';
   html+='<div class="kl-side" id="klSide" style="width:140px;flex-shrink:0">';
   html+='<div class="kl-side-tabs"><button data-side="book" class="active">盘口</button><button data-side="chips">筹码</button></div>';
   html+='<div id="klSideBook">';
@@ -1628,7 +1629,8 @@ function renderStockDetail(s){
 
 function renderDetailFundFlow(){
   var el=document.getElementById('detailFundFlow');
-  if(!el||!_fundFlowData.length){if(el)el.innerHTML='';return}
+  if(!el||!_fundFlowData.length||_fundFlowRendered)return;
+  _fundFlowRendered=true;
   var d=_fundFlowData;
   var latest=d[0]||{};
   var mainVal=Number(latest.main||0);
@@ -1680,6 +1682,7 @@ var _floatShares=0;
 var _lastQuote=null;
 var _chipsData=null;
 var _fundFlowData=[];
+var _fundFlowRendered=false;
 var _allTicks=[];
 var _kl={data:[],scroll:0,subs:['vol'],dragging:false,dragX:0,gap:0};
 var _klCanvases={};
@@ -2318,7 +2321,7 @@ function drawIntraday(d){
   if(!preClose)preClose=data[0].price;
   _intradayCache={data:data,preClose:preClose,totalMin:240};
   var totalMin=240;
-  var padL=46,padR=8,padT=8,padB=20;
+  var padL=46,padR=36,padT=8,padB=20;
   var cW=W-padL-padR,cH=mainH-padT-padB;
   var minP=preClose,maxP=preClose;
   for(var i=0;i<data.length;i++){if(data[i].price<minP)minP=data[i].price;if(data[i].price>maxP)maxP=data[i].price}

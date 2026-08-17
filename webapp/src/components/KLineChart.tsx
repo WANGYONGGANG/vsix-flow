@@ -793,7 +793,7 @@ function parseMinuteRows(minutes: string[]): { t: string; p: number; v: number }
 function drawIntraday(ctx: CanvasRenderingContext2D, W: number, H: number, id: NonNullable<KLineProps['intraday']>, up: string, down: string) {
   ctx.fillStyle = '#12151a'; ctx.fillRect(0, 0, W, H);
   if (!id.minutes.length) return;
-  const padL = 46, padR = 8, padT = 6, padB = 18;
+  const padL = 46, padR = 36, padT = 6, padB = 18;
   const cW = W - padL - padR, cH = H - padT - padB;
   const preClose = Number(id.preClose) || 0;
   const points = parseMinuteRows(id.minutes);

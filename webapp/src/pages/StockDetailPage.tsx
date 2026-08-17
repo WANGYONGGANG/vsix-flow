@@ -106,7 +106,16 @@ export default function StockDetailPage({ code }: { code: string }) {
 
   async function loadFundFlow() {
     const r = await api.stockFflowDay(realCode, 30);
-    setFundFlowData(r?.data?.list || []);
+    const list = r?.data?.list || [];
+    setFundFlowData(list);
+    if (!list.length) {
+      setTimeout(() => {
+        api.stockFflowDay(realCode, 30).then((r2) => {
+          const list2 = r2?.data?.list || [];
+          if (list2.length) setFundFlowData(list2);
+        });
+      }, 2000);
+    }
   }
 
   async function loadPeriod(p: Period) {

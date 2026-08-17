@@ -96,7 +96,7 @@ td:first-child,th:first-child{text-align:left}
 .kl-pbtn:hover:not(.active){border-color:var(--fg)}
 .kl-add{padding:3px 8px;border:1px dashed var(--border);border-radius:4px;background:transparent;color:var(--fg);font-size:11px;cursor:pointer}
 .kl-add:hover{border-color:var(--fg)}
-.kl-chart-wrap{display:flex;gap:0;background:var(--card);border-radius:6px;overflow:hidden}
+.kl-chart-wrap{display:flex;gap:0;background:var(--card);border-radius:6px;overflow:hidden;position:relative}
 .kl-chart{flex:1;padding:6px 0;cursor:crosshair;user-select:none;touch-action:none;min-width:0;position:relative}
 .kl-side{width:150px;border-left:1px solid var(--border);padding:4px 6px;font-size:10px;overflow:hidden;flex-shrink:0;overflow-y:auto}
 .kl-side #klSideBook{overflow:hidden}
