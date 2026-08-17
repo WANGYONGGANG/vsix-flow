@@ -88,12 +88,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     sell1: tq.sell1, sell1vol: tq.sell1vol, sell2: tq.sell2, sell2vol: tq.sell2vol,
     sell3: tq.sell3, sell3vol: tq.sell3vol, sell4: tq.sell4, sell4vol: tq.sell4vol,
     sell5: tq.sell5, sell5vol: tq.sell5vol,
-    // 东财财务字段（ulist 优先，stock/get 兜底）
-    f7: amplitude,                        // 振幅
-    f9: num(ud.f9) || num(sd.f162),       // 市盈率
-    f20: num(ud.f20) || num(sd.f116),     // 总市值
-    f21: num(ud.f21) || num(sd.f117),     // 流通市值
-    f23: num(ud.f23) || num(sd.f167),     // 市净率
+    // 财务字段：东财优先，腾讯兜底（东财被墙时腾讯数据有效）
+    f7: amplitude || num(tq._tqAmplitude) || 0,
+    f9: num(ud.f9) || num(sd.f162) || num(tq._tqPE) || 0,
+    f20: num(ud.f20) || num(sd.f116) || (tq._tqTotalCap ? tq._tqTotalCap * 1e8 : 0),
+    f21: num(ud.f21) || num(sd.f117) || (tq._tqFloatCap ? tq._tqFloatCap * 1e8 : 0),
+    f23: num(ud.f23) || num(sd.f167) || num(tq._tqPB) || 0,
     f127: sd.f127 ?? '', // 行业
   }];
   json(res, 200, { data: { diff } });

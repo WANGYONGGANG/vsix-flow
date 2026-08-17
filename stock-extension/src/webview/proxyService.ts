@@ -221,6 +221,10 @@ export class ProxyService {
             f8: parseFloat(p[38]) || 0, f12: toCleanCode(m[1]), f14: p[1] || '',
             f15: parseFloat(p[33]) || 0, f16: parseFloat(p[34]) || 0,
             f17: parseFloat(p[5]) || 0, f18: parseFloat(p[4]) || 0,
+            // 腾讯也返回估值字段：p[39]=PE动态 p[43]=振幅 p[44]=总市值(亿) p[45]=流通市值(亿) p[46]=PB
+            _tqPE: parseFloat(p[39]) || 0, _tqAmplitude: parseFloat(p[43]) || 0,
+            _tqTotalCap: parseFloat(p[44]) || 0, _tqFloatCap: parseFloat(p[45]) || 0,
+            _tqPB: parseFloat(p[46]) || 0,
             buy1: parseFloat(p[9]) || 0, buy1vol: parseInt(p[10]) || 0,
             buy2: parseFloat(p[11]) || 0, buy2vol: parseInt(p[12]) || 0,
             buy3: parseFloat(p[13]) || 0, buy3vol: parseInt(p[14]) || 0,
@@ -247,8 +251,12 @@ export class ProxyService {
           sell1: tqLine.sell1, sell1vol: tqLine.sell1vol, sell2: tqLine.sell2, sell2vol: tqLine.sell2vol,
           sell3: tqLine.sell3, sell3vol: tqLine.sell3vol, sell4: tqLine.sell4, sell4vol: tqLine.sell4vol,
           sell5: tqLine.sell5, sell5vol: tqLine.sell5vol,
-          // 东财财务字段
-          f7: ud.f7 ?? 0, f9: ud.f9 ?? 0, f20: ud.f20 ?? 0, f21: ud.f21 ?? 0, f23: ud.f23 ?? 0,
+          // 财务字段：东财优先，腾讯兜底（东财被墙时腾讯数据有效）
+          f7: ud.f7 || tqLine._tqAmplitude || 0,
+          f9: ud.f9 || tqLine._tqPE || 0,
+          f20: ud.f20 || (tqLine._tqTotalCap ? tqLine._tqTotalCap * 1e8 : 0),
+          f21: ud.f21 || (tqLine._tqFloatCap ? tqLine._tqFloatCap * 1e8 : 0),
+          f23: ud.f23 || tqLine._tqPB || 0,
           f127: sd.f127 ?? '',
         }];
         this.json(res, 200, { data: { diff } });
@@ -749,11 +757,11 @@ export class ProxyService {
                 if (!date) continue;
                 const sum = byDate.get(date);
                 list.push({
-                  date, main: Math.round(Number(row.r0_net || 0)),
+                  date, main: Math.round(Number(row.r0_net || 0) / 1e8 * 100) / 100,
                   mainRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : 0,
                   super: 0, superRatio: 0, big: 0, bigRatio: 0,
-                  mid: Math.round(Number(row.r1_net || 0)), midRatio: 0,
-                  small: Math.round(Number(row.r2_net || 0) + Number(row.r3_net || 0)), smallRatio: 0,
+                  mid: Math.round(Number(row.r1_net || 0) / 1e8 * 100) / 100, midRatio: 0,
+                  small: Math.round((Number(row.r2_net || 0) + Number(row.r3_net || 0)) / 1e8 * 100) / 100, smallRatio: 0,
                   close: Number(row.trade || 0), pct: Number(row.changeratio || 0) * 100,
                 });
               }

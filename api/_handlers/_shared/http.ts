@@ -211,6 +211,10 @@ export function tencentTextToDiff(text: string): any[] {
       sell3: parseFloat(p[23]) || 0, sell3vol: parseInt(p[24]) || 0,
       sell4: parseFloat(p[25]) || 0, sell4vol: parseInt(p[26]) || 0,
       sell5: parseFloat(p[27]) || 0, sell5vol: parseInt(p[28]) || 0,
+      // 腾讯估值字段：p[39]=PE动态 p[43]=振幅 p[44]=总市值(亿) p[45]=流通市值(亿) p[46]=PB
+      _tqPE: parseFloat(p[39]) || 0, _tqAmplitude: parseFloat(p[43]) || 0,
+      _tqTotalCap: parseFloat(p[44]) || 0, _tqFloatCap: parseFloat(p[45]) || 0,
+      _tqPB: parseFloat(p[46]) || 0,
     };
     return result;
   }).filter(Boolean);
