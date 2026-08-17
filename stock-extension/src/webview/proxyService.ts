@@ -737,14 +737,14 @@ export class ProxyService {
           try {
             const daima = toSinaCode((parsed.query.code as string) || '');
             const base = 'https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow';
-            const lscjfb = await httpsGetText(`${base}.ssl_qsfx_lscjfb?page=1&num=${lmt}&sort=opendate&asc=0&daima=${daima}`, 'https://finance.sina.com.cn/', 'utf8');
-            const arr: any[] = Array.isArray(lscjfb) ? lscjfb : [];
-            if (arr.length) {
-              const zjlrqs = await httpsGetText(`${base}.ssl_qsfx_zjlrqs?page=1&num=${lmt}&sort=opendate&asc=0&daima=${daima}`, 'https://finance.sina.com.cn/', 'utf8');
+            const lscjfb = await httpGetJson(`${base}.ssl_qsfx_lscjfb?page=1&num=${lmt}&sort=opendate&asc=0&daima=${daima}`, 'https://finance.sina.com.cn/');
+            const arr1: any[] = Array.isArray(lscjfb) ? lscjfb : [];
+            if (arr1.length) {
+              const zjlrqs = await httpGetJson(`${base}.ssl_qsfx_zjlrqs?page=1&num=${lmt}&sort=opendate&asc=0&daima=${daima}`, 'https://finance.sina.com.cn/');
               const arr2: any[] = Array.isArray(zjlrqs) ? zjlrqs : [];
               const byDate = new Map<string, any>();
               for (const x of arr2) { const d = String(x.opendate || ''); if (d) byDate.set(d, x); }
-              for (const row of arr) {
+              for (const row of arr1) {
                 const date = String(row.opendate || '');
                 if (!date) continue;
                 const sum = byDate.get(date);
