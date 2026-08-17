@@ -945,6 +945,16 @@ export const PRESET_FORMULAS: Formula[] = [
     ],
     enabled: false,
   },
+  {
+    id: 'intraday_t',
+    name: '做T指标（分时）',
+    code: '// 做T指标：VWAP均线 + 支撑压力带 + 买卖信号\n// 仅在分时图生效，K线图无效\nVWAP:=SUM(CLOSE*VOL,0)/SUM(VOL,0);',
+    type: 'main',
+    lines: [
+      { label: 'VWAP', color: '#f59f00' },
+    ],
+    enabled: false,
+  },
 ];
 
 // 解析并执行公式

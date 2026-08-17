@@ -84,7 +84,7 @@ const SUB_OPTIONS: { id: string; label: string }[] = [
   { id: 'rsi', label: 'RSI' },
 ];
 
-export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fallColor = '#23c343', mainHeight, customIndicators, showTIndicator = true }: KLineProps) {
+export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fallColor = '#23c343', mainHeight, customIndicators, showTIndicator }: KLineProps) {
   const mainRef = useRef<HTMLCanvasElement>(null);
   const volRef = useRef<HTMLCanvasElement>(null);
   const amountRef = useRef<HTMLCanvasElement>(null);
@@ -115,6 +115,8 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
 
   const mainOverlays = (customIndicators || []).filter((x) => x?.type === 'main' && x.lines.length);
   const subPanes = (customIndicators || []).filter((x) => x?.type === 'sub' && x.lines.length);
+  // 做T指标：从 customIndicators 中检测 intraday_t 公式是否启用
+  const tIndicatorActive = showTIndicator ?? (customIndicators || []).some((x: any) => x?.id === 'intraday_t' && x?.enabled);
   const customIds = subPanes.map((_, i) => 'custom:' + i);
 
   // 新增的副图指标自动开启显示（不强制恢复用户手动关闭的）
@@ -128,6 +130,17 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
   }, [customIds.join(',')]);
 
   useEffect(() => { render(); });
+
+  // 侧栏切换时容器宽度变化，用 ResizeObserver 触发重绘
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    let raf = 0;
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => render()); });
+    ro.observe(wrap);
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function dprOf() { return window.devicePixelRatio || 1; }
 
@@ -157,7 +170,7 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
       const ctx = main.getContext('2d')!;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (intraday?.days?.length) drawIntraday5(ctx, W, mainH, intraday, riseColor, fallColor);
-      else if (intraday) drawIntraday(ctx, W, mainH, intraday, riseColor, fallColor, showTIndicator);
+      else if (intraday) drawIntraday(ctx, W, mainH, intraday, riseColor, fallColor, tIndicatorActive);
       else drawMain(ctx, W, mainH, data, riseColor, fallColor, scrollRef.current, mainOverlays, visBarsRef.current);
     }
 

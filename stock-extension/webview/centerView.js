@@ -1481,8 +1481,7 @@ function renderStockDetail(s){
   html+='<button class="kl-pbtn" data-period="week">周K</button>';
   html+='<button class="kl-pbtn" data-period="month">月K</button>';
   html+='<button class="kl-add" id="klAddSub">+ 副图</button>';
-  html+='<button class="kl-add" id="toggleTIndicator" style="margin-left:auto;'+(_showTIndicator?'background:rgba(255,77,79,.25);color:#ff4d4f':'')+'">做T</button>';
-  html+='<button class="kl-add" id="openFormulaEditor">📐 指标</button>';
+  html+='<button class="kl-add" id="openFormulaEditor" style="margin-left:auto">📐 指标</button>';
   html+='</div>';
   html+='<div class="kl-chart-wrap" id="klChartWrap">';
   html+='<div class="kl-chart" id="klChart" style="flex:1;min-width:0">';
@@ -1550,7 +1549,7 @@ function renderStockDetail(s){
   if(moreBtn&&moreDiv){moreBtn.addEventListener('click',function(){var open=moreDiv.style.display!=='none';moreDiv.style.display=open?'none':'block';moreBtn.textContent=open?'更多 ▼':'收起 ▲'})}
   var sideToggle=document.getElementById('klSideToggle');
   var sidePanel=document.getElementById('klSide');
-  if(sideToggle&&sidePanel){sidePanel.style.transition='width .2s ease,visibility .2s ease';sideToggle.addEventListener('click',function(){var collapsed=sidePanel.style.width==='0px';if(collapsed){sidePanel.style.width='150px';sidePanel.style.visibility='';sidePanel.style.borderLeft='';sidePanel.style.overflow='';sidePanel.style.padding='';sideToggle.textContent='▶'}else{sidePanel.style.width='0px';sidePanel.style.visibility='hidden';sidePanel.style.borderLeft='none';sidePanel.style.overflow='hidden';sidePanel.style.padding='0';sideToggle.textContent='◀'}})}
+  if(sideToggle&&sidePanel){sidePanel.style.transition='width .2s ease,visibility .2s ease';sideToggle.addEventListener('click',function(){var collapsed=sidePanel.style.width==='0px';if(collapsed){sidePanel.style.width='150px';sidePanel.style.visibility='';sidePanel.style.borderLeft='';sidePanel.style.overflow='';sidePanel.style.padding='';sideToggle.textContent='▶'}else{sidePanel.style.width='0px';sidePanel.style.visibility='hidden';sidePanel.style.borderLeft='none';sidePanel.style.overflow='hidden';sidePanel.style.padding='0';sideToggle.textContent='◀'}setTimeout(function(){if(_klPeriod==='intraday'&&_intradayRedrawData)drawIntraday(_intradayRedrawData);else if(_kl.data.length)renderChart()},220)})}
   var watchBtn=document.getElementById('detailWatchBtn');
   if(watchBtn)watchBtn.addEventListener('click',function(){
     var inW=this.getAttribute('data-in')==='1';
@@ -1698,7 +1697,7 @@ var _klCanvases={};
 var _intradayCache={data:[],preClose:0,totalMin:240};
 var _intradayGeo=null;var _crossIdx=-1;var _klineGeo=null;
 var _idView={s:0,e:240};var _idMinSpan=30;var _idMaxSpan=240;
-var _formulas=[];var _activeFormula=null;var _formulaResult=null;var _showTIndicator=true;
+var _formulas=[];var _activeFormula=null;var _formulaResult=null;
 function parseKline(rows){
   var d=[];
   for(var i=0;i<rows.length;i++){
@@ -2352,7 +2351,8 @@ function drawIntraday(d){
     if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   }ctx.stroke();
   // 做T指标（可切换）
-  if(_showTIndicator){drawTIndicator(ctx,data,preClose,padL,padR,padT,cW,cH,minP,pR,W,mainH)}
+  var _tActive=_formulas.some(function(f){return f.id==='intraday_t'&&f.enabled});
+  if(_tActive){drawTIndicator(ctx,data,preClose,padL,padR,padT,cW,cH,minP,pR,W,mainH)}
   // 填充分时区域
   var grad=ctx.createLinearGradient(0,padT,0,padT+cH);grad.addColorStop(0,'rgba(54,162,235,.2)');grad.addColorStop(1,'rgba(54,162,235,.02)');
   ctx.lineTo(padL+cW*(data[data.length-1].min-_idView.s)/(_idView.e-_idView.s),padT+cH);ctx.lineTo(padL,padT+cH);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
@@ -3260,6 +3260,7 @@ var PRESET_FORMULAS=[
   {id:'wr',name:'WR 威廉',code:'WR:=-100*(HHV(HIGH,14)-CLOSE)/(HHV(HIGH,14)-LLV(LOW,14));',type:'sub',lines:[{label:'WR',color:'#36a2eb'}]},
   {id:'bias',name:'BIAS 乖离率',code:'BIAS6:(CLOSE-MA(CLOSE,6))/MA(CLOSE,6)*100;\nBIAS12:(CLOSE-MA(CLOSE,12))/MA(CLOSE,12)*100;',type:'sub',lines:[{label:'BIAS6',color:'#36a2eb'},{label:'BIAS12',color:'#e8b393'}]},
   {id:'vol',name:'VOL 成交量',code:'VOLMA5:MA(VOL,5);\nVOLMA10:MA(VOL,10);',type:'sub',lines:[{label:'VOLMA5',color:'#36a2eb'},{label:'VOLMA10',color:'#e8b393'}]},
+  {id:'intraday_t',name:'做T指标（分时）',code:'// 做T指标：VWAP均线 + 支撑压力带 + 买卖信号\n// 仅在分时图生效',type:'main',lines:[{label:'VWAP',color:'#f59f00'}]},
 ];
 
 // ============ 公式编辑器 ============
@@ -3691,11 +3692,5 @@ function addStockFromSearch(item){
 document.addEventListener('click',function(e){
   if(e.target.id==='openFormulaEditor'){
     openFormulaEditor();
-  }
-  if(e.target.id==='toggleTIndicator'){
-    _showTIndicator=!_showTIndicator;
-    var btn=document.getElementById('toggleTIndicator');
-    if(btn){btn.style.background=_showTIndicator?'rgba(255,77,79,.25)':'';btn.style.color=_showTIndicator?'#ff4d4f':''}
-    if(_klPeriod==='intraday'&&_intradayRedrawData)drawIntraday(_intradayRedrawData);
   }
 });

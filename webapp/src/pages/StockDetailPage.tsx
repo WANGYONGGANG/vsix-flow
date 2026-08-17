@@ -56,7 +56,6 @@ export default function StockDetailPage({ code }: { code: string }) {
   const [aiMessages, setAiMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [fundFlowData, setFundFlowData] = useState<any[]>([]);
-  const [showTIndicator, setShowTIndicator] = useState(true);
   const tickRef = useRef<any>(null);
   const periodRef = useRef<Period>('分时');
   const searchBoxRef = useRef<HTMLDivElement>(null);
@@ -502,12 +501,7 @@ export default function StockDetailPage({ code }: { code: string }) {
           {PERIODS.map((p) => (
             <button key={p} className={period === p ? 'active' : ''} onClick={() => loadPeriod(p)}>{p}</button>
           ))}
-          <button
-            onClick={() => setShowTIndicator(!showTIndicator)}
-            style={{ marginLeft: 'auto', background: showTIndicator ? 'rgba(255,77,79,.2)' : undefined, color: showTIndicator ? '#ff4d4f' : undefined }}
-            title="做T指标"
-          >做T</button>
-          <button onClick={() => setShowFormulaEditor(true)} title="指标管理">⚙</button>
+          <button style={{ marginLeft: 'auto' }} onClick={() => setShowFormulaEditor(true)} title="指标管理">⚙</button>
         </div>
 
         <div className="detail-chart-wrap">
@@ -519,7 +513,6 @@ export default function StockDetailPage({ code }: { code: string }) {
               riseColor={settings.riseColor}
               fallColor={settings.fallColor}
               customIndicators={customIndicators}
-              showTIndicator={showTIndicator}
             />
           </div>
           <button
