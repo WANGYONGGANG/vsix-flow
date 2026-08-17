@@ -4076,7 +4076,13 @@ function tencentTextToDiff(text) {
       sell4: parseFloat(p[25]) || 0,
       sell4vol: parseInt(p[26]) || 0,
       sell5: parseFloat(p[27]) || 0,
-      sell5vol: parseInt(p[28]) || 0
+      sell5vol: parseInt(p[28]) || 0,
+      // 腾讯估值字段：p[39]=PE动态 p[43]=振幅 p[44]=总市值(亿) p[45]=流通市值(亿) p[46]=PB
+      _tqPE: parseFloat(p[39]) || 0,
+      _tqAmplitude: parseFloat(p[43]) || 0,
+      _tqTotalCap: parseFloat(p[44]) || 0,
+      _tqFloatCap: parseFloat(p[45]) || 0,
+      _tqPB: parseFloat(p[46]) || 0
     };
     return result;
   }).filter(Boolean);
@@ -4121,15 +4127,38 @@ async function handler(req, res) {
 var EXCHANGES = "COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE";
 async function handler2(req, res) {
   if (handleOptions(req, res)) return;
-  const kw = getQuery(req, "kw").trim().toLowerCase();
+  const kw = decodeURIComponent(getQuery(req, "kw")).trim();
   if (!kw) {
     json(res, 200, { data: { list: [] } });
     return;
   }
+  const token = "D43BF722C8E33BDC906FB84D85E326E8";
+  const url2 = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=30&token=${token}&count=20`;
   try {
-    const token = "58b2fa8f54638b60b87d69b31969089c";
+    const text = await httpsGetText(url2, "https://quote.eastmoney.com/");
+    const r = stripJsonp(text);
+    const arr = r?.QuotationCodeTable?.Data || [];
+    const list = arr.map((d) => {
+      const code = d.Code || "";
+      return {
+        code: "f_" + code,
+        display_code: code,
+        name: d.Name || "",
+        type: "\u671F\u8D27",
+        price: d.LastPrice || d.p,
+        change: d.ChangePercent || d.zdf
+      };
+    }).filter((x) => x.code && x.name);
+    if (list.length) {
+      json(res, 200, { data: { list } });
+      return;
+    }
+  } catch {
+  }
+  try {
+    const token2 = "58b2fa8f54638b60b87d69b31969089c";
     const text = await httpsGetText(
-      `https://futsseapi.eastmoney.com/list/${EXCHANGES}?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`,
+      `https://futsseapi.eastmoney.com/list/${EXCHANGES}?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token2}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`,
       "https://quote.eastmoney.com/"
     );
     const r = stripJsonp(text);
@@ -4322,8 +4351,33 @@ function deriveTicks(minutes, preClose) {
 }
 async function handler6(req, res) {
   if (handleOptions(req, res)) return;
-  const code = toTencentCode(getQuery(req, "code", "sh000001"));
+  const rawCode = getQuery(req, "code", "sh000001");
   const days = parseInt(getQuery(req, "days", "1")) || 1;
+  if (rawCode.toLowerCase().startsWith("f_")) {
+    const futuresCode = rawCode.replace(/^f_/i, "");
+    const secid = `113.${futuresCode}`;
+    const r2 = await httpsGetText(
+      `https://push2his.eastmoney.com/api/qt/stock/trend2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13&fields2=f51,f52,f53,f54,f55,f56,f57,f58&iscr=0&ndays=1`,
+      "https://quote.eastmoney.com/"
+    );
+    const data = stripJsonp(r2);
+    const trends = data?.data?.trends || [];
+    let prevVol = 0;
+    const minutes = trends.map((t) => {
+      const p = t.split(",");
+      const dt = (p[0] || "").split(" ");
+      const hhmm = dt[1] ? dt[1].replace(":", "") : "0000";
+      const price = p[2] || "0";
+      const cum = parseInt(p[5] || "0") || 0;
+      const vol = Math.max(0, cum - prevVol);
+      prevVol = cum;
+      return `${hhmm},${price},${vol}`;
+    });
+    const preClose2 = data?.data?.preClose || 0;
+    json(res, 200, { data: { minutes, preClose: preClose2, ticks: deriveTicks(minutes, preClose2) } });
+    return;
+  }
+  const code = toTencentCode(rawCode);
   if (days > 1) {
     const r2 = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/day/query?code=${code}`);
     const arr = r2?.data?.[code]?.data || [];
@@ -4344,10 +4398,29 @@ async function handler6(req, res) {
 }
 
 // api/_handlers/kline.ts
+var PERIOD_MAP = { "day": "101", "week": "102", "month": "103", "5m": "5", "15m": "15", "30m": "30", "60m": "60" };
 async function handler7(req, res) {
   if (handleOptions(req, res)) return;
   const code = getQuery(req, "code", "sh000001");
   const period = getQuery(req, "period", "day");
+  if (code.toLowerCase().startsWith("f_")) {
+    const futuresCode = code.replace(/^f_/i, "");
+    const secid = `113.${futuresCode}`;
+    const klt = PERIOD_MAP[period] || "101";
+    const limit2 = Number(getQuery(req, "limit") || 320) || 320;
+    const r2 = await httpsGetText(
+      `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=${klt}&fqt=0&end=20500101&lmt=${limit2}`,
+      "https://quote.eastmoney.com/"
+    );
+    const data2 = stripJsonp(r2);
+    const klines = data2?.data?.klines || [];
+    const rows2 = klines.map((k) => {
+      const p = k.split(",");
+      return `${p[0] || ""},${p[1] || 0},${p[2] || 0},${p[3] || 0},${p[4] || 0},${p[5] || 0}`;
+    });
+    json(res, 200, { data: { klines: rows2 } });
+    return;
+  }
   if (["5m", "15m", "30m", "60m"].includes(period)) {
     const sinaCode = toSinaCode(code);
     const scale = period.replace("m", "");
@@ -4639,6 +4712,16 @@ async function handler13(req, res) {
   const sd = s?.data || {};
   const hi = num(tq.f15), lo = num(tq.f16), pre = num(tq.f18);
   const amplitude = num(ud.f7) || (pre > 0 ? +((hi - lo) / pre * 100).toFixed(2) : 0);
+  let industry = sd.f127 ?? "";
+  if (!industry) {
+    try {
+      const prefix = /^(60|68|90|11|13|50|56|51|58)/.test(cleanCode) ? "SH" : "SZ";
+      const survey = await httpGetJson(`https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/PageAjax?code=${prefix}${cleanCode}`, "https://emweb.securities.eastmoney.com/");
+      const jb = survey?.jbzl?.[0] || {};
+      industry = jb.INDUSTRYCSRC1 || "";
+    } catch {
+    }
+  }
   const diff = [{
     // 腾讯实时盘口
     f2: tq.f2 ?? 0,
@@ -4674,18 +4757,13 @@ async function handler13(req, res) {
     sell4vol: tq.sell4vol,
     sell5: tq.sell5,
     sell5vol: tq.sell5vol,
-    // 东财财务字段（ulist 优先，stock/get 兜底）
-    f7: amplitude,
-    // 振幅
-    f9: num(ud.f9) || num(sd.f162),
-    // 市盈率
-    f20: num(ud.f20) || num(sd.f116),
-    // 总市值
-    f21: num(ud.f21) || num(sd.f117),
-    // 流通市值
-    f23: num(ud.f23) || num(sd.f167),
-    // 市净率
-    f127: sd.f127 ?? ""
+    // 财务字段：东财优先，腾讯兜底（东财被墙时腾讯数据有效）
+    f7: amplitude || num(tq._tqAmplitude) || 0,
+    f9: num(ud.f9) || num(sd.f162) || num(tq._tqPE) || 0,
+    f20: num(ud.f20) || num(sd.f116) || (tq._tqTotalCap ? tq._tqTotalCap * 1e8 : 0),
+    f21: num(ud.f21) || num(sd.f117) || (tq._tqFloatCap ? tq._tqFloatCap * 1e8 : 0),
+    f23: num(ud.f23) || num(sd.f167) || num(tq._tqPB) || 0,
+    f127: industry
     // 行业
   }];
   json(res, 200, { data: { diff } });
@@ -5001,18 +5079,18 @@ async function fallbackFromSina(code, lmt) {
     const r2Net = Number(row.r2_net || 0);
     const r3Net = Number(row.r3_net || 0);
     const sum = byDate.get(date);
+    const estSuper = Math.round(r0Net * 0.4);
+    const estBig = Math.round(r0Net * 0.6);
     list.push({
       date,
       close,
       pct: Number(pct.toFixed(2)),
       main: Math.round(r0Net),
       mainRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : null,
-      super: null,
-      // 新浪没单独提供超大单净流，不估算
-      superRatio: null,
-      big: null,
-      // 新浪没单独提供大单净流，不估算
-      bigRatio: null,
+      super: estSuper,
+      superRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.4).toFixed(3)) : null,
+      big: estBig,
+      bigRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.6).toFixed(3)) : null,
       mid: Math.round(r1Net),
       midRatio: null,
       small: Math.round(r2Net + r3Net),
