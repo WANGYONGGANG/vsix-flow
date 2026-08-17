@@ -129,16 +129,20 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customIds.join(',')]);
 
+  // renderRef 始终指向最新的 render 函数，让 ResizeObserver 不会用过期闭包
+  const renderRef = useRef<() => void>(() => {});
+  renderRef.current = render;
+
   // 仅在数据变化时重绘（不在父组件 re-render 时无谓触发）
   const renderKey = JSON.stringify({ rows, intraday, subs, mainHeight, riseColor, fallColor, showTIndicator });
-  useEffect(() => { render(); }, [renderKey, customIndicators]);
+  useEffect(() => { renderRef.current(); }, [renderKey, customIndicators]);
 
-  // 侧栏切换时容器宽度变化，用 ResizeObserver 触发重绘
+  // 侧栏切换时容器宽度变化，用 ResizeObserver 触发重绘（通过 ref 调最新 render）
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
     let raf = 0;
-    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => render()); });
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => renderRef.current()); });
     ro.observe(wrap);
     return () => { ro.disconnect(); cancelAnimationFrame(raf); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
