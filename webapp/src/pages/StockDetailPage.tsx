@@ -61,6 +61,8 @@ export default function StockDetailPage({ code }: { code: string }) {
   const searchBoxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setFundFlowData([]);
+    setQuote(null);
     loadQuote();
     loadPeriod('分时');
     loadSubTab('news');
@@ -86,7 +88,7 @@ export default function StockDetailPage({ code }: { code: string }) {
       const n = diff[0];
       // 东财财务字段不稳定（限流返回空），为0时保留上次值避免闪烁
       setQuote((prev: any) => {
-        if (prev) {
+        if (prev && prev.f12 === n.f12) {
           if (!Number(n.f9)) n.f9 = prev.f9;
           if (!Number(n.f23)) n.f23 = prev.f23;
           if (!Number(n.f20)) n.f20 = prev.f20;
@@ -572,27 +574,27 @@ export default function StockDetailPage({ code }: { code: string }) {
                 </div>
               </div>
             </div>
-            <div style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>大单占比趋势</div>
-            <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 56, background: 'rgba(255,255,255,.02)', padding: '6px 8px', borderRadius: 6, overflow: 'hidden' }}>
-              {fundFlowData.slice(0, 10).reverse().map((d, i) => {
-                const maxRatio = Math.max(...fundFlowData.slice(0, 10).map(x => Math.abs(x.mainRatio || 0)), 1);
-                const height = Math.abs(d.mainRatio || 0) / maxRatio * 100;
-                const isUp = (d.mainRatio || 0) >= 0;
-                const pct = (d.mainRatio || 0).toFixed(1);
-                return (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, minWidth: 0, overflow: 'hidden' }}>
-                    <div style={{ fontSize: 8, color: '#999', whiteSpace: 'nowrap', overflow: 'hidden' }}>{pct}%</div>
-                    <div style={{
-                      width: '100%',
-                      height: `${height}%`,
-                      background: isUp ? 'var(--up)' : 'var(--down)',
-                      borderRadius: 2,
-                      minHeight: 2,
-                    }} />
-                  </div>
-                );
-              })}
-            </div>
+            <div style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>主力占比趋势（主力净流入/成交额）</div>
+            {(() => {
+              const recent = fundFlowData.slice(0, 10).reverse();
+              const maxRatio = Math.max(...recent.map(x => Math.abs(x.mainRatio || 0)), 1);
+              const barAreaH = 44;
+              return (
+                <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,.02)', padding: '4px 6px', borderRadius: 6 }}>
+                  {recent.map((d, i) => {
+                    const barH = Math.max(Math.round(Math.abs(d.mainRatio || 0) / maxRatio * barAreaH), 2);
+                    const isUp = (d.mainRatio || 0) >= 0;
+                    const pct = (d.mainRatio || 0).toFixed(1);
+                    return (
+                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', minWidth: 0, height: 60 }}>
+                        <div style={{ fontSize: 7, color: '#999', whiteSpace: 'nowrap', overflow: 'hidden', marginBottom: 1 }}>{pct}%</div>
+                        <div style={{ width: '100%', height: barH, background: isUp ? 'var(--up)' : 'var(--down)', borderRadius: 2 }} />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 

@@ -1656,21 +1656,23 @@ function renderDetailFundFlow(){
   html+='<div style="font-size:14px;font-weight:600;color:'+(superVal>=0?'var(--up)':'var(--down)')+'">'+fmtYi(superVal)+'亿</div>';
   html+='</div>';
   html+='</div>';
-  // 大单占比趋势
-  html+='<div style="font-size:12px;color:#999;margin-bottom:6px">大单占比趋势</div>';
+  // 主力占比趋势（每日主力净流入占成交额比例）
+  html+='<div style="font-size:12px;color:#999;margin-bottom:6px">主力占比趋势（主力净流入/成交额）</div>';
   var recent=d.slice(0,10).reverse();
   var maxRatio=1;
   for(var i=0;i<recent.length;i++){var r=Math.abs(Number(recent[i].mainRatio||0));if(r>maxRatio)maxRatio=r}
-  html+='<div style="display:flex;gap:2px;align-items:flex-end;height:56px;background:rgba(255,255,255,.02);padding:6px 8px;border-radius:6px;overflow:hidden">';
+  var barAreaH=44;
+  html+='<div style="display:flex;gap:2px;background:rgba(255,255,255,.02);padding:4px 6px;border-radius:6px">';
   for(var i=0;i<recent.length;i++){
     var item=recent[i];
     var ratio=Number(item.mainRatio||0);
-    var h=Math.abs(ratio)/maxRatio*100;
+    var barH=Math.round(Math.abs(ratio)/maxRatio*barAreaH);
+    if(barH<2)barH=2;
     var isUp=ratio>=0;
     var pct=ratio.toFixed(1);
-    html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;overflow:hidden">';
-    html+='<div style="font-size:8px;color:#999;white-space:nowrap;overflow:hidden">'+pct+'%</div>';
-    html+='<div style="width:100%;height:'+h+'%;background:'+(isUp?'var(--up)':'var(--down)')+';border-radius:2px;min-height:2px"></div>';
+    html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;height:60px">';
+    html+='<div style="font-size:7px;color:#999;white-space:nowrap;overflow:hidden;margin-bottom:1px">'+pct+'%</div>';
+    html+='<div style="width:100%;height:'+barH+'px;background:'+(isUp?'var(--up)':'var(--down)')+';border-radius:2px"></div>';
     html+='</div>';
   }
   html+='</div>';
@@ -2702,7 +2704,7 @@ function renderDetailTabContent(tab,data){
 }
 
 function openStockDetail(code,name){
-  _detailCode=code;_detailName=name||'';_detailTab='news';_chipsData=null;_floatShares=0;
+  _detailCode=code;_detailName=name||'';_detailTab='news';_chipsData=null;_floatShares=0;_lastQuote=null;_fundFlowRendered=false;_fundFlowData=[];
   var s={code:code,name:name||'',price:0,changeRate:0,open:0,preClose:0,high:0,low:0,volume:0,amount:0,turnover:0};
   renderStockDetail(s);
   vscode.postMessage({type:'fetchQuote',code:code});
