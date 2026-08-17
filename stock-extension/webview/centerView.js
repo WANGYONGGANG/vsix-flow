@@ -1505,6 +1505,7 @@ function renderStockDetail(s){
   html+='</div>';
   html+='</div>';
   html+='</div>';
+  html+='<div id="detailFundFlow"></div>';
   html+='<div class="detail-actions"><button class="btn-del" id="detailWatchBtn" data-in="0">加载中...</button><button class="btn-back" id="detailBackBtn">返回列表</button></div>';
   html+='<div class="detail-tabs" id="detailTabs">';
   html+='<button class="detail-tab active" data-dtab="news">资讯</button>';
@@ -1565,6 +1566,7 @@ function renderStockDetail(s){
   _detailCode=s.code;_detailName=s.name||_detailName;_detailTab='news';_klPeriod='intraday';_allTicks=[];
   vscode.postMessage({type:'fetchKline',code:s.code,period:'intraday'});
   vscode.postMessage({type:'fetchStockNews',code:s.code});
+  vscode.postMessage({type:'fetchFundFlow',code:s.code});
   if(_quoteTimer){clearInterval(_quoteTimer);_quoteTimer=null}
   _quoteTimer=setInterval(function(){
     if(_detailCode)vscode.postMessage({type:'fetchQuote',code:_detailCode});
@@ -1624,10 +1626,60 @@ function renderStockDetail(s){
   }
 }
 
+function renderDetailFundFlow(){
+  var el=document.getElementById('detailFundFlow');
+  if(!el||!_fundFlowData.length){if(el)el.innerHTML='';return}
+  var d=_fundFlowData;
+  var latest=d[0]||{};
+  var mainVal=Number(latest.main||0);
+  var mainRatio=Number(latest.mainRatio||0);
+  var superVal=Number(latest.super||0);
+  var superRatio=Number(latest.superRatio||0);
+  var bigVal=Number(latest.big||0);
+  var bigRatio=Number(latest.bigRatio||0);
+  var html='<div style="margin-top:12px;padding:0 4px">';
+  html+='<div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--fg)">近'+d.length+'日主力资金</div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">';
+  html+='<div style="background:rgba(255,255,255,.03);padding:8px 10px;border-radius:6px">';
+  html+='<div style="font-size:11px;color:#999">主力净流入</div>';
+  html+='<div style="font-size:14px;font-weight:600;color:'+(mainVal>=0?'var(--up)':'var(--down)')+'">'+fmtYi(mainVal)+'亿</div>';
+  html+='</div>';
+  html+='<div style="background:rgba(255,255,255,.03);padding:8px 10px;border-radius:6px">';
+  html+='<div style="font-size:11px;color:#999">主力占比</div>';
+  html+='<div style="font-size:14px;font-weight:600;color:var(--fg)">'+mainRatio.toFixed(1)+'%</div>';
+  html+='</div>';
+  html+='<div style="background:rgba(255,255,255,.03);padding:8px 10px;border-radius:6px">';
+  html+='<div style="font-size:11px;color:#999">超大单净流入</div>';
+  html+='<div style="font-size:14px;font-weight:600;color:'+(superVal>=0?'var(--up)':'var(--down)')+'">'+fmtYi(superVal)+'亿</div>';
+  html+='</div>';
+  html+='</div>';
+  // 大单占比趋势
+  html+='<div style="font-size:12px;color:#999;margin-bottom:6px">大单占比趋势</div>';
+  var recent=d.slice(0,10).reverse();
+  var maxRatio=1;
+  for(var i=0;i<recent.length;i++){var r=Math.abs(Number(recent[i].mainRatio||0));if(r>maxRatio)maxRatio=r}
+  html+='<div style="display:flex;gap:2px;align-items:flex-end;height:56px;background:rgba(255,255,255,.02);padding:6px 8px;border-radius:6px;overflow:hidden">';
+  for(var i=0;i<recent.length;i++){
+    var item=recent[i];
+    var ratio=Number(item.mainRatio||0);
+    var h=Math.abs(ratio)/maxRatio*100;
+    var isUp=ratio>=0;
+    var pct=ratio.toFixed(1);
+    html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;overflow:hidden">';
+    html+='<div style="font-size:8px;color:#999;white-space:nowrap;overflow:hidden">'+pct+'%</div>';
+    html+='<div style="width:100%;height:'+h+'%;background:'+(isUp?'var(--up)':'var(--down)')+';border-radius:2px;min-height:2px"></div>';
+    html+='</div>';
+  }
+  html+='</div>';
+  html+='</div>';
+  el.innerHTML=html;
+}
+
 var _detailCode='';var _detailName='';var _detailTab='news';var _klPeriod='intraday';
 var _floatShares=0;
 var _lastQuote=null;
 var _chipsData=null;
+var _fundFlowData=[];
 var _allTicks=[];
 var _kl={data:[],scroll:0,subs:['vol'],dragging:false,dragX:0,gap:0};
 var _klCanvases={};
@@ -2751,6 +2803,9 @@ window.addEventListener('message',function(e){
     }
   }else if(msg.type==='quoteData'&&msg.code===_detailCode){
     updateDetailQuote(msg.data);
+  }else if(msg.type==='fundFlowData'&&msg.code===_detailCode){
+    _fundFlowData=msg.data||[];
+    renderDetailFundFlow();
   }else if(msg.type==='inWatchResult'&&msg.code){
     var wbtn=document.getElementById('detailWatchBtn');
     if(wbtn){

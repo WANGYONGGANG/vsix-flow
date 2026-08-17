@@ -721,6 +721,10 @@ export class ProxyService {
             big: parseFloat(p[4]) || 0,
             super: parseFloat(p[5]) || 0,
             mainRatio: parseFloat(p[6]) || 0,
+            smallRatio: parseFloat(p[7]) || 0,
+            midRatio: parseFloat(p[8]) || 0,
+            bigRatio: parseFloat(p[9]) || 0,
+            superRatio: parseFloat(p[10]) || 0,
             close: parseFloat(p[11]) || 0,
             pct: parseFloat(p[12]) || 0,
           };

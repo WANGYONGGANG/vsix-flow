@@ -541,7 +541,7 @@ export default function StockDetailPage({ code }: { code: string }) {
         {fundFlowData.length > 0 && (
           <div style={{ marginTop: 12, padding: '0 12px' }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--fg)' }}>
-              历史资金流（近{fundFlowData.length}日）
+              近{fundFlowData.length}日主力资金
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
               <div style={{ background: 'rgba(255,255,255,.03)', padding: '8px 10px', borderRadius: 6 }}>
@@ -565,8 +565,8 @@ export default function StockDetailPage({ code }: { code: string }) {
             </div>
             <div style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>大单占比趋势</div>
             <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 56, background: 'rgba(255,255,255,.02)', padding: '6px 8px', borderRadius: 6, overflow: 'hidden' }}>
-              {fundFlowData.slice(-10).map((d, i) => {
-                const maxRatio = Math.max(...fundFlowData.slice(-10).map(x => Math.abs(x.mainRatio || 0)), 1);
+              {fundFlowData.slice(0, 10).reverse().map((d, i) => {
+                const maxRatio = Math.max(...fundFlowData.slice(0, 10).map(x => Math.abs(x.mainRatio || 0)), 1);
                 const height = Math.abs(d.mainRatio || 0) / maxRatio * 100;
                 const isUp = (d.mainRatio || 0) >= 0;
                 const pct = (d.mainRatio || 0).toFixed(1);
