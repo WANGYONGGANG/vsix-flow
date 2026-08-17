@@ -758,10 +758,14 @@ export class ProxyService {
                 const date = String(row.opendate || '');
                 if (!date) continue;
                 const sum = byDate.get(date);
+                const r0Net = Math.round(Number(row.r0_net || 0));
+                const estSuper = Math.round(r0Net * 0.4);
+                const estBig = Math.round(r0Net * 0.6);
                 list.push({
-                  date, main: Math.round(Number(row.r0_net || 0)),
+                  date, main: r0Net,
                   mainRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : 0,
-                  super: 0, superRatio: 0, big: 0, bigRatio: 0,
+                  super: estSuper, superRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.4).toFixed(3)) : 0,
+                  big: estBig, bigRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.6).toFixed(3)) : 0,
                   mid: Math.round(Number(row.r1_net || 0)), midRatio: 0,
                   small: Math.round((Number(row.r2_net || 0) + Number(row.r3_net || 0))), smallRatio: 0,
                   close: Number(row.trade || 0), pct: Number(row.changeratio || 0) * 100,

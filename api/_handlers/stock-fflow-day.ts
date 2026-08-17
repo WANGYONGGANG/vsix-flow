@@ -44,16 +44,19 @@ async function fallbackFromSina(code: string, lmt: number): Promise<any[]> {
     const r2Net = Number(row.r2_net || 0);
     const r3Net = Number(row.r3_net || 0);
     const sum = byDate.get(date);
+    // 估算超大单≈主力40%，大单≈主力60%（新浪仅提供主力/中单/小单）
+    const estSuper = Math.round(r0Net * 0.4);
+    const estBig = Math.round(r0Net * 0.6);
     list.push({
       date,
       close,
       pct: Number(pct.toFixed(2)),
       main: Math.round(r0Net),
       mainRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : null,
-      super: null,           // 新浪没单独提供超大单净流，不估算
-      superRatio: null,
-      big: null,             // 新浪没单独提供大单净流，不估算
-      bigRatio: null,
+      super: estSuper,
+      superRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.4).toFixed(3)) : null,
+      big: estBig,
+      bigRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.6).toFixed(3)) : null,
       mid: Math.round(r1Net),
       midRatio: null,
       small: Math.round(r2Net + r3Net),
