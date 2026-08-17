@@ -56,6 +56,7 @@ export default function StockDetailPage({ code }: { code: string }) {
   const [aiMessages, setAiMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [fundFlowData, setFundFlowData] = useState<any[]>([]);
+  const [showTIndicator, setShowTIndicator] = useState(true);
   const tickRef = useRef<any>(null);
   const periodRef = useRef<Period>('分时');
   const searchBoxRef = useRef<HTMLDivElement>(null);
@@ -501,7 +502,12 @@ export default function StockDetailPage({ code }: { code: string }) {
           {PERIODS.map((p) => (
             <button key={p} className={period === p ? 'active' : ''} onClick={() => loadPeriod(p)}>{p}</button>
           ))}
-          <button style={{ marginLeft: 'auto' }} onClick={() => setShowFormulaEditor(true)} title="指标管理">⚙</button>
+          <button
+            onClick={() => setShowTIndicator(!showTIndicator)}
+            style={{ marginLeft: 'auto', background: showTIndicator ? 'rgba(255,77,79,.2)' : undefined, color: showTIndicator ? '#ff4d4f' : undefined }}
+            title="做T指标"
+          >做T</button>
+          <button onClick={() => setShowFormulaEditor(true)} title="指标管理">⚙</button>
         </div>
 
         <div className="detail-chart-wrap">
@@ -513,6 +519,7 @@ export default function StockDetailPage({ code }: { code: string }) {
               riseColor={settings.riseColor}
               fallColor={settings.fallColor}
               customIndicators={customIndicators}
+              showTIndicator={showTIndicator}
             />
           </div>
           <button
@@ -556,7 +563,7 @@ export default function StockDetailPage({ code }: { code: string }) {
               <div style={{ background: 'rgba(255,255,255,.03)', padding: '8px 10px', borderRadius: 6 }}>
                 <div style={{ fontSize: 11, color: '#999' }}>主力净流入</div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: fundFlowData[0]?.main >= 0 ? 'var(--up)' : 'var(--down)' }}>
-                  {fmtYi(fundFlowData[0]?.main || 0)}亿
+                  {fmtYi(fundFlowData[0]?.main || 0)}
                 </div>
               </div>
               <div style={{ background: 'rgba(255,255,255,.03)', padding: '8px 10px', borderRadius: 6 }}>
@@ -568,14 +575,14 @@ export default function StockDetailPage({ code }: { code: string }) {
               <div style={{ background: 'rgba(255,255,255,.03)', padding: '8px 10px', borderRadius: 6 }}>
                 <div style={{ fontSize: 11, color: '#999' }}>超大单净流入</div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: fundFlowData[0]?.super >= 0 ? 'var(--up)' : 'var(--down)' }}>
-                  {fmtYi(fundFlowData[0]?.super || 0)}亿
+                  {fmtYi(fundFlowData[0]?.super || 0)}
                 </div>
               </div>
             </div>
             <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>主力占比趋势</div>
             <div style={{ fontSize: 10, color: '#666', marginBottom: 6 }}>主力净流入额 ÷ 当日成交额 = 主力占比（%），正值=主力净买入，负值=主力净卖出</div>
             {(() => {
-              const recent = fundFlowData.slice(0, 30).reverse();
+              const recent = fundFlowData.slice(0, 30);
               const maxRatio = Math.max(...recent.map(x => Math.abs(x.mainRatio || 0)), 1);
               const barAreaH = 40;
               const barW = Math.max(Math.floor(56 / Math.max(recent.length, 1)), 18);

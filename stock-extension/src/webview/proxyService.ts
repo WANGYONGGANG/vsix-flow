@@ -723,12 +723,14 @@ export class ProxyService {
         const list = klines.map((line: string) => {
           const p = line.split(',');
           // date,close,pct,主力净流入,主力净占比,超大单,超大单占比,大单,大单占比,中单,中单占比,小单,小单占比
+          var mr = parseFloat(p[4]) || 0;
+          if (Math.abs(mr) > 100) mr = 0; // 异常值清零
           return {
             date: p[0],
             close: parseFloat(p[1]) || 0,
             pct: parseFloat(p[2]) || 0,
             main: parseFloat(p[3]) || 0,
-            mainRatio: parseFloat(p[4]) || 0,
+            mainRatio: mr,
             super: parseFloat(p[5]) || 0,
             superRatio: parseFloat(p[6]) || 0,
             big: parseFloat(p[7]) || 0,

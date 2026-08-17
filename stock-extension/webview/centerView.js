@@ -1481,7 +1481,8 @@ function renderStockDetail(s){
   html+='<button class="kl-pbtn" data-period="week">周K</button>';
   html+='<button class="kl-pbtn" data-period="month">月K</button>';
   html+='<button class="kl-add" id="klAddSub">+ 副图</button>';
-  html+='<button class="kl-add" id="openFormulaEditor" style="margin-left:auto">📐 指标</button>';
+  html+='<button class="kl-add" id="toggleTIndicator" style="margin-left:auto;'+(_showTIndicator?'background:rgba(255,77,79,.25);color:#ff4d4f':'')+'">做T</button>';
+  html+='<button class="kl-add" id="openFormulaEditor">📐 指标</button>';
   html+='</div>';
   html+='<div class="kl-chart-wrap" id="klChartWrap">';
   html+='<div class="kl-chart" id="klChart" style="flex:1;min-width:0">';
@@ -1645,7 +1646,7 @@ function renderDetailFundFlow(){
   html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">';
   html+='<div style="background:rgba(255,255,255,.03);padding:8px 10px;border-radius:6px">';
   html+='<div style="font-size:11px;color:#999">主力净流入</div>';
-  html+='<div style="font-size:14px;font-weight:600;color:'+(mainVal>=0?'var(--up)':'var(--down)')+'">'+fmtYi(mainVal)+'亿</div>';
+  html+='<div style="font-size:14px;font-weight:600;color:'+(mainVal>=0?'var(--up)':'var(--down)')+'">'+fmtYi(mainVal)+'</div>';
   html+='</div>';
   html+='<div style="background:rgba(255,255,255,.03);padding:8px 10px;border-radius:6px">';
   html+='<div style="font-size:11px;color:#999">主力占比</div>';
@@ -1653,13 +1654,13 @@ function renderDetailFundFlow(){
   html+='</div>';
   html+='<div style="background:rgba(255,255,255,.03);padding:8px 10px;border-radius:6px">';
   html+='<div style="font-size:11px;color:#999">超大单净流入</div>';
-  html+='<div style="font-size:14px;font-weight:600;color:'+(superVal>=0?'var(--up)':'var(--down)')+'">'+fmtYi(superVal)+'亿</div>';
+  html+='<div style="font-size:14px;font-weight:600;color:'+(superVal>=0?'var(--up)':'var(--down)')+'">'+fmtYi(superVal)+'</div>';
   html+='</div>';
   html+='</div>';
   // 主力占比趋势（每日主力净流入占成交额比例）
   html+='<div style="font-size:12px;color:#999;margin-bottom:4px">主力占比趋势</div>';
   html+='<div style="font-size:10px;color:#666;margin-bottom:6px">主力净流入额 ÷ 当日成交额 = 主力占比（%），正值=主力净买入，负值=主力净卖出</div>';
-  var recent=d.slice(0,30).reverse();
+  var recent=d.slice(0,30);
   var maxRatio=1;
   for(var i=0;i<recent.length;i++){var r=Math.abs(Number(recent[i].mainRatio||0));if(r>maxRatio)maxRatio=r}
   var barAreaH=40;
@@ -1697,7 +1698,7 @@ var _klCanvases={};
 var _intradayCache={data:[],preClose:0,totalMin:240};
 var _intradayGeo=null;var _crossIdx=-1;var _klineGeo=null;
 var _idView={s:0,e:240};var _idMinSpan=30;var _idMaxSpan=240;
-var _formulas=[];var _activeFormula=null;var _formulaResult=null;
+var _formulas=[];var _activeFormula=null;var _formulaResult=null;var _showTIndicator=true;
 function parseKline(rows){
   var d=[];
   for(var i=0;i<rows.length;i++){
@@ -2350,7 +2351,31 @@ function drawIntraday(d){
     var y=padT+cH*(1-(data[i].price-minP)/pR);
     if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   }ctx.stroke();
-  // 支撑压力带（做T指标）
+  // 做T指标（可切换）
+  if(_showTIndicator){drawTIndicator(ctx,data,preClose,padL,padR,padT,cW,cH,minP,pR,W,mainH)}
+  // 填充分时区域
+  var grad=ctx.createLinearGradient(0,padT,0,padT+cH);grad.addColorStop(0,'rgba(54,162,235,.2)');grad.addColorStop(1,'rgba(54,162,235,.02)');
+  ctx.lineTo(padL+cW*(data[data.length-1].min-_idView.s)/(_idView.e-_idView.s),padT+cH);ctx.lineTo(padL,padT+cH);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+  ctx.fillStyle='#666';ctx.font='10px monospace';ctx.textAlign='center';
+  var spanM=_idView.e-_idView.s;
+  var stepM=spanM>180?60:(spanM>90?30:15);
+  var s0=Math.ceil(_idView.s/stepM)*stepM;
+  for(var m=s0;m<=_idView.e;m+=stepM){
+    var tLabel=minToClock(m);
+    var x=padL+cW*(m-_idView.s)/spanM;
+    ctx.fillText(tLabel,x,mainH-4);
+  }
+  for(var si=0;si<_kl.subs.length;si++){
+    drawIntradaySub(_kl.subs[si],data,preClose,W,dpr,subH);
+  }
+  _intradayTimer=setInterval(function(){
+    if(_klPeriod==='intraday'&&_detailCode){
+      vscode.postMessage({type:'fetchKline',code:_detailCode,period:'intraday'});
+    }
+  },3000);
+}
+function drawTIndicator(ctx,data,preClose,padL,padR,padT,cW,cH,minP,pR,W,mainH){
+  // 支撑压力带
   var dayH=-Infinity,dayL=Infinity;
   for(var i=0;i<data.length;i++){if(data[i].price>dayH)dayH=data[i].price;if(data[i].price<dayL)dayL=data[i].price}
   var bandRange=dayH-dayL||1;
@@ -2380,44 +2405,14 @@ function drawIntraday(d){
     if(i>0&&prevP>=resistLine&&data[i].price<resistLine)sellSignals.push(i);
     prevP=data[i].price;
   }ctx.stroke();
-  ctx.strokeStyle='#36a2eb';ctx.lineWidth=1.5;ctx.beginPath();
-  for(var i=0;i<data.length;i++){
-    var x=padL+cW*(data[i].min-_idView.s)/(_idView.e-_idView.s);
-    var y=padT+cH*(1-(data[i].price-minP)/pR);
-    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-  }ctx.stroke();
-  // 买卖信号图标
+  // 买卖信号图标（红买绿卖）
   ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  for(var si=0;si<buySignals.length;si++){var idx=buySignals[si];ctx.fillStyle='#23c343';ctx.fillText('▲',padL+cW*(data[idx].min-_idView.s)/(_idView.e-_idView.s),padT+cH*(1-(data[idx].price-minP)/pR)+16)}
-  for(var si=0;si<sellSignals.length;si++){var idx=sellSignals[si];ctx.fillStyle='#ff4d4f';ctx.fillText('▼',padL+cW*(data[idx].min-_idView.s)/(_idView.e-_idView.s),padT+cH*(1-(data[idx].price-minP)/pR)-8)}
-  // 简单均价线（灰色虚线）
-  var avgSum=0;ctx.beginPath();ctx.strokeStyle='#aaa';ctx.lineWidth=0.8;ctx.setLineDash([2,2]);
-  for(var i=0;i<data.length;i++){avgSum+=data[i].price;var avg=avgSum/(i+1);var x=padL+cW*(data[i].min-_idView.s)/(_idView.e-_idView.s);var y=padT+cH*(1-(avg-minP)/pR);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
-  ctx.stroke();ctx.setLineDash([]);
+  for(var si=0;si<buySignals.length;si++){var idx=buySignals[si];ctx.fillStyle='#ff4d4f';ctx.fillText('▲',padL+cW*(data[idx].min-_idView.s)/(_idView.e-_idView.s),padT+cH*(1-(data[idx].price-minP)/pR)+16)}
+  for(var si=0;si<sellSignals.length;si++){var idx=sellSignals[si];ctx.fillStyle='#23c343';ctx.fillText('▼',padL+cW*(data[idx].min-_idView.s)/(_idView.e-_idView.s),padT+cH*(1-(data[idx].price-minP)/pR)-8)}
   // 底部净买额+VWAP标注
   ctx.font='9px monospace';ctx.textAlign='left';ctx.textBaseline='bottom';
   ctx.fillStyle=netBuy>=0?'#ff4d4f':'#23c343';ctx.fillText('净买 '+(netBuy/10000).toFixed(1)+'万',padL,mainH-2);
   ctx.fillStyle='#f59f00';ctx.textAlign='right';ctx.fillText('VWAP '+(vwapV>0?(vwapPV/vwapV).toFixed(2):'--'),W-padR,mainH-2);
-  // 填充分时区域
-  var grad=ctx.createLinearGradient(0,padT,0,padT+cH);grad.addColorStop(0,'rgba(54,162,235,.2)');grad.addColorStop(1,'rgba(54,162,235,.02)');
-  ctx.lineTo(padL+cW*(data[data.length-1].min-_idView.s)/(_idView.e-_idView.s),padT+cH);ctx.lineTo(padL,padT+cH);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
-  ctx.fillStyle='#666';ctx.font='10px monospace';ctx.textAlign='center';
-  var spanM=_idView.e-_idView.s;
-  var stepM=spanM>180?60:(spanM>90?30:15);
-  var s0=Math.ceil(_idView.s/stepM)*stepM;
-  for(var m=s0;m<=_idView.e;m+=stepM){
-    var tLabel=minToClock(m);
-    var x=padL+cW*(m-_idView.s)/spanM;
-    ctx.fillText(tLabel,x,mainH-4);
-  }
-  for(var si=0;si<_kl.subs.length;si++){
-    drawIntradaySub(_kl.subs[si],data,preClose,W,dpr,subH);
-  }
-  _intradayTimer=setInterval(function(){
-    if(_klPeriod==='intraday'&&_detailCode){
-      vscode.postMessage({type:'fetchKline',code:_detailCode,period:'intraday'});
-    }
-  },3000);
 }
 function drawIntradaySub(sid,data,preClose,W,dpr,subH){
   var canvas=document.getElementById('kl'+sid.charAt(0).toUpperCase()+sid.slice(1));
@@ -3696,5 +3691,11 @@ function addStockFromSearch(item){
 document.addEventListener('click',function(e){
   if(e.target.id==='openFormulaEditor'){
     openFormulaEditor();
+  }
+  if(e.target.id==='toggleTIndicator'){
+    _showTIndicator=!_showTIndicator;
+    var btn=document.getElementById('toggleTIndicator');
+    if(btn){btn.style.background=_showTIndicator?'rgba(255,77,79,.25)':'';btn.style.color=_showTIndicator?'#ff4d4f':''}
+    if(_klPeriod==='intraday'&&_intradayRedrawData)drawIntraday(_intradayRedrawData);
   }
 });
