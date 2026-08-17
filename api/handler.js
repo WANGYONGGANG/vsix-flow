@@ -3925,6 +3925,7 @@ function nativeGetText(fullUrl, headers, redirects = 3) {
 }
 function withPush2Mirror(url2) {
   if (/^https?:\/\/push2\.eastmoney\.com\//.test(url2)) return url2.replace("//push2.eastmoney.com/", "//push2delay.eastmoney.com/");
+  if (/^https?:\/\/push2his\.eastmoney\.com\//.test(url2)) return url2.replace("//push2his.eastmoney.com/", "//push2delay.eastmoney.com/");
   return url2;
 }
 async function fetchText(fullUrl, referer) {
@@ -4357,14 +4358,14 @@ async function handler6(req, res) {
     const futuresCode = rawCode.replace(/^f_/i, "");
     const secid = `113.${futuresCode}`;
     const r2 = await httpsGetText(
-      `https://push2his.eastmoney.com/api/qt/stock/trend2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13&fields2=f51,f52,f53,f54,f55,f56,f57,f58&iscr=0&ndays=1`,
+      `https://push2delay.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=1&fqt=0&end=20500101&lmt=300`,
       "https://quote.eastmoney.com/"
     );
     const data = stripJsonp(r2);
-    const trends = data?.data?.trends || [];
+    const klines = data?.data?.klines || [];
     let prevVol = 0;
-    const minutes = trends.map((t) => {
-      const p = t.split(",");
+    const minutes = klines.map((k) => {
+      const p = k.split(",");
       const dt = (p[0] || "").split(" ");
       const hhmm = dt[1] ? dt[1].replace(":", "") : "0000";
       const price = p[2] || "0";
@@ -4373,7 +4374,7 @@ async function handler6(req, res) {
       prevVol = cum;
       return `${hhmm},${price},${vol}`;
     });
-    const preClose2 = data?.data?.preClose || 0;
+    const preClose2 = data?.data?.preClose || data?.data?.preKPrice || 0;
     json(res, 200, { data: { minutes, preClose: preClose2, ticks: deriveTicks(minutes, preClose2) } });
     return;
   }
@@ -4406,8 +4407,43 @@ async function handler7(req, res) {
   if (code.toLowerCase().startsWith("f_")) {
     const futuresCode = code.replace(/^f_/i, "");
     const secid = `113.${futuresCode}`;
-    const klt = PERIOD_MAP[period] || "101";
     const limit2 = Number(getQuery(req, "limit") || 320) || 320;
+    if (["5m", "15m", "30m", "60m"].includes(period)) {
+      const scale = parseInt(period) || 5;
+      const fetchCount = Math.min(2e3, limit2 * scale + 50);
+      const r3 = await httpsGetText(
+        `https://push2delay.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=1&fqt=0&end=20500101&lmt=${fetchCount}`,
+        "https://quote.eastmoney.com/"
+      );
+      const data3 = stripJsonp(r3);
+      const klines2 = data3?.data?.klines || [];
+      const rows3 = [];
+      let bucket = null;
+      let bucketStartMin = -1;
+      for (const k of klines2) {
+        const p = k.split(",");
+        const dt = p[0] || "";
+        const timePart = dt.split(" ")[1] || "";
+        const hhmm = timePart.replace(":", "");
+        const totalMin = parseInt(hhmm.slice(0, 2)) * 60 + parseInt(hhmm.slice(2, 4));
+        const o = +p[1], c = +p[2], h = +p[3], l = +p[4], v = +(p[5] || 0);
+        const bucketIdx = Math.floor(totalMin / scale);
+        if (bucketIdx !== bucketStartMin) {
+          if (bucket) rows3.push(`${bucket.dt.split(" ")[0]},${bucket.o},${bucket.c},${bucket.h},${bucket.l},${bucket.v}`);
+          bucket = { dt, o, c, h, l, v };
+          bucketStartMin = bucketIdx;
+        } else if (bucket) {
+          bucket.c = c;
+          if (h > bucket.h) bucket.h = h;
+          if (l < bucket.l) bucket.l = l;
+          bucket.v += v;
+        }
+      }
+      if (bucket) rows3.push(`${bucket.dt.split(" ")[0]},${bucket.o},${bucket.c},${bucket.h},${bucket.l},${bucket.v}`);
+      json(res, 200, { data: { klines: rows3.slice(-limit2) } });
+      return;
+    }
+    const klt = PERIOD_MAP[period] || "101";
     const r2 = await httpsGetText(
       `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=${klt}&fqt=0&end=20500101&lmt=${limit2}`,
       "https://quote.eastmoney.com/"
@@ -4644,7 +4680,7 @@ async function handler13(req, res) {
     const futuresCode = rawCode.replace(/^f_/i, "");
     const secid2 = `113.${futuresCode}`;
     const [futuresData] = await Promise.all([
-      httpGetJson(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid2}&fields=f43,f44,f45,f46,f47,f48,f50,f51,f52,f55,f57,f58,f60,f116,f117,f162,f167,f170,f171&fltt=2&invt=2`, "https://quote.eastmoney.com/")
+      httpGetJson(`https://push2delay.eastmoney.com/api/qt/stock/get?secid=${secid2}&fields=f43,f44,f45,f46,f47,f48,f50,f51,f52,f55,f57,f58,f60,f116,f117,f162,f167,f170,f171&fltt=2&invt=2`, "https://quote.eastmoney.com/")
     ]);
     const fd = futuresData?.data || {};
     const diff2 = [{

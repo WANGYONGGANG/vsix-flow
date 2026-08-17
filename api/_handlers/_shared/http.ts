@@ -82,9 +82,10 @@ function nativeGetText(fullUrl: string, headers: Record<string, string>, redirec
   });
 }
 
-// push2 主站在部分网络下会被阻断（socket hang up），自动切换延时镜像（接口格式完全一致）
+// push2/push2his 主站在部分网络下会被阻断（socket hang up），自动切换延时镜像（接口格式完全一致）
 function withPush2Mirror(url: string): string {
   if (/^https?:\/\/push2\.eastmoney\.com\//.test(url)) return url.replace('//push2.eastmoney.com/', '//push2delay.eastmoney.com/');
+  if (/^https?:\/\/push2his\.eastmoney\.com\//.test(url)) return url.replace('//push2his.eastmoney.com/', '//push2delay.eastmoney.com/');
   return url;
 }
 

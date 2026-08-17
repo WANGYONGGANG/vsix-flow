@@ -39,30 +39,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const rawCode = getQuery(req, 'code', 'sh000001');
   const days = parseInt(getQuery(req, 'days', '1')) || 1;
 
-  // 期货分时：用东财 push2his trend2 API（secid=113）
+  // 期货分时：用 push2delay klt=1（1分钟K线）替代 trend2（trend2 对期货返回空）
   if (rawCode.toLowerCase().startsWith('f_')) {
     const futuresCode = rawCode.replace(/^f_/i, '');
     const secid = `113.${futuresCode}`;
     const r = await httpsGetText(
-      `https://push2his.eastmoney.com/api/qt/stock/trend2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13&fields2=f51,f52,f53,f54,f55,f56,f57,f58&iscr=0&ndays=1`,
+      `https://push2delay.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=1&fqt=0&end=20500101&lmt=300`,
       'https://quote.eastmoney.com/'
     );
     const data = stripJsonp(r);
-    const trends: string[] = data?.data?.trends || [];
-    // 东财格式："2025-08-17 09:31,710.0,709.0,710.0,708.0,10,1234.0,..."
+    const klines: string[] = data?.data?.klines || [];
+    // 东财 1分钟格式: "2026-08-17 21:01,952.40,953.08,953.12,951.74,2587,2464005900.00,0.14"
     // 转为 "HHMM,price,vol"
     let prevVol = 0;
-    const minutes: string[] = trends.map((t: string) => {
-      const p = t.split(',');
+    const minutes: string[] = klines.map((k: string) => {
+      const p = k.split(',');
       const dt = (p[0] || '').split(' ');
       const hhmm = dt[1] ? dt[1].replace(':', '') : '0000';
-      const price = p[2] || '0';
+      const price = p[2] || '0'; // 收盘价作为分钟价
       const cum = parseInt(p[5] || '0') || 0;
       const vol = Math.max(0, cum - prevVol);
       prevVol = cum;
       return `${hhmm},${price},${vol}`;
     });
-    const preClose = data?.data?.preClose || 0;
+    const preClose = data?.data?.preClose || data?.data?.preKPrice || 0;
     json(res, 200, { data: { minutes, preClose, ticks: deriveTicks(minutes, preClose) } });
     return;
   }

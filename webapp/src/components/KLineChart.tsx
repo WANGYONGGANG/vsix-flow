@@ -129,7 +129,9 @@ export default function KLineChart({ rows, intraday, riseColor = '#ff4d4f', fall
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customIds.join(',')]);
 
-  useEffect(() => { render(); });
+  // 仅在数据变化时重绘（不在父组件 re-render 时无谓触发）
+  const renderKey = JSON.stringify({ rows, intraday, subs, mainHeight, riseColor, fallColor, showTIndicator });
+  useEffect(() => { render(); }, [renderKey, customIndicators]);
 
   // 侧栏切换时容器宽度变化，用 ResizeObserver 触发重绘
   useEffect(() => {
