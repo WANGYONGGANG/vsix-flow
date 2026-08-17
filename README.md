@@ -154,11 +154,11 @@ export function resolveApiUrl(path) {
 - 服务端项目设置：framework=`vite`，buildCommand=`cd webapp && npm run build`，outputDirectory=`webapp/dist`
 - API 单函数分发器：`api/all.ts` + `api/_handlers/`（下划线目录不生成函数，规避 Hobby 计划 12 函数上限），`vercel.json` rewrites 将 `/api/:ep` 转发到 `/api/all?ep=:ep`
 
-### ① 打包（本地验证，可选）
+### ① 打包（本地验证 + 入库）
 
 ```bash
 nvm use 22.12.0                              # 需要 Node ≥ 18
-cd webapp && npm run build                   # 产出 webapp/dist（仅本地验证，Vercel 远端会重新构建，dist 不入库）
+cd webapp && npm run build                   # 产出 webapp/dist（dist 入库，Vercel 远端直接使用）
 cd .. && npx tsc -p tsconfig.api.json --noEmit   # API 类型检查
 ```
 

@@ -4,7 +4,7 @@ node_modules/
 .next/
 **/.next/
 out/
-dist/
+stock-extension/dist/
 build/
 
 # ===== Python / 后端 =====
