@@ -1549,7 +1549,7 @@ function renderStockDetail(s){
   if(moreBtn&&moreDiv){moreBtn.addEventListener('click',function(){var open=moreDiv.style.display!=='none';moreDiv.style.display=open?'none':'block';moreBtn.textContent=open?'更多 ▼':'收起 ▲'})}
   var sideToggle=document.getElementById('klSideToggle');
   var sidePanel=document.getElementById('klSide');
-  if(sideToggle&&sidePanel){sideToggle.addEventListener('click',function(){var collapsed=sidePanel.style.width==='0px';if(collapsed){sidePanel.style.width='150px';sidePanel.style.overflow='';sidePanel.style.padding='';sidePanel.style.borderLeft='';sidePanel.style.visibility='';sideToggle.textContent='▶'}else{sidePanel.style.width='0px';sidePanel.style.overflow='hidden';sidePanel.style.padding='0';sidePanel.style.borderLeft='none';sidePanel.style.visibility='hidden';sideToggle.textContent='◀'}})}
+  if(sideToggle&&sidePanel){sidePanel.style.transition='width .2s ease,visibility .2s ease';sideToggle.addEventListener('click',function(){var collapsed=sidePanel.style.width==='0px';if(collapsed){sidePanel.style.width='150px';sidePanel.style.visibility='';sidePanel.style.borderLeft='';sidePanel.style.overflow='';sidePanel.style.padding='';sideToggle.textContent='▶'}else{sidePanel.style.width='0px';sidePanel.style.visibility='hidden';sidePanel.style.borderLeft='none';sidePanel.style.overflow='hidden';sidePanel.style.padding='0';sideToggle.textContent='◀'}})}
   var watchBtn=document.getElementById('detailWatchBtn');
   if(watchBtn)watchBtn.addEventListener('click',function(){
     var inW=this.getAttribute('data-in')==='1';
@@ -1659,11 +1659,13 @@ function renderDetailFundFlow(){
   // 主力占比趋势（每日主力净流入占成交额比例）
   html+='<div style="font-size:12px;color:#999;margin-bottom:4px">主力占比趋势</div>';
   html+='<div style="font-size:10px;color:#666;margin-bottom:6px">主力净流入额 ÷ 当日成交额 = 主力占比（%），正值=主力净买入，负值=主力净卖出</div>';
-  var recent=d.slice(0,10).reverse();
+  var recent=d.slice(0,30).reverse();
   var maxRatio=1;
   for(var i=0;i<recent.length;i++){var r=Math.abs(Number(recent[i].mainRatio||0));if(r>maxRatio)maxRatio=r}
   var barAreaH=40;
-  html+='<div style="display:flex;gap:2px;background:rgba(255,255,255,.02);padding:4px 6px 2px;border-radius:6px">';
+  var barW=Math.max(Math.floor(56/Math.max(recent.length,1)),18);
+  html+='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">';
+  html+='<div style="display:inline-flex;gap:2px;background:rgba(255,255,255,.02);padding:4px 6px 2px;border-radius:6px;min-width:100%">';
   for(var i=0;i<recent.length;i++){
     var item=recent[i];
     var ratio=Number(item.mainRatio||0);
@@ -1672,13 +1674,13 @@ function renderDetailFundFlow(){
     var isUp=ratio>=0;
     var pct=ratio.toFixed(1);
     var dt=(item.date||'').slice(5,10);
-    html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;height:68px">';
+    html+='<div style="flex:0 0 '+barW+'px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;height:68px">';
     html+='<div style="font-size:7px;color:#999;white-space:nowrap;overflow:hidden;margin-bottom:1px">'+pct+'%</div>';
     html+='<div style="width:100%;height:'+barH+'px;background:'+(isUp?'var(--up)':'var(--down)')+';border-radius:2px"></div>';
     html+='<div style="font-size:7px;color:#666;margin-top:2px;white-space:nowrap;overflow:hidden">'+dt+'</div>';
     html+='</div>';
   }
-  html+='</div>';
+  html+='</div></div>';
   html+='</div>';
   el.innerHTML=html;
 }

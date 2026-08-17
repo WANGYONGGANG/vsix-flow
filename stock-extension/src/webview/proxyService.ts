@@ -722,21 +722,21 @@ export class ProxyService {
         console.log(`[StockExt] proxy stock-fflow-day result: rc=${r?.rc} klines=${klines.length}`);
         const list = klines.map((line: string) => {
           const p = line.split(',');
-          // date,主力,小单,中单,大单,超大单,主力净占比,小单净占比,中单净占比,大单净占比,超大单净占比,收盘,涨跌幅
+          // date,close,pct,主力净流入,主力净占比,超大单,超大单占比,大单,大单占比,中单,中单占比,小单,小单占比
           return {
             date: p[0],
-            main: parseFloat(p[1]) || 0,
-            small: parseFloat(p[2]) || 0,
-            mid: parseFloat(p[3]) || 0,
-            big: parseFloat(p[4]) || 0,
+            close: parseFloat(p[1]) || 0,
+            pct: parseFloat(p[2]) || 0,
+            main: parseFloat(p[3]) || 0,
+            mainRatio: parseFloat(p[4]) || 0,
             super: parseFloat(p[5]) || 0,
-            mainRatio: parseFloat(p[6]) || 0,
-            smallRatio: parseFloat(p[7]) || 0,
-            midRatio: parseFloat(p[8]) || 0,
-            bigRatio: parseFloat(p[9]) || 0,
-            superRatio: parseFloat(p[10]) || 0,
-            close: parseFloat(p[11]) || 0,
-            pct: parseFloat(p[12]) || 0,
+            superRatio: parseFloat(p[6]) || 0,
+            big: parseFloat(p[7]) || 0,
+            bigRatio: parseFloat(p[8]) || 0,
+            mid: parseFloat(p[9]) || 0,
+            midRatio: parseFloat(p[10]) || 0,
+            small: parseFloat(p[11]) || 0,
+            smallRatio: parseFloat(p[12]) || 0,
           };
         });
         // 东财数据为空时用新浪备用接口
@@ -757,11 +757,11 @@ export class ProxyService {
                 if (!date) continue;
                 const sum = byDate.get(date);
                 list.push({
-                  date, main: Math.round(Number(row.r0_net || 0) / 1e8 * 100) / 100,
+                  date, main: Math.round(Number(row.r0_net || 0)),
                   mainRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : 0,
                   super: 0, superRatio: 0, big: 0, bigRatio: 0,
-                  mid: Math.round(Number(row.r1_net || 0) / 1e8 * 100) / 100, midRatio: 0,
-                  small: Math.round((Number(row.r2_net || 0) + Number(row.r3_net || 0)) / 1e8 * 100) / 100, smallRatio: 0,
+                  mid: Math.round(Number(row.r1_net || 0)), midRatio: 0,
+                  small: Math.round((Number(row.r2_net || 0) + Number(row.r3_net || 0))), smallRatio: 0,
                   close: Number(row.trade || 0), pct: Number(row.changeratio || 0) * 100,
                 });
               }

@@ -526,7 +526,7 @@ export default function StockDetailPage({ code }: { code: string }) {
           >
             {sideCollapsed ? '◀' : '▶'}
           </button>
-          <div className="detail-orderbook" style={{ width: sideCollapsed ? 0 : 118, flexShrink: 0, overflow: 'hidden', borderLeft: sideCollapsed ? 'none' : undefined, padding: sideCollapsed ? 0 : undefined }}>
+          <div className="detail-orderbook" style={{ width: sideCollapsed ? 0 : 118, flexShrink: 0, overflow: 'hidden', borderLeft: sideCollapsed ? 'none' : undefined, padding: sideCollapsed ? 0 : undefined, transition: 'width .2s ease' }}>
             <div className="kl-side-tabs">
               <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
               <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>
@@ -575,24 +575,27 @@ export default function StockDetailPage({ code }: { code: string }) {
             <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>主力占比趋势</div>
             <div style={{ fontSize: 10, color: '#666', marginBottom: 6 }}>主力净流入额 ÷ 当日成交额 = 主力占比（%），正值=主力净买入，负值=主力净卖出</div>
             {(() => {
-              const recent = fundFlowData.slice(0, 10).reverse();
+              const recent = fundFlowData.slice(0, 30).reverse();
               const maxRatio = Math.max(...recent.map(x => Math.abs(x.mainRatio || 0)), 1);
               const barAreaH = 40;
+              const barW = Math.max(Math.floor(56 / Math.max(recent.length, 1)), 18);
               return (
-                <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,.02)', padding: '4px 6px 2px', borderRadius: 6 }}>
-                  {recent.map((d, i) => {
-                    const barH = Math.max(Math.round(Math.abs(d.mainRatio || 0) / maxRatio * barAreaH), 2);
-                    const isUp = (d.mainRatio || 0) >= 0;
-                    const pct = (d.mainRatio || 0).toFixed(1);
-                    const dt = (d.date || '').slice(5, 10);
-                    return (
-                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', minWidth: 0, height: 68 }}>
-                        <div style={{ fontSize: 7, color: '#999', whiteSpace: 'nowrap', overflow: 'hidden', marginBottom: 1 }}>{pct}%</div>
-                        <div style={{ width: '100%', height: barH, background: isUp ? 'var(--up)' : 'var(--down)', borderRadius: 2 }} />
-                        <div style={{ fontSize: 7, color: '#666', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden' }}>{dt}</div>
-                      </div>
-                    );
-                  })}
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
+                  <div style={{ display: 'inline-flex', gap: 2, background: 'rgba(255,255,255,.02)', padding: '4px 6px 2px', borderRadius: 6, minWidth: '100%' }}>
+                    {recent.map((d, i) => {
+                      const barH = Math.max(Math.round(Math.abs(d.mainRatio || 0) / maxRatio * barAreaH), 2);
+                      const isUp = (d.mainRatio || 0) >= 0;
+                      const pct = (d.mainRatio || 0).toFixed(1);
+                      const dt = (d.date || '').slice(5, 10);
+                      return (
+                        <div key={i} style={{ flex: `0 0 ${barW}px`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', minWidth: 0, height: 68 }}>
+                          <div style={{ fontSize: 7, color: '#999', whiteSpace: 'nowrap', overflow: 'hidden', marginBottom: 1 }}>{pct}%</div>
+                          <div style={{ width: '100%', height: barH, background: isUp ? 'var(--up)' : 'var(--down)', borderRadius: 2 }} />
+                          <div style={{ fontSize: 7, color: '#666', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden' }}>{dt}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })()}
