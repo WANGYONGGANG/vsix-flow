@@ -2350,16 +2350,55 @@ function drawIntraday(d){
     var y=padT+cH*(1-(data[i].price-minP)/pR);
     if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   }ctx.stroke();
-  // 分时均线（黄色）
-  var avgSum=0;
+  // 支撑压力带（做T指标）
+  var dayH=-Infinity,dayL=Infinity;
+  for(var i=0;i<data.length;i++){if(data[i].price>dayH)dayH=data[i].price;if(data[i].price<dayL)dayL=data[i].price}
+  var bandRange=dayH-dayL||1;
+  var supportLine=dayL+bandRange*0.5/8;
+  var resistLine=dayL+bandRange*7/8;
+  var ySupport=padT+cH*(1-(supportLine-minP)/pR);
+  var yResist=padT+cH*(1-(resistLine-minP)/pR);
+  ctx.fillStyle='rgba(35,195,67,0.06)';ctx.fillRect(padL,ySupport,cW,yResist-ySupport);
+  ctx.strokeStyle='rgba(35,195,67,0.5)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(padL,ySupport);ctx.lineTo(W-padR,ySupport);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(255,77,79,0.5)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(padL,yResist);ctx.lineTo(W-padR,yResist);ctx.stroke();ctx.setLineDash([]);
+  ctx.font='9px monospace';ctx.textAlign='left';
+  ctx.fillStyle='#23c343';ctx.fillText('支撑 '+supportLine.toFixed(2),padL+2,ySupport-3);
+  ctx.fillStyle='#ff4d4f';ctx.fillText('压力 '+resistLine.toFixed(2),padL+2,yResist+10);
+  // VWAP线 + 净买额 + 买卖信号
+  var vwapPV=0,vwapV=0,netBuy=0,prevP=data[0].price;
+  var buySignals=[],sellSignals=[];
   ctx.beginPath();ctx.strokeStyle='#f59f00';ctx.lineWidth=1;
   for(var i=0;i<data.length;i++){
-    avgSum+=data[i].price;
-    var avg=avgSum/(i+1);
+    vwapPV+=data[i].price*data[i].vol;vwapV+=data[i].vol;
+    var vwap=vwapV>0?vwapPV/vwapV:data[i].price;
     var x=padL+cW*(data[i].min-_idView.s)/(_idView.e-_idView.s);
-    var y=padT+cH*(1-(avg-minP)/pR);
+    var y=padT+cH*(1-(vwap-minP)/pR);
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    if(data[i].price>prevP)netBuy+=data[i].price*data[i].vol;
+    else if(data[i].price<prevP)netBuy-=data[i].price*data[i].vol;
+    if(i>0&&prevP<=supportLine&&data[i].price>supportLine)buySignals.push(i);
+    if(i>0&&prevP>=resistLine&&data[i].price<resistLine)sellSignals.push(i);
+    prevP=data[i].price;
+  }ctx.stroke();
+  ctx.strokeStyle='#36a2eb';ctx.lineWidth=1.5;ctx.beginPath();
+  for(var i=0;i<data.length;i++){
+    var x=padL+cW*(data[i].min-_idView.s)/(_idView.e-_idView.s);
+    var y=padT+cH*(1-(data[i].price-minP)/pR);
     if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   }ctx.stroke();
+  // 买卖信号图标
+  ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  for(var si=0;si<buySignals.length;si++){var idx=buySignals[si];ctx.fillStyle='#23c343';ctx.fillText('▲',padL+cW*(data[idx].min-_idView.s)/(_idView.e-_idView.s),padT+cH*(1-(data[idx].price-minP)/pR)+16)}
+  for(var si=0;si<sellSignals.length;si++){var idx=sellSignals[si];ctx.fillStyle='#ff4d4f';ctx.fillText('▼',padL+cW*(data[idx].min-_idView.s)/(_idView.e-_idView.s),padT+cH*(1-(data[idx].price-minP)/pR)-8)}
+  // 简单均价线（灰色虚线）
+  var avgSum=0;ctx.beginPath();ctx.strokeStyle='#aaa';ctx.lineWidth=0.8;ctx.setLineDash([2,2]);
+  for(var i=0;i<data.length;i++){avgSum+=data[i].price;var avg=avgSum/(i+1);var x=padL+cW*(data[i].min-_idView.s)/(_idView.e-_idView.s);var y=padT+cH*(1-(avg-minP)/pR);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
+  ctx.stroke();ctx.setLineDash([]);
+  // 底部净买额+VWAP标注
+  ctx.font='9px monospace';ctx.textAlign='left';ctx.textBaseline='bottom';
+  ctx.fillStyle=netBuy>=0?'#ff4d4f':'#23c343';ctx.fillText('净买 '+(netBuy/10000).toFixed(1)+'万',padL,mainH-2);
+  ctx.fillStyle='#f59f00';ctx.textAlign='right';ctx.fillText('VWAP '+(vwapV>0?(vwapPV/vwapV).toFixed(2):'--'),W-padR,mainH-2);
+  // 填充分时区域
   var grad=ctx.createLinearGradient(0,padT,0,padT+cH);grad.addColorStop(0,'rgba(54,162,235,.2)');grad.addColorStop(1,'rgba(54,162,235,.02)');
   ctx.lineTo(padL+cW*(data[data.length-1].min-_idView.s)/(_idView.e-_idView.s),padT+cH);ctx.lineTo(padL,padT+cH);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
   ctx.fillStyle='#666';ctx.font='10px monospace';ctx.textAlign='center';

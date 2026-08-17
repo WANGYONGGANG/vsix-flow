@@ -798,8 +798,11 @@ function drawIntraday(ctx: CanvasRenderingContext2D, W: number, H: number, id: N
   const preClose = Number(id.preClose) || 0;
   const points = parseMinuteRows(id.minutes);
   if (!points.length) return;
-  let minP = Infinity, maxP = -Infinity;
-  for (const d of points) { if (d.p < minP) minP = d.p; if (d.p > maxP) maxP = d.p; }
+  let minP = Infinity, maxP = -Infinity, dayVol = 0, cumPV = 0;
+  for (const d of points) {
+    if (d.p < minP) minP = d.p; if (d.p > maxP) maxP = d.p;
+    dayVol += d.v; cumPV += d.p * d.v;
+  }
   if (preClose > 0) {
     const dr = Math.max(Math.abs(maxP - preClose), Math.abs(minP - preClose), preClose * 0.01);
     minP = preClose - dr * 1.1; maxP = preClose + dr * 1.1;
@@ -807,14 +810,15 @@ function drawIntraday(ctx: CanvasRenderingContext2D, W: number, H: number, id: N
   const pR = maxP - minP || 1;
   const xs = (i: number) => padL + (points.length === 1 ? cW / 2 : cW * (i / (points.length - 1)));
   const yp = (v: number) => padT + cH * (1 - (v - minP) / pR);
+  // 网格线
   ctx.strokeStyle = '#1f2124'; ctx.lineWidth = 0.5;
   ctx.fillStyle = '#666'; ctx.font = '10px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   for (let i = 0; i <= 4; i++) {
     const y = padT + cH * i / 4;
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
-    ctx.fillStyle = '#666';
-    ctx.fillText((maxP - pR * i / 4).toFixed(2), padL - 4, y);
+    ctx.fillStyle = '#666'; ctx.fillText((maxP - pR * i / 4).toFixed(2), padL - 4, y);
   }
+  // 昨收线
   if (preClose > 0) {
     ctx.strokeStyle = '#666'; ctx.setLineDash([4, 4]);
     ctx.beginPath(); const y = yp(preClose); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke(); ctx.setLineDash([]);
@@ -830,26 +834,86 @@ function drawIntraday(ctx: CanvasRenderingContext2D, W: number, H: number, id: N
       ctx.fillText((prc >= preClose ? '+' : '') + pct + '%', W - padR + 4, y);
     }
   }
+  // 支撑压力带（做T指标）
+  const dayH = maxP, dayL = minP;
+  const bandRange = dayH - dayL || 1;
+  const supportLine = dayL + bandRange * 0.5 / 8;  // ZYG5 支撑位
+  const resistLine = dayL + bandRange * 7 / 8;      // ZYG4 压力位
+  // 画支撑压力带半透明背景
+  const ySupport = yp(supportLine), yResist = yp(resistLine);
+  ctx.fillStyle = 'rgba(35,195,67,0.06)';
+  ctx.fillRect(padL, ySupport, cW, yResist - ySupport);
+  // 支撑线（绿色虚线）
+  ctx.strokeStyle = 'rgba(35,195,67,0.5)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(padL, ySupport); ctx.lineTo(W - padR, ySupport); ctx.stroke(); ctx.setLineDash([]);
+  // 压力线（红色虚线）
+  ctx.strokeStyle = 'rgba(255,77,79,0.5)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(padL, yResist); ctx.lineTo(W - padR, yResist); ctx.stroke(); ctx.setLineDash([]);
+  // 标注支撑压力价
+  ctx.font = '9px monospace'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#23c343'; ctx.fillText('支撑 ' + supportLine.toFixed(2), padL + 2, ySupport - 3);
+  ctx.fillStyle = '#ff4d4f'; ctx.fillText('压力 ' + resistLine.toFixed(2), padL + 2, yResist + 10);
+  // 分时价格线 + VWAP + 净买额
+  let avgSum = 0, vwapPV = 0, vwapV = 0, netBuy = 0;
+  let prevP = points[0].p;
+  const buySignals: number[] = [], sellSignals: number[] = [];
+  // VWAP线
+  ctx.strokeStyle = '#f59f00'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < points.length; i++) {
+    vwapPV += points[i].p * points[i].v; vwapV += points[i].v;
+    const vwap = vwapV > 0 ? vwapPV / vwapV : points[i].p;
+    const x = xs(i), y = yp(vwap);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  // 净买额：上涨时 +P*V，下跌时 -P*V
+  for (let i = 0; i < points.length; i++) {
+    if (points[i].p > prevP) netBuy += points[i].p * points[i].v;
+    else if (points[i].p < prevP) netBuy -= points[i].p * points[i].v;
+    prevP = points[i].p;
+  }
+  // 价格线 + 支撑压力突破信号
+  prevP = points[0].p;
+  for (let i = 0; i < points.length; i++) {
+    // 突破支撑位（买入信号）
+    if (i > 0 && prevP <= supportLine && points[i].p > supportLine) buySignals.push(i);
+    // 跌破压力位（卖出信号）
+    if (i > 0 && prevP >= resistLine && points[i].p < resistLine) sellSignals.push(i);
+    prevP = points[i].p;
+  }
+  // 填充分时价格区域
+  const lastP = points[points.length - 1].p;
+  const cUp2 = lastP >= (preClose || lastP);
   ctx.beginPath();
   ctx.moveTo(xs(0), yp(points[0].p));
   for (let i = 1; i < points.length; i++) ctx.lineTo(xs(i), yp(points[i].p));
   ctx.lineTo(xs(points.length - 1), padT + cH); ctx.lineTo(xs(0), padT + cH); ctx.closePath();
   const grad = ctx.createLinearGradient(0, padT, 0, padT + cH);
-  const lastP = points[points.length - 1].p;
-  const cUp = lastP >= (preClose || lastP);
-  grad.addColorStop(0, hexA(cUp ? up : down, 0.35));
-  grad.addColorStop(1, hexA(cUp ? up : down, 0.02));
+  grad.addColorStop(0, hexA(cUp2 ? up : down, 0.35));
+  grad.addColorStop(1, hexA(cUp2 ? up : down, 0.02));
   ctx.fillStyle = grad; ctx.fill();
-  ctx.strokeStyle = cUp ? up : down; ctx.lineWidth = 1.2;
+  // 画价格线
+  ctx.strokeStyle = cUp2 ? up : down; ctx.lineWidth = 1.2;
   ctx.beginPath();
   for (let i = 0; i < points.length; i++) {
     const x = xs(i), y = yp(points[i].p);
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
-  // 分时均线（黄色）
-  let avgSum = 0;
-  ctx.strokeStyle = '#f59f00'; ctx.lineWidth = 1;
+  // 买卖信号图标
+  ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const idx of buySignals) {
+    ctx.fillStyle = '#23c343';
+    ctx.fillText('▲', xs(idx), yp(points[idx].p) + 16);
+  }
+  for (const idx of sellSignals) {
+    ctx.fillStyle = '#ff4d4f';
+    ctx.fillText('▼', xs(idx), yp(points[idx].p) - 8);
+  }
+  // 简单均价线（灰色虚线）
+  avgSum = 0;
+  ctx.strokeStyle = '#aaa'; ctx.lineWidth = 0.8; ctx.setLineDash([2, 2]);
   ctx.beginPath();
   for (let i = 0; i < points.length; i++) {
     avgSum += points[i].p;
@@ -857,7 +921,15 @@ function drawIntraday(ctx: CanvasRenderingContext2D, W: number, H: number, id: N
     const x = xs(i), y = yp(avg);
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
-  ctx.stroke();
+  ctx.stroke(); ctx.setLineDash([]);
+  // 底部净买额 + VWAP标注
+  ctx.font = '9px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  const netBuyWan = (netBuy / 10000).toFixed(1);
+  ctx.fillStyle = netBuy >= 0 ? up : down;
+  ctx.fillText('净买 ' + netBuyWan + '万', padL, H - 2);
+  ctx.fillStyle = '#f59f00'; ctx.textAlign = 'right';
+  ctx.fillText('VWAP ' + (vwapV > 0 ? (vwapPV / vwapV).toFixed(2) : '--'), W - padR, H - 2);
+  // 时间轴
   ctx.fillStyle = '#666'; ctx.font = '10px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   const fmt = (t: string) => t.length >= 4 ? `${t.slice(0,2)}:${t.slice(2,4)}` : t;
   const keyPoints = ['0930','1030','1130','1300','1400','1500'];
