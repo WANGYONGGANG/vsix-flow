@@ -76,16 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const amplitude = num(ud.f7) || (pre > 0 ? +(((hi - lo) / pre) * 100).toFixed(2) : 0);
 
   // 合并：腾讯盘口为主，东财补充财务字段
-  let industry = sd.f127 ?? '';
-  // 行业兜底：若 stock/get 无行业，尝试 CompanySurvey 接口
-  if (!industry) {
-    try {
-      const prefix = /^(60|68|90|11|13|50|56|51|58)/.test(cleanCode) ? 'SH' : 'SZ';
-      const survey = await httpGetJson(`https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/PageAjax?code=${prefix}${cleanCode}`, 'https://emweb.securities.eastmoney.com/');
-      const jb = survey?.jbzl?.[0] || {};
-      industry = jb.INDUSTRYCSRC1 || '';
-    } catch { /* ignore */ }
-  }
+  const industry = sd.f127 ?? '';
   const diff = [{
     // 腾讯实时盘口
     f2: tq.f2 ?? 0, f3: tq.f3 ?? 0, f4: tq.f4 ?? 0, f5: tq.f5 ?? 0, f6: tq.f6 ?? 0,

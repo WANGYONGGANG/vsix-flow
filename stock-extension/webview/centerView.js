@@ -2005,26 +2005,17 @@ function drawRSI(canvas,data){
 function setupChartDrag(){
   var el=document.getElementById('klChart');if(!el)return;
   if(el.__crossBound)return;el.__crossBound=true;
+  // 分时图禁止拖动平移
+  if(_klPeriod==='intraday') return;
   el.addEventListener('mousedown',function(e){if(e.button!==0)return;_kl.dragging=true;_kl.dragX=e.clientX;e.preventDefault()});
   window.addEventListener('mousemove',function(e){
     if(!_kl.dragging)return;
     var dx=e.clientX-_kl.dragX;_kl.dragX=e.clientX;
-    if(_klPeriod==='intraday'){
-      var span=_idView.e-_idView.s;
-      var pxPerMin=(_klCanvases.main?_klCanvases.main.clientWidth:300)/span;
-      var dm=-dx/pxPerMin;
-      var ns=_idView.s+dm,ne=_idView.e+dm;
-      if(ns<0){ns=0;ne=span}
-      if(ne>240){ne=240;ns=240-span}
-      _idView.s=ns;_idView.e=ne;
-      redrawChart();
-    }else{
-      var gap=_kl.gap||((_klCanvases.main?_klCanvases.main.clientWidth:300)/60);
-      _kl.scroll-=dx/gap;
-      var cW=(_klCanvases.main?_klCanvases.main.clientWidth:300)-54;
-      var maxS=Math.max(0,_kl.data.length-Math.floor(cW/gap));_kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
-      redrawChart();
-    }
+    var gap=_kl.gap||((_klCanvases.main?_klCanvases.main.clientWidth:300)/60);
+    _kl.scroll-=dx/gap;
+    var cW=(_klCanvases.main?_klCanvases.main.clientWidth:300)-54;
+    var maxS=Math.max(0,_kl.data.length-Math.floor(cW/gap));_kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
+    redrawChart();
   });
   window.addEventListener('mouseup',function(){_kl.dragging=false});
   el.addEventListener('wheel',function(e){
