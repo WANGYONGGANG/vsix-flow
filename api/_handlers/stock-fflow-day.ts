@@ -84,6 +84,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (klines.length) {
     list = klines.map((row: string) => {
       const p = row.split(',');
+      // date,close,pct,主力净流入,主力净占比,超大单,超大单占比,大单,大单占比,中单,中单占比,小单,小单占比
+      let mr = parseFloat(p[4]) || 0;
+      if (Math.abs(mr) > 100) mr = 0; // 异常值清零（和扩展一致）
       return {
         date: p[0] || '',
         close: parseFloat(p[1]) || 0,

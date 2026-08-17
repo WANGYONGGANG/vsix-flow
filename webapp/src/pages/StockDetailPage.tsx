@@ -1,5 +1,5 @@
 // ============================================
-// 股票详情页：价格面板 + 图表(分时/五日/K线/筹码) + 五档/逐笔侧栏 + 资讯/公告/财务/资料 Tab
+// 股票详情页：价格面板 + 图表(分时/K线/筹码) + 五档/逐笔侧栏 + 资讯/公告/财务/资料 Tab
 // ============================================
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -15,8 +15,8 @@ import {
   fmtYi, fmtWan, upSign, mapEmDiffToStockItem, escapeHtml, normalizeCode,
 } from '../../local-shared/utils';
 
-type Period = '分时' | '五日' | '5分钟' | '15分钟' | '30分钟' | '60分钟' | '日K' | '周K' | '月K';
-const PERIODS: Period[] = ['分时', '五日', '5分钟', '15分钟', '30分钟', '60分钟', '日K', '周K', '月K'];
+type Period = '分时' | '5分钟' | '15分钟' | '30分钟' | '60分钟' | '日K' | '周K' | '月K';
+const PERIODS: Period[] = ['分时', '5分钟', '15分钟', '30分钟', '60分钟', '日K', '周K', '月K'];
 type SubTab = 'news' | 'notice' | 'finance' | 'profile';
 type ProfileSubTab = 'essential' | 'company' | 'holder' | 'industry';
 type SideTab = 'orderbook' | 'ticks' | 'chips';
@@ -127,12 +127,6 @@ export default function StockDetailPage({ code }: { code: string }) {
       const r = await api.intraday(realCode);
       if (r?.data) {
         setIntraday({ minutes: r.data.minutes || [], preClose: r.data.preClose || 0, ticks: r.data.ticks || [] });
-        setKlineRows([]);
-      }
-    } else if (p === '五日') {
-      const r = await api.intraday(realCode, 5);
-      if (r?.data) {
-        setIntraday({ minutes: [], preClose: r.data.preClose || 0, ticks: [], days: r.data.days || [] });
         setKlineRows([]);
       }
     } else {
@@ -562,7 +556,7 @@ export default function StockDetailPage({ code }: { code: string }) {
               <div style={{ background: 'rgba(255,255,255,.03)', padding: '8px 10px', borderRadius: 6 }}>
                 <div style={{ fontSize: 11, color: '#999' }}>主力占比</div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>
-                  {fundFlowData[0]?.mainRatio ? fundFlowData[0].mainRatio.toFixed(1) + '%' : '-'}
+                  {(fundFlowData[0]?.mainRatio || 0).toFixed(1)}%
                 </div>
               </div>
               <div style={{ background: 'rgba(255,255,255,.03)', padding: '8px 10px', borderRadius: 6 }}>

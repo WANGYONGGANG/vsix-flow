@@ -4353,7 +4353,6 @@ function deriveTicks(minutes, preClose) {
 async function handler6(req, res) {
   if (handleOptions(req, res)) return;
   const rawCode = getQuery(req, "code", "sh000001");
-  const days = parseInt(getQuery(req, "days", "1")) || 1;
   if (rawCode.toLowerCase().startsWith("f_")) {
     const futuresCode = rawCode.replace(/^f_/i, "");
     const secid = `113.${futuresCode}`;
@@ -4379,17 +4378,6 @@ async function handler6(req, res) {
     return;
   }
   const code = toTencentCode(rawCode);
-  if (days > 1) {
-    const r2 = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/day/query?code=${code}`);
-    const arr = r2?.data?.[code]?.data || [];
-    const qt2 = r2?.data?.[code]?.qt?.[code] || {};
-    const dayList = arr.slice(-days).map((d) => ({
-      date: String(d.date || ""),
-      minutes: parseMinuteRows(d.data || [])
-    }));
-    json(res, 200, { data: { days: dayList, preClose: qt2[4] || 0 } });
-    return;
-  }
   const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${code}`);
   const mdata = r?.data?.[code]?.data?.data || [];
   const rows = parseMinuteRows(mdata);
@@ -5154,6 +5142,8 @@ async function handler20(req, res) {
   if (klines.length) {
     list = klines.map((row) => {
       const p = row.split(",");
+      let mr = parseFloat(p[4]) || 0;
+      if (Math.abs(mr) > 100) mr = 0;
       return {
         date: p[0] || "",
         close: parseFloat(p[1]) || 0,

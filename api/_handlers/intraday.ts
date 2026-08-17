@@ -1,4 +1,4 @@
-// 分时图（支持单日/五日，含分钟量能与派生逐笔）
+// 分时图（单日，含分钟量能与派生逐笔）
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { json, handleOptions, getQuery } from './_shared/response';
 import { httpGetJson, httpsGetText, stripJsonp, toTencentCode } from './_shared/http';
@@ -37,7 +37,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
 
   const rawCode = getQuery(req, 'code', 'sh000001');
-  const days = parseInt(getQuery(req, 'days', '1')) || 1;
 
   // 期货分时：用 push2delay klt=1（1分钟K线）替代 trend2（trend2 对期货返回空）
   if (rawCode.toLowerCase().startsWith('f_')) {
@@ -68,19 +67,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const code = toTencentCode(rawCode);
-
-  if (days > 1) {
-    // 五日分时：data[code].data = [{date, data:[...]}, ...]
-    const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/day/query?code=${code}`);
-    const arr: any[] = r?.data?.[code]?.data || [];
-    const qt = r?.data?.[code]?.qt?.[code] || {};
-    const dayList = arr.slice(-days).map((d: any) => ({
-      date: String(d.date || ''),
-      minutes: parseMinuteRows(d.data || []),
-    }));
-    json(res, 200, { data: { days: dayList, preClose: qt[4] || 0 } });
-    return;
-  }
 
   const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${code}`);
   const mdata = r?.data?.[code]?.data?.data || [];
