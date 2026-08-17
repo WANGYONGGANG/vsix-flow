@@ -1549,7 +1549,7 @@ function renderStockDetail(s){
   if(moreBtn&&moreDiv){moreBtn.addEventListener('click',function(){var open=moreDiv.style.display!=='none';moreDiv.style.display=open?'none':'block';moreBtn.textContent=open?'更多 ▼':'收起 ▲'})}
   var sideToggle=document.getElementById('klSideToggle');
   var sidePanel=document.getElementById('klSide');
-  if(sideToggle&&sidePanel){sideToggle.addEventListener('click',function(){var collapsed=sidePanel.style.display==='none';sidePanel.style.display=collapsed?'':'none';sideToggle.textContent=collapsed?'▶':'◀'})}
+  if(sideToggle&&sidePanel){sideToggle.addEventListener('click',function(){var collapsed=sidePanel.style.width==='0px';if(collapsed){sidePanel.style.width='150px';sidePanel.style.overflow='';sidePanel.style.padding='';sidePanel.style.borderLeft='';sidePanel.style.visibility='';sideToggle.textContent='▶'}else{sidePanel.style.width='0px';sidePanel.style.overflow='hidden';sidePanel.style.padding='0';sidePanel.style.borderLeft='none';sidePanel.style.visibility='hidden';sideToggle.textContent='◀'}})}
   var watchBtn=document.getElementById('detailWatchBtn');
   if(watchBtn)watchBtn.addEventListener('click',function(){
     var inW=this.getAttribute('data-in')==='1';

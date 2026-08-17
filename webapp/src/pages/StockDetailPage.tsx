@@ -526,18 +526,16 @@ export default function StockDetailPage({ code }: { code: string }) {
           >
             {sideCollapsed ? '◀' : '▶'}
           </button>
-          {!sideCollapsed && (
-            <div className="detail-orderbook" style={{ width: 118, flexShrink: 0 }}>
-              <div className="kl-side-tabs">
-                <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
-                <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>
-                <button className={sideTab === 'chips' ? 'active' : ''} onClick={() => setSideTab('chips')}>筹码</button>
-              </div>
-              {sideTab === 'orderbook' && renderOrderBook()}
-              {sideTab === 'ticks' && renderTicks()}
-              {sideTab === 'chips' && renderChips()}
+          <div className="detail-orderbook" style={{ width: sideCollapsed ? 0 : 118, flexShrink: 0, overflow: 'hidden', borderLeft: sideCollapsed ? 'none' : undefined, padding: sideCollapsed ? 0 : undefined }}>
+            <div className="kl-side-tabs">
+              <button className={sideTab === 'orderbook' ? 'active' : ''} onClick={() => setSideTab('orderbook')}>五档</button>
+              <button className={sideTab === 'ticks' ? 'active' : ''} onClick={() => setSideTab('ticks')}>逐笔</button>
+              <button className={sideTab === 'chips' ? 'active' : ''} onClick={() => setSideTab('chips')}>筹码</button>
             </div>
-          )}
+            {sideTab === 'orderbook' && renderOrderBook()}
+            {sideTab === 'ticks' && renderTicks()}
+            {sideTab === 'chips' && renderChips()}
+          </div>
         </div>
 
         {customIndicators.length > 0 && (
