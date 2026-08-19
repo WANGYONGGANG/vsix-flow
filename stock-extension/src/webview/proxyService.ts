@@ -512,18 +512,10 @@ export class ProxyService {
 if (targetUrl.startsWith('/api/futures-search')) {
         const kw = String(parsed.query.kw || '').trim();
         if (!kw) { this.json(res, 200, { data: { list: [] } }); return; }
-
-        const EXCHANGES = 'COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE,SHFE';
-        const token = '58b2fa8f54638b60b87d69b31969089c';
-
-        // 使用 httpsGetText + stripJsonp 解析 JSONP（futsseapi 返回 JSONP）
         try {
-          const text = await httpsGetText(
-            `https://futsseapi.eastmoney.com/list/${EXCHANGES}?orderBy=dm&sort=desc&pageSize=200&pageIndex=0&token=${token}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`,
-            'https://quote.eastmoney.com/'
-          );
-          const r = stripJsonp(text);
-          const raw = r?.list || r || [];
+          const token = '58b2fa8f54638b60b87d69b31969089c';
+          const r = await httpGetJson(`https://futsseapi.eastmoney.com/list/COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`);
+          const raw = r?.list || [];
           const list = raw
             .filter((x: any) => {
               const dm = String(x.dm || '').toLowerCase();
@@ -531,30 +523,16 @@ if (targetUrl.startsWith('/api/futures-search')) {
               return dm.includes(kw.toLowerCase()) || name.includes(kw.toLowerCase());
             })
             .map((x: any) => ({
-              code: 'f_' + String(x.dm || ''),
+              code: String(x.dm || ''),
               name: x.name || '',
               type: '期货',
               price: x.p,
               change: x.zdf,
             }));
           this.json(res, 200, { data: { list } });
-          return;
-        } catch { /* fall through */ }
-
-        // 本地常用上期所期货兜底（网络全阻断时）
-        const localSHFE = [
-          { dm: 'AO', name: '氧化铝' }, { dm: 'AL', name: '沪铝' }, { dm: 'CU', name: '沪铜' },
-          { dm: 'ZN', name: '沪锌' }, { dm: 'PB', name: '沪铅' }, { dm: 'NI', name: '沪镍' },
-          { dm: 'SN', name: '沪锡' }, { dm: 'RB', name: '螺纹钢' }, { dm: 'HC', name: '热卷' },
-          { dm: 'SS', name: '不锈钢' }, { dm: 'WR', name: '线材' }, { dm: 'FU', name: '燃油' },
-          { dm: 'BU', name: '沥青' }, { dm: 'RU', name: '橡胶' }, { dm: 'NR', name: '20号胶' },
-          { dm: 'SP', name: '纸浆' }, { dm: 'SA', name: '纯碱' }, { dm: 'PG', name: '液化气' },
-          { dm: 'LH', name: '生猪' },
-        ];
-        const list = localSHFE
-          .filter((x) => x.name.toLowerCase().includes(kw.toLowerCase().trim()) || x.dm.toLowerCase().includes(kw.toLowerCase().trim()))
-          .map((x) => ({ code: 'f_' + x.dm, display_code: x.dm, name: x.name, type: '期货' }));
-        this.json(res, 200, { data: { list } });
+        } catch {
+          this.json(res, 200, { data: { list: [] } });
+        }
         return;
       }
 
