@@ -2063,12 +2063,13 @@ function setupChartDrag(){
   // 触摸支持：双指缩放、单指拖动
   var touchStart=null;
   var pinchStart=null;
+  function getCW(){return (_klCanvases.main?_klCanvases.main.clientWidth:300)-54}
   el.addEventListener('touchstart',function(e){
     var touches=e.touches;
     if(touches.length===2){
       var dx=touches[0].clientX-touches[1].clientX;
       var dy=touches[0].clientY-touches[1].clientY;
-      pinchStart={dist:Math.sqrt(dx*dx+dy*dy),gap:_kl.gap||cW/60};
+      pinchStart={dist:Math.sqrt(dx*dx+dy*dy),gap:_kl.gap||getCW()/60};
       touchStart=null;
       e.preventDefault();
     }else if(touches.length===1){
@@ -2083,7 +2084,7 @@ function setupChartDrag(){
       var dy=touches[0].clientY-touches[1].clientY;
       var dist=Math.sqrt(dx*dx+dy*dy);
       var factor=pinchStart.dist/dist;
-      var cW=(_klCanvases.main?_klCanvases.main.clientWidth:300)-54;
+      var cW=getCW();
       _kl.gap=Math.max(cW/Math.min(_kl.data.length,200),Math.min(cW/10,pinchStart.gap*factor));
       var maxS=Math.max(0,_kl.data.length-Math.floor(cW/_kl.gap));
       _kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
@@ -2091,6 +2092,7 @@ function setupChartDrag(){
       e.preventDefault();
     }else if(touches.length===1&&touchStart){
       var dx=touches[0].clientX-touchStart.x;
+      var cW=getCW();
       var gap=_kl.gap||cW/60;
       _kl.scroll=Math.max(0,Math.min(touchStart.scroll-dx/gap,Math.max(0,_kl.data.length-Math.floor(cW/gap))));
       redrawChart();

@@ -534,10 +534,11 @@ export class ProxyService {
           if (list.length) { this.json(res, 200, { data: { list } }); return; }
         } catch { /* fall through */ }
 
-        // 方案2：回退 futsseapi 列表接口
+        // 方案2：回退 futsseapi 列表接口 (增加 SHFE 上期所)
         try {
           const token2 = '58b2fa8f54638b60b87d69b31969089c';
-          const r = await httpGetJson(`https://futsseapi.eastmoney.com/list/COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token2}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`);
+          // 增加 SHFE 交易所代码，包含氧化铝等上期所品种
+          const r = await httpGetJson(`https://futsseapi.eastmoney.com/list/COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE,SHFE?orderBy=dm&sort=desc&pageSize=200&pageIndex=0&token=${token2}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`);
           const raw = r?.list || r || [];
           const list = raw
             .filter((x: any) => {
