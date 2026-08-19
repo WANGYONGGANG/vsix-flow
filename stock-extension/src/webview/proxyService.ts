@@ -509,13 +509,13 @@ export class ProxyService {
         return;
       }
 
-      if (targetUrl.startsWith('/api/futures-search')) {
+if (targetUrl.startsWith('/api/futures-search')) {
         const kw = String(parsed.query.kw || '').trim();
         if (!kw) { this.json(res, 200, { data: { list: [] } }); return; }
 
         // 统一过滤函数
         function filterList(arr: any[], kw: string) {
-          const k = kw.toLowerCase();
+          const k = kw.toLowerCase().trim();
           return arr.filter((x: any) => {
             const dm = String(x.dm || x.Code || x.code || '').toLowerCase();
             const name = String(x.name || x.Name || x.name || '').toLowerCase();
@@ -563,7 +563,8 @@ export class ProxyService {
           { dm: 'SP', name: '纸浆' }, { dm: 'SA', name: '纯碱' }, { dm: 'PG', name: '液化气' },
           { dm: 'LH', name: '生猪' },
         ];
-        const list = localSHFE.filter((x) => x.name.toLowerCase().includes(kw.toLowerCase()) || x.dm.toLowerCase().includes(kw.toLowerCase()))
+        const list = localSHFE
+          .filter((x) => x.name.toLowerCase().includes(kw.toLowerCase().trim()) || x.dm.toLowerCase().includes(kw.toLowerCase().trim()))
           .map((x) => ({ code: 'f_' + x.dm, display_code: x.dm, name: x.name, type: '期货' }));
         this.json(res, 200, { data: { list } });
         return;
