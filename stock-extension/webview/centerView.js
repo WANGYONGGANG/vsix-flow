@@ -2004,13 +2004,19 @@ function drawRSI(canvas,data){
 }
 function setupChartDrag(){
   var el=document.getElementById('klChart');if(!el)return;
+  // 清理旧事件监听器，避免重复绑定
+  if(el.__dragCleanup){try{el.__dragCleanup()}catch(e){}el.__dragCleanup=null}
+  var cleanupFns=[];
+  function add(fn){cleanupFns.push(fn)}
+  el.__dragCleanup=function(){cleanupFns.forEach(function(fn){try{fn()}catch(e){}})};
   // 分时图禁止拖动平移，仅绑定十字光标
   if(_klPeriod==='intraday'){
     setupCrosshair();
     return;
   }
-  el.addEventListener('mousedown',function(e){if(e.button!==0)return;_kl.dragging=true;_kl.dragX=e.clientX;e.preventDefault()});
-  window.addEventListener('mousemove',function(e){
+  var onMouseDown=function(e){if(e.button!==0)return;_kl.dragging=true;_kl.dragX=e.clientX;e.preventDefault()};
+  el.addEventListener('mousedown',onMouseDown);add(function(){el.removeEventListener('mousedown',onMouseDown)});
+  var onMouseMove=function(e){
     if(!_kl.dragging)return;
     var dx=e.clientX-_kl.dragX;_kl.dragX=e.clientX;
     var gap=_kl.gap||((_klCanvases.main?_klCanvases.main.clientWidth:300)/60);
@@ -2018,18 +2024,21 @@ function setupChartDrag(){
     var cW=(_klCanvases.main?_klCanvases.main.clientWidth:300)-54;
     var maxS=Math.max(0,_kl.data.length-Math.floor(cW/gap));_kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
     redrawChart();
-  });
-  window.addEventListener('mouseup',function(){_kl.dragging=false});
+  };
+  window.addEventListener('mousemove',onMouseMove);add(function(){window.removeEventListener('mousemove',onMouseMove)});
+  var onMouseUp=function(){_kl.dragging=false};
+  window.addEventListener('mouseup',onMouseUp);add(function(){window.removeEventListener('mouseup',onMouseUp)});
   var lastClick=0;
-  el.addEventListener('dblclick',function(e){
+  var onDblClick=function(e){
     var now=Date.now();
     if(now-lastClick<400)return;
     lastClick=now;
     var r=el.getBoundingClientRect();
     drawCrosshair(document.getElementById('klOverlay'),e.clientX-r.left,e.clientY-r.top);
     _kl.crosshair=!_kl.crosshair;
-  });
-  el.addEventListener('wheel',function(e){
+  };
+  el.addEventListener('dblclick',onDblClick);add(function(){el.removeEventListener('dblclick',onDblClick)});
+  var onWheel=function(e){
     e.preventDefault();
     if(_klPeriod==='intraday'){
       var r=el.getBoundingClientRect();
@@ -2056,7 +2065,8 @@ function setupChartDrag(){
       _kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
       redrawChart();
     }
-  },{passive:false});
+  };
+  el.addEventListener('wheel',onWheel,{passive:false});add(function(){el.removeEventListener('wheel',onWheel)});
   // 触摸支持：双指缩放、单指拖动
   var touchStart=null;
   var pinchStart=null;
