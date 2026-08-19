@@ -1602,12 +1602,17 @@ function renderStockDetail(s){
   });
   vscode.postMessage({type:'isInWatch',code:prefixCode(s.code)});
   _detailCode=s.code;_detailName=s.name||_detailName;_detailTab='news';_klPeriod='intraday';_allTicks=[];
-  vscode.postMessage({type:'fetchKline',code:s.code,period:'intraday'});
-  vscode.postMessage({type:'fetchStockNews',code:s.code});
-  vscode.postMessage({type:'fetchFundFlow',code:s.code});
+  if(_isFutures){
+    vscode.postMessage({type:'fetchFuturesKline',code:s.code,period:'day'});
+    _klPeriod='day';
+  }else{
+    vscode.postMessage({type:'fetchKline',code:s.code,period:'intraday'});
+    vscode.postMessage({type:'fetchStockNews',code:s.code});
+    vscode.postMessage({type:'fetchFundFlow',code:s.code});
+  }
   if(_quoteTimer){clearInterval(_quoteTimer);_quoteTimer=null}
   _quoteTimer=setInterval(function(){
-    if(_detailCode)vscode.postMessage({type:'fetchQuote',code:_detailCode});
+    if(_detailCode)vscode.postMessage({type:_isFutures?'fetchFuturesQuote':'fetchQuote',code:_detailCode});
   },3000);
   var tickMore=document.getElementById('tickMore');
   if(tickMore)tickMore.addEventListener('click',function(){
@@ -1620,7 +1625,10 @@ function renderStockDetail(s){
     pbtns[i].addEventListener('click',function(){
       _klPeriod=this.dataset.period;
       if(_intradayTimer){clearInterval(_intradayTimer);_intradayTimer=null}
-      if(_klPeriod==='chips'){
+      if(_isFutures){
+        setSideTab('book');
+        vscode.postMessage({type:'fetchFuturesKline',code:s.code,period:_klPeriod==='intraday'?'day':_klPeriod});
+      }else if(_klPeriod==='chips'){
         setSideTab('chips');
         if(_chipsData)renderChips(_chipsData);
         else vscode.postMessage({type:'fetchKline',code:s.code,period:'chips'});
@@ -1636,7 +1644,11 @@ function renderStockDetail(s){
     sideTabs[si].addEventListener('click',function(){
       var side=this.dataset.side;
       setSideTab(side);
-      if(side==='chips'){
+      if(_isFutures){
+        if(side==='book'){
+          vscode.postMessage({type:'fetchFuturesKline',code:s.code,period:'day'});
+        }
+      }else if(side==='chips'){
         _klPeriod='chips';
         updateSubBtns();
         if(_chipsData)renderChips(_chipsData);
@@ -2841,7 +2853,6 @@ function openFuturesDetail(code,name){
   var s={code:code,name:name||'',price:0,changeRate:0,open:0,preClose:0,high:0,low:0,volume:0,amount:0,turnover:0};
   renderStockDetail(s);
   vscode.postMessage({type:'fetchFuturesQuote',code:code});
-  vscode.postMessage({type:'fetchFuturesKline',code:code,period:'day'});
 }
 
 function updateDetailQuote(d){

@@ -63,6 +63,9 @@ export class StatusBarManager {
       this._commands.push(cmd);
       this._context.subscriptions.push(cmd);
     }
+    if (this._codes.length > 0) {
+      this.update(true);
+    }
   }
 
   stop() {
