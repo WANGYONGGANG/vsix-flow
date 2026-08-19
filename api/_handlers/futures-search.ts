@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { json, handleOptions, getQuery } from './_shared/response';
 import { httpsGetText, stripJsonp } from './_shared/http';
 
-const EXCHANGES = 'COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE';
+const EXCHANGES = 'COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE,SHFE';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;

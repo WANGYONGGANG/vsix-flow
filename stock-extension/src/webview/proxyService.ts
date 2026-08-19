@@ -513,47 +513,35 @@ if (targetUrl.startsWith('/api/futures-search')) {
         const kw = String(parsed.query.kw || '').trim();
         if (!kw) { this.json(res, 200, { data: { list: [] } }); return; }
 
-        // 统一过滤函数
-        function filterList(arr: any[], kw: string) {
-          const k = kw.toLowerCase().trim();
-          return arr.filter((x: any) => {
-            const dm = String(x.dm || x.Code || x.code || '').toLowerCase();
-            const name = String(x.name || x.Name || x.name || '').toLowerCase();
-            return dm.includes(k) || name.includes(k);
-          });
-        }
-        function mapItem(x: any) {
-          return {
-            code: 'f_' + String(x.dm || x.Code || x.code || ''),
-            display_code: String(x.dm || x.Code || x.code || ''),
-            name: x.name || x.Name || '',
-            type: '期货',
-            price: x.p || x.LastPrice || x.price,
-            change: x.zdf || x.ChangePercent || x.change,
-          };
-        }
+        const EXCHANGES = 'COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE,SHFE';
+        const token = '58b2fa8f54638b60b87d69b31969089c';
 
-        // 方案1：suggest API type=30 (期货)
+        // 使用 httpsGetText + stripJsonp 解析 JSONP（futsseapi 返回 JSONP）
         try {
-          const token = 'D43BF722C8E33BDC906FB84D85E326E8';
-          const url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=30&token=${token}&count=20`;
-          const text = await httpsGetText(url, 'https://quote.eastmoney.com/', 'utf8');
+          const text = await httpsGetText(
+            `https://futsseapi.eastmoney.com/list/${EXCHANGES}?orderBy=dm&sort=desc&pageSize=200&pageIndex=0&token=${token}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`,
+            'https://quote.eastmoney.com/'
+          );
           const r = stripJsonp(text);
-          const arr = r?.QuotationCodeTable?.Data || [];
-          const list = filterList(arr.map(mapItem), kw);
-          if (list.length) { this.json(res, 200, { data: { list } }); return; }
-        } catch { /* fall through */ }
-
-        // 方案2：futsseapi 列表接口 (含 SHFE)
-        try {
-          const token2 = '58b2fa8f54638b60b87d69b31969089c';
-          const r = await httpGetJson(`https://futsseapi.eastmoney.com/list/COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE,SHFE?orderBy=dm&sort=desc&pageSize=200&pageIndex=0&token=${token2}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`);
           const raw = r?.list || r || [];
-          const list = filterList(raw.map(mapItem), kw);
-          if (list.length) { this.json(res, 200, { data: { list } }); return; }
+          const list = raw
+            .filter((x: any) => {
+              const dm = String(x.dm || '').toLowerCase();
+              const name = String(x.name || '').toLowerCase();
+              return dm.includes(kw.toLowerCase()) || name.includes(kw.toLowerCase());
+            })
+            .map((x: any) => ({
+              code: 'f_' + String(x.dm || ''),
+              name: x.name || '',
+              type: '期货',
+              price: x.p,
+              change: x.zdf,
+            }));
+          this.json(res, 200, { data: { list } });
+          return;
         } catch { /* fall through */ }
 
-        // 方案3：本地常用上期所期货兜底
+        // 本地常用上期所期货兜底（网络全阻断时）
         const localSHFE = [
           { dm: 'AO', name: '氧化铝' }, { dm: 'AL', name: '沪铝' }, { dm: 'CU', name: '沪铜' },
           { dm: 'ZN', name: '沪锌' }, { dm: 'PB', name: '沪铅' }, { dm: 'NI', name: '沪镍' },
