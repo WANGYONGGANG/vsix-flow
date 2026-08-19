@@ -576,6 +576,90 @@ if (targetUrl.startsWith('/api/futures-search')) {
           .filter((x) => x.name.toLowerCase().includes(kw.toLowerCase().trim()) || x.dm.toLowerCase().includes(kw.toLowerCase().trim()))
           .map((x) => ({ code: 'f_' + x.dm, display_code: x.dm, name: x.name, type: '期货' }));
         this.json(res, 200, { data: { list } });
+return;
+      }
+
+      if (targetUrl.startsWith('/api/futures-quote')) {
+        const code = String(parsed.query.code || '').replace(/^f_/i, '');
+        if (!code) { this.json(res, 200, { data: {} }); return; }
+        const secid = `113.${code}`;
+        try {
+          const r = await httpsGetText(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f43,f44,f45,f46,f47,f48,f50,f51,f52,f55,f57,f58,f60,f116,f117,f162,f167,f170,f171&fltt=2&invt=2`, 'https://quote.eastmoney.com/');
+          const data = stripJsonp(r);
+          const d = data?.data || {};
+          this.json(res, 200, { data: {
+            f2: d.f43 || 0,
+            f3: d.f170 || 0,
+            f4: d.f171 || 0,
+            f5: d.f47 || 0,
+            f6: d.f48 || 0,
+            f8: 0,
+            f12: code,
+            f14: d.f58 || '',
+            f15: d.f44 || 0,
+            f16: d.f45 || 0,
+            f17: d.f46 || 0,
+            f18: d.f60 || 0,
+            f7: 0,
+            f9: 0,
+            f20: d.f116 || 0,
+            f21: d.f117 || 0,
+            f23: 0,
+            f127: '',
+          }});
+        } catch {
+          this.json(res, 200, { data: {} });
+        }
+        return;
+      }
+
+      if (targetUrl.startsWith('/api/futures-kline')) {
+        const code = String(parsed.query.code || '').replace(/^f_/i, '');
+        const periodRaw = parsed.query.period;
+        const period = Array.isArray(periodRaw) ? periodRaw[0] : (periodRaw || 'day');
+        const limitRaw = parsed.query.limit;
+        const limit = Number(Array.isArray(limitRaw) ? limitRaw[0] : (limitRaw || 320)) || 320;
+        if (!code) { this.json(res, 200, { data: { klines: [] } }); return; }
+        const secid = `113.${code}`;
+        const PERIOD_MAP: Record<string, string> = { 'day': '101', 'week': '102', 'month': '103' };
+        if (['5m', '15m', '30m', '60m'].includes(period)) {
+          const scale = parseInt(period) || 5;
+          const fetchCount = Math.min(2000, limit * (parseInt(period) || 5) + 50);
+          const r = await httpsGetText(`https://push2delay.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=1&fqt=0&end=20500101&lmt=${fetchCount}`, 'https://quote.eastmoney.com/');
+          const data = stripJsonp(r);
+          const klines: string[] = data?.data?.klines || [];
+          const rows: string[] = [];
+          let bucket: { dt: string; o: number; c: number; h: number; l: number; v: number } | null = null;
+          let bucketStartMin = -1;
+          for (const k of klines) {
+            const p = k.split(',');
+            const dt = p[0] || '';
+            const timePart = dt.split(' ')[1] || '';
+            const hhmm = timePart.replace(':', '');
+            const totalMin = parseInt(hhmm.slice(0, 2)) * 60 + parseInt(hhmm.slice(2, 4));
+            const o = +p[1], c = +p[2], h = +p[3], l = +p[4], v = +(p[5] || 0);
+            const bucketIdx = Math.floor(totalMin / scale);
+            if (bucketIdx !== bucketStartMin) {
+              if (bucket) rows.push(`${bucket.dt.split(' ')[0]},${bucket.o},${bucket.c},${bucket.h},${bucket.l},${bucket.v}`);
+              bucket = { dt, o, c, h, l, v };
+              bucketStartMin = bucketIdx;
+            } else if (bucket) {
+              bucket.c = c; if (h > bucket.h) bucket.h = h; if (l < bucket.l) bucket.l = l; bucket.v += v;
+            }
+          }
+          if (bucket) rows.push(`${bucket.dt.split(' ')[0]},${bucket.o},${bucket.c},${bucket.h},${bucket.l},${bucket.v}`);
+          this.json(res, 200, { data: { klines: rows.slice(-limit) } });
+          return;
+        }
+        const klt = PERIOD_MAP[period] || '101';
+        const r = await httpsGetText(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=${klt}&fqt=0&end=20500101&lmt=${limit}`, 'https://quote.eastmoney.com/');
+        const data = stripJsonp(r);
+        const klines: string[] = data?.data?.klines || [];
+        const rows: string[] = klines.map((k: string) => {
+          const p = k.split(',');
+          return `${p[0] || ''},${p[1] || 0},${p[2] || 0},${p[3] || 0},${p[4] || 0},${p[5] || 0}`;
+        });
+        this.json(res, 200, { data: { klines: rows } });
         return;
       }
 

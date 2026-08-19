@@ -935,12 +935,24 @@ document.addEventListener('click',function(e){
   var card=e.target.closest('.wl-card');
   if(card&&card.dataset.idx!==undefined){
     var stock=_wlData[Number(card.dataset.idx)];
-    if(stock)renderStockDetail(stock);
+    if(stock){
+      var codeStr=prefixCode(stock.code||stock.f12||'');
+      if(/^[A-Za-z]{2}\d{3,4}$/.test(stock.code||stock.f12||'')){
+        openFuturesDetail(stock.code||stock.f12||'',stock.name||stock.f14||'');
+      }else{
+        openStockDetail(codeStr,stock.name||stock.f14||'');
+      }
+    }
     return;
   }
   var row=e.target.closest('.stock-row');
   if(row&&row.dataset.code){
-    openStockDetail(row.dataset.code,row.dataset.name||'');
+    var rc=row.dataset.code;
+    if(/^[A-Za-z]{2}\d{3,4}$/.test(rc)){
+      openFuturesDetail(rc,row.dataset.name||'');
+    }else{
+      openStockDetail(rc,row.dataset.name||'');
+    }
     return;
   }
 });
@@ -1349,7 +1361,11 @@ function showWatchMenu(e,rawCode){
       if(itm.type==='openDetail'){
         for(var i=0;i<_wlData.length;i++){
           if(prefixCode(_wlData[i].code)===pre){
-            renderStockDetail(_wlData[i]);
+            if(/^[A-Za-z]{2}\d{3,4}$/.test(_wlData[i].code)){
+              openFuturesDetail(_wlData[i].code,_wlData[i].name);
+            }else{
+              openStockDetail(_wlData[i].code,_wlData[i].name);
+            }
             return;
           }
         }
@@ -2793,16 +2809,24 @@ function renderDetailTabContent(tab,data){
 }
 
 function openStockDetail(code,name){
-  _detailCode=code;_detailName=name||'';_detailTab='news';_chipsData=null;_floatShares=0;_lastQuote=null;_fundFlowRendered=false;_fundFlowData=[];
+  _detailCode=code;_detailName=name||'';_detailTab='news';_chipsData=null;_floatShares=0;_lastQuote=null;_fundFlowRendered=false;_fundFlowData=[];_isFutures=false;
   var s={code:code,name:name||'',price:0,changeRate:0,open:0,preClose:0,high:0,low:0,volume:0,amount:0,turnover:0};
   renderStockDetail(s);
   vscode.postMessage({type:'fetchQuote',code:code});
 }
 
+function openFuturesDetail(code,name){
+  _detailCode=code;_detailName=name||'';_detailTab='news';_chipsData=null;_floatShares=0;_lastQuote=null;_fundFlowRendered=false;_fundFlowData=[];_isFutures=true;
+  var s={code:code,name:name||'',price:0,changeRate:0,open:0,preClose:0,high:0,low:0,volume:0,amount:0,turnover:0};
+  renderStockDetail(s);
+  vscode.postMessage({type:'fetchFuturesQuote',code:code});
+  vscode.postMessage({type:'fetchFuturesKline',code:code,period:'day'});
+}
+
 function updateDetailQuote(d){
   if(!d)return;
-  // 东财财务字段不稳定（限流会返回空），为0时保留上次值避免闪烁
-  if(_lastQuote){
+  // 期货不需要保留财务字段
+  if(!_isFutures && _lastQuote){
     if(!Number(d.f9))d.f9=_lastQuote.f9||0;
     if(!Number(d.f23))d.f23=_lastQuote.f23||0;
     if(!Number(d.f20))d.f20=_lastQuote.f20||0;
@@ -2831,22 +2855,30 @@ function updateDetailQuote(d){
   setField('turnover',Number(d.f8||0).toFixed(2)+'%');
   var vol=Number(d.f5||0);setField('vol',vol>=10000?(vol/10000).toFixed(1)+'万':vol.toLocaleString('zh-CN'));
   var amt=Number(d.f6||0);setField('amt',amt>=100000000?(amt/100000000).toFixed(2)+'亿':amt>=10000?(amt/10000).toFixed(1)+'万':amt.toLocaleString('zh-CN'));
-  // 市值/PE/PB（东方财富字段）
-  var cap=Number(d.f20||0);setField('cap',cap>=100000000?(cap/100000000).toFixed(2)+'亿':cap>=10000?(cap/10000).toFixed(1)+'万':cap.toLocaleString('zh-CN'));
-  var fc=Number(d.f21||0);setField('floatCap',fc>=100000000?(fc/100000000).toFixed(2)+'亿':fc>=10000?(fc/10000).toFixed(1)+'万':fc.toLocaleString('zh-CN'));
-  setField('pe',d.f9?Number(d.f9).toFixed(2):'--');
-  setField('pb',d.f23?Number(d.f23).toFixed(2):'--');
-  // 更新更多区域
-  var indEl=document.querySelector('[data-field="industry"]');if(indEl)indEl.textContent=d.f127||'--';
-  var ampEl=document.querySelector('[data-field="amplitude"]');if(ampEl)ampEl.textContent=Number(d.f7||0).toFixed(2)+'%';
-  // 更新标签（沪股通/深股通/融资融券）
-  var tagBox=document.querySelector('.detail-tags');
-  if(tagBox){
-    var c=String(d.f12||'');var tags=[];
-    if(/^(601|603|605|688)/.test(c))tags.push('<span class="tag-sh">沪股通</span>');
-    if(/^(000|002|300)/.test(c))tags.push('<span class="tag-sz">深股通</span>');
-    if(/^(60|68|00|30)/.test(c))tags.push('<span class="tag-margin">融资融券</span>');
-    tagBox.innerHTML=tags.join('');
+  if(!_isFutures){
+    // 市值/PE/PB（东方财富字段）
+    var cap=Number(d.f20||0);setField('cap',cap>=100000000?(cap/100000000).toFixed(2)+'亿':cap>=10000?(cap/10000).toFixed(1)+'万':cap.toLocaleString('zh-CN'));
+    var fc=Number(d.f21||0);setField('floatCap',fc>=100000000?(fc/100000000).toFixed(2)+'亿':fc>=10000?(fc/10000).toFixed(1)+'万':fc.toLocaleString('zh-CN'));
+    setField('pe',d.f9?Number(d.f9).toFixed(2):'--');
+    setField('pb',d.f23?Number(d.f23).toFixed(2):'--');
+    // 更新更多区域
+    var indEl=document.querySelector('[data-field="industry"]');if(indEl)indEl.textContent=d.f127||'--';
+    var ampEl=document.querySelector('[data-field="amplitude"]');if(ampEl)ampEl.textContent=Number(d.f7||0).toFixed(2)+'%';
+    // 更新标签（沪股通/深股通/融资融券）
+    var tagBox=document.querySelector('.detail-tags');
+    if(tagBox){
+      var c=String(d.f12||'');var tags=[];
+      if(/^(601|603|605|688)/.test(c))tags.push('<span class="tag-sh">沪股通</span>');
+      if(/^(000|002|300)/.test(c))tags.push('<span class="tag-sz">深股通</span>');
+      if(/^(60|68|00|30)/.test(c))tags.push('<span class="tag-margin">融资融券</span>');
+      tagBox.innerHTML=tags.join('');
+    }
+  }else{
+    // 期货隐藏股票专用字段
+    setField('cap','--');setField('floatCap','--');setField('pe','--');setField('pb','--');
+    var indEl=document.querySelector('[data-field="industry"]');if(indEl)indEl.textContent='--';
+    var ampEl=document.querySelector('[data-field="amplitude"]');if(ampEl)ampEl.textContent=Number(d.f7||0).toFixed(2)+'%';
+    var tagBox=document.querySelector('.detail-tags');if(tagBox)tagBox.innerHTML='';
   }
   updateOrderBook(d);
 }
@@ -2942,7 +2974,12 @@ window.addEventListener('message',function(e){
       _refreshTimer=setInterval(function(){if(!_inDetail)vscode.postMessage({type:'switchTab',tab:'watchlist'})},5000);
     }
      resetContentStyle();
-    openStockDetail(msg.code,msg.name||'');
+    // 检测期货代码（纯字母+数字如 IF2608）
+    if(/^[A-Za-z]{2}\d{3,4}$/.test(msg.code)){
+      openFuturesDetail(msg.code,msg.name||'');
+    }else{
+      openStockDetail(msg.code,msg.name||'');
+    }
   }
 });
 
