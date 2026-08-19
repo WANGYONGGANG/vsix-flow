@@ -537,7 +537,6 @@ export class ProxyService {
         // 方案2：回退 futsseapi 列表接口 (增加 SHFE 上期所)
         try {
           const token2 = '58b2fa8f54638b60b87d69b31969089c';
-          // 增加 SHFE 交易所代码，包含氧化铝等上期所品种
           const r = await httpGetJson(`https://futsseapi.eastmoney.com/list/COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE,SHFE?orderBy=dm&sort=desc&pageSize=200&pageIndex=0&token=${token2}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`);
           const raw = r?.list || r || [];
           const list = raw
@@ -554,9 +553,40 @@ export class ProxyService {
               change: x.zdf,
             }));
           this.json(res, 200, { data: { list } });
-        } catch {
-          this.json(res, 200, { data: { list: [] } });
-        }
+          return;
+        } catch { /* fall through */ }
+
+        // 方案3：本地常用上期所期货兜底（网络全阻断时）
+        const localSHFE: { dm: string; name: string }[] = [
+          { dm: 'AO', name: '氧化铝' },
+          { dm: 'AL', name: '沪铝' },
+          { dm: 'CU', name: '沪铜' },
+          { dm: 'ZN', name: '沪锌' },
+          { dm: 'PB', name: '沪铅' },
+          { dm: 'NI', name: '沪镍' },
+          { dm: 'SN', name: '沪锡' },
+          { dm: 'RB', name: '螺纹钢' },
+          { dm: 'HC', name: '热卷' },
+          { dm: 'SS', name: '不锈钢' },
+          { dm: 'WR', name: '线材' },
+          { dm: 'FU', name: '燃油' },
+          { dm: 'BU', name: '沥青' },
+          { dm: 'RU', name: '橡胶' },
+          { dm: 'NR', name: '20号胶' },
+          { dm: 'SP', name: '纸浆' },
+          { dm: 'SA', name: '纯碱' },
+          { dm: 'PG', name: '液化气' },
+          { dm: 'LH', name: '生猪' },
+        ];
+        const list = localSHFE
+          .filter((x) => x.name.toLowerCase().includes(kw.toLowerCase()) || x.dm.toLowerCase().includes(kw.toLowerCase()))
+          .map((x) => ({
+            code: 'f_' + x.dm,
+            display_code: x.dm,
+            name: x.name,
+            type: '期货',
+          }));
+        this.json(res, 200, { data: { list } });
         return;
       }
 
