@@ -2004,15 +2004,19 @@ function drawRSI(canvas,data){
 }
 function setupChartDrag(){
   var el=document.getElementById('klChart');if(!el)return;
-  if(el.__crossBound)return;el.__crossBound=true;
-  // 分时图禁止拖动平移
+  // 清理旧事件监听器，支持重新绑定
+  if(el.__dragCleanup){el.__dragCleanup();el.__dragCleanup=null}
+  var cleanupFns=[];
+  function addCleanup(fn){cleanupFns.push(fn)}
+  el.__dragCleanup=function(){cleanupFns.forEach(function(fn){try{fn()}catch(e){}})};
+  // 分时图禁止拖动平移，仅绑定十字光标
   if(_klPeriod==='intraday'){
-    // 但仍需绑定十字光标
     setupCrosshair();
     return;
   }
-  el.addEventListener('mousedown',function(e){if(e.button!==0)return;_kl.dragging=true;_kl.dragX=e.clientX;e.preventDefault()});
-  window.addEventListener('mousemove',function(e){
+  var onMouseDown=function(e){if(e.button!==0)return;_kl.dragging=true;_kl.dragX=e.clientX;e.preventDefault()};
+  el.addEventListener('mousedown',onMouseDown);addCleanup(function(){el.removeEventListener('mousedown',onMouseDown)});
+  var onMouseMove=function(e){
     if(!_kl.dragging)return;
     var dx=e.clientX-_kl.dragX;_kl.dragX=e.clientX;
     var gap=_kl.gap||((_klCanvases.main?_klCanvases.main.clientWidth:300)/60);
@@ -2020,18 +2024,21 @@ function setupChartDrag(){
     var cW=(_klCanvases.main?_klCanvases.main.clientWidth:300)-54;
     var maxS=Math.max(0,_kl.data.length-Math.floor(cW/gap));_kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
     redrawChart();
-  });
-  window.addEventListener('mouseup',function(){_kl.dragging=false});
+  };
+  window.addEventListener('mousemove',onMouseMove);addCleanup(function(){window.removeEventListener('mousemove',onMouseMove)});
+  var onMouseUp=function(){_kl.dragging=false};
+  window.addEventListener('mouseup',onMouseUp);addCleanup(function(){window.removeEventListener('mouseup',onMouseUp)});
   // 双击切换十字光标
   var lastClick=0;
-  el.addEventListener('dblclick',function(e){
+  var onDblClick=function(e){
     var now=Date.now();
     if(now-lastClick<400)return;
     lastClick=now;
     var r=el.getBoundingClientRect();
     drawCrosshair(document.getElementById('klOverlay'),e.clientX-r.left,e.clientY-r.top);
     _kl.crosshair=!_kl.crosshair;
-  });
+  };
+  el.addEventListener('dblclick',onDblClick);addCleanup(function(){el.removeEventListener('dblclick',onDblClick)});
   el.addEventListener('wheel',function(e){
     e.preventDefault();
     if(_klPeriod==='intraday'){
