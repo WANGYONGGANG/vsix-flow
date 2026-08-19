@@ -2009,9 +2009,6 @@ function setupChartDrag(){
     setupCrosshair();
     return;
   }
-  // 简单绑定，不清理旧监听器（避免重绑失败），仅在元素未绑定时绑定
-  if(el.__dragBound)return;
-  el.__dragBound=true;
   el.addEventListener('mousedown',function(e){if(e.button!==0)return;_kl.dragging=true;_kl.dragX=e.clientX;e.preventDefault()});
   window.addEventListener('mousemove',function(e){
     if(!_kl.dragging)return;
@@ -2023,7 +2020,6 @@ function setupChartDrag(){
     redrawChart();
   });
   window.addEventListener('mouseup',function(){_kl.dragging=false});
-  // 双击切换十字光标
   var lastClick=0;
   el.addEventListener('dblclick',function(e){
     var now=Date.now();
