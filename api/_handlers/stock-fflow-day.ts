@@ -38,30 +38,29 @@ async function fallbackFromSina(code: string, lmt: number): Promise<any[]> {
     if (!date) continue;
     const close = Number(row.trade || 0);
     const pct = Number(row.changeratio || 0) * 100;
-    // 只使用真实返回的 4 档净流，不估算超大/大单比例
-    const r0Net = Number(row.r0_net || 0);
-    const r1Net = Number(row.r1_net || 0);
-    const r2Net = Number(row.r2_net || 0);
-    const r3Net = Number(row.r3_net || 0);
+    const r0Net = Math.round(Number(row.r0_net || 0));
+    const r1Net = Math.round(Number(row.r1_net || 0));
+    const r2Net = Math.round(Number(row.r2_net || 0));
+    const r3Net = Math.round(Number(row.r3_net || 0));
     const sum = byDate.get(date);
-    // 估算超大单≈主力40%，大单≈主力60%（新浪仅提供主力/中单/小单）
+    const ratio = sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : 0;
     const estSuper = Math.round(r0Net * 0.4);
     const estBig = Math.round(r0Net * 0.6);
     list.push({
       date,
       close,
       pct: Number(pct.toFixed(2)),
-      main: Math.round(r0Net),
-      mainRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : null,
+      main: r0Net,
+      mainRatio: ratio,
       super: estSuper,
-      superRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.4).toFixed(3)) : null,
+      superRatio: sum ? Number((ratio * 0.4).toFixed(3)) : 0,
       big: estBig,
-      bigRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100 * 0.6).toFixed(3)) : null,
-      mid: Math.round(r1Net),
-      midRatio: null,
-      small: Math.round(r2Net + r3Net),
-      smallRatio: null,
-      main_amount: Math.round(r0Net),
+      bigRatio: sum ? Number((ratio * 0.6).toFixed(3)) : 0,
+      mid: r1Net,
+      midRatio: 0,
+      small: r2Net + r3Net,
+      smallRatio: 0,
+      main_amount: r0Net,
     });
   }
   return list.slice(0, lmt);
@@ -84,12 +83,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (klines.length) {
     list = klines.map((row: string) => {
       const p = row.split(',');
+      // date,close,pct,主力净流入,主力净占比,超大单,超大单占比,大单,大单占比,中单,中单占比,小单,小单占比
+      let mr = parseFloat(p[4]) || 0;
+      if (Math.abs(mr) > 100) mr = 0; // 异常值清零（和扩展一致）
+      const close = parseFloat(p[1]) || 0;
+      const main = parseFloat(p[3]) || 0;
       return {
         date: p[0] || '',
-        close: parseFloat(p[1]) || 0,
+        close,
         pct: parseFloat(p[2]) || 0,
-        main: parseFloat(p[3]) || 0,
-        mainRatio: parseFloat(p[4]) || 0,
+        main,
+        mainRatio: mr,
         super: parseFloat(p[5]) || 0,
         superRatio: parseFloat(p[6]) || 0,
         big: parseFloat(p[7]) || 0,
@@ -98,10 +102,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         midRatio: parseFloat(p[10]) || 0,
         small: parseFloat(p[11]) || 0,
         smallRatio: parseFloat(p[12]) || 0,
-        main_amount: parseFloat(p[3]) || 0,
+        main_amount: main,
       };
-    });
-  } else {
+    }).filter((x: any) => x.close > 0); // 过滤 push2delay 返回的乱数据（close<=0）
+  }
+  if (!list.length) {
     list = await fallbackFromSina(code, lmt);
   }
   json(res, 200, { data: { list } });

@@ -82,9 +82,10 @@ function nativeGetText(fullUrl: string, headers: Record<string, string>, redirec
   });
 }
 
-// push2 主站在部分网络下会被阻断（socket hang up），自动切换延时镜像（接口格式完全一致）
+// push2/push2his 主站在部分网络下会被阻断（socket hang up），自动切换延时镜像（接口格式完全一致）
 function withPush2Mirror(url: string): string {
   if (/^https?:\/\/push2\.eastmoney\.com\//.test(url)) return url.replace('//push2.eastmoney.com/', '//push2delay.eastmoney.com/');
+  if (/^https?:\/\/push2his\.eastmoney\.com\//.test(url)) return url.replace('//push2his.eastmoney.com/', '//push2delay.eastmoney.com/');
   return url;
 }
 
@@ -174,9 +175,10 @@ export function toCleanCode(sinaCode: string): string { return sinaCode.replace(
 // ============ JSONP 解析 ============
 export function stripJsonp(text: string): any {
   let t = String(text || '').replace(/^\/\*<script>[\s\S]*?<\/script>\*\/\s*/, '');
-  const m1 = t.match(/=\(([\s\S]+)\)$/);
+  // Sina JSONP: =([...]);  东财 JSONP: callback({...})  普通JSON: {...}
+  const m1 = t.match(/=\(([\s\S]+)\)\s*;?\s*$/);
   if (m1) { try { return JSON.parse(m1[1]); } catch { /* empty */ } }
-  const m2 = t.match(/^\w+\(([\s\S]+)\)$/);
+  const m2 = t.match(/^\w+\(([\s\S]+)\)\s*;?\s*$/);
   if (m2) { try { return JSON.parse(m2[1]); } catch { /* empty */ } }
   try { return JSON.parse(t); } catch { return null; }
 }

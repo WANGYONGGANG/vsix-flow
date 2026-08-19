@@ -149,7 +149,8 @@ function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code:
   const handleAddWatch = (d: any) => {
     const rawCode = String(d.code || '');
     // 期货代码加 f_ 前缀，和扩展端一致
-    const code = /^\d{4}$/.test(rawCode) ? 'f_' + rawCode : rawCode;
+    const isFutures = d.type === '期货' || /^\d{4}$/.test(rawCode) || (/^[a-z]/.test(rawCode) && !/^(sh|sz|bj)/.test(rawCode));
+    const code = isFutures ? 'f_' + rawCode : rawCode;
     const name = d.name || rawCode;
     addWatch({ code, name });
     setAddedCodes((prev) => new Set(prev).add(rawCode));
@@ -168,9 +169,11 @@ function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code:
           <div className="search-list">
             {list.map((d: any, i: number) => {
               const rawCode = String(d.code || '');
-              const inWatch = watchSet.has(rawCode) || watchSet.has('f_' + rawCode) || addedCodes.has(rawCode);
+              const isFutures = d.type === '期货' || /^\d{4}$/.test(rawCode) || (/^[a-z]/.test(rawCode) && !/^(sh|sz|bj)/.test(rawCode));
+              const navCode = isFutures ? 'f_' + rawCode : rawCode;
+              const inWatch = watchSet.has(rawCode) || watchSet.has(navCode) || addedCodes.has(rawCode);
               return (
-                <div key={i} className="search-row" onClick={() => onPick(rawCode)}>
+                <div key={i} className="search-row" onClick={() => onPick(navCode)}>
                   <div>
                     <b>{d.name}</b> <span className="cc">{d.display_code || d.code}</span>
                     <span className="tag">{d.market || ''}{d.type ? ' · ' + d.type : ''}</span>
@@ -178,7 +181,7 @@ function SearchDialog({ onClose, onPick }: { onClose: () => void; onPick: (code:
                   <div className="search-actions" onClick={(e) => e.stopPropagation()}>
                     {!inWatch
                       ? <button className="mt-btn" onClick={() => handleAddWatch(d)}>+ 自选</button>
-                      : <button className="mt-btn" onClick={() => onPick(rawCode)}>查看 →</button>}
+                      : <button className="mt-btn" onClick={() => onPick(navCode)}>查看 →</button>}
                   </div>
                 </div>
               );

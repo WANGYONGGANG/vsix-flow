@@ -16,12 +16,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const isFutures = rawCode.toLowerCase().startsWith('f_');
   
   if (isFutures) {
-    // 期货数据：使用东方财富期货 API
+    // 期货数据：使用东方财富 push2delay API（push2 主站对期货常返回空）
     const futuresCode = rawCode.replace(/^f_/i, '');
     const secid = `113.${futuresCode}`; // 期货使用 market 113
     
     const [futuresData] = await Promise.all([
-      httpGetJson(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f43,f44,f45,f46,f47,f48,f50,f51,f52,f55,f57,f58,f60,f116,f117,f162,f167,f170,f171&fltt=2&invt=2`, 'https://quote.eastmoney.com/'),
+      httpGetJson(`https://push2delay.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f43,f44,f45,f46,f47,f48,f50,f51,f52,f55,f57,f58,f60,f116,f117,f162,f167,f170,f171&fltt=2&invt=2`, 'https://quote.eastmoney.com/'),
     ]);
     
     const fd = futuresData?.data || {};

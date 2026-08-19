@@ -3925,6 +3925,7 @@ function nativeGetText(fullUrl, headers, redirects = 3) {
 }
 function withPush2Mirror(url2) {
   if (/^https?:\/\/push2\.eastmoney\.com\//.test(url2)) return url2.replace("//push2.eastmoney.com/", "//push2delay.eastmoney.com/");
+  if (/^https?:\/\/push2his\.eastmoney\.com\//.test(url2)) return url2.replace("//push2his.eastmoney.com/", "//push2delay.eastmoney.com/");
   return url2;
 }
 async function fetchText(fullUrl, referer) {
@@ -4018,14 +4019,14 @@ function toCleanCode(sinaCode) {
 }
 function stripJsonp(text) {
   let t = String(text || "").replace(/^\/\*<script>[\s\S]*?<\/script>\*\/\s*/, "");
-  const m1 = t.match(/=\(([\s\S]+)\)$/);
+  const m1 = t.match(/=\(([\s\S]+)\)\s*;?\s*$/);
   if (m1) {
     try {
       return JSON.parse(m1[1]);
     } catch {
     }
   }
-  const m2 = t.match(/^\w+\(([\s\S]+)\)$/);
+  const m2 = t.match(/^\w+\(([\s\S]+)\)\s*;?\s*$/);
   if (m2) {
     try {
       return JSON.parse(m2[1]);
@@ -4076,7 +4077,13 @@ function tencentTextToDiff(text) {
       sell4: parseFloat(p[25]) || 0,
       sell4vol: parseInt(p[26]) || 0,
       sell5: parseFloat(p[27]) || 0,
-      sell5vol: parseInt(p[28]) || 0
+      sell5vol: parseInt(p[28]) || 0,
+      // 腾讯估值字段：p[39]=PE动态 p[43]=振幅 p[44]=总市值(亿) p[45]=流通市值(亿) p[46]=PB
+      _tqPE: parseFloat(p[39]) || 0,
+      _tqAmplitude: parseFloat(p[43]) || 0,
+      _tqTotalCap: parseFloat(p[44]) || 0,
+      _tqFloatCap: parseFloat(p[45]) || 0,
+      _tqPB: parseFloat(p[46]) || 0
     };
     return result;
   }).filter(Boolean);
@@ -4121,15 +4128,38 @@ async function handler(req, res) {
 var EXCHANGES = "COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE";
 async function handler2(req, res) {
   if (handleOptions(req, res)) return;
-  const kw = getQuery(req, "kw").trim().toLowerCase();
+  const kw = decodeURIComponent(getQuery(req, "kw")).trim();
   if (!kw) {
     json(res, 200, { data: { list: [] } });
     return;
   }
+  const token = "D43BF722C8E33BDC906FB84D85E326E8";
+  const url2 = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=30&token=${token}&count=20`;
   try {
-    const token = "58b2fa8f54638b60b87d69b31969089c";
+    const text = await httpsGetText(url2, "https://quote.eastmoney.com/");
+    const r = stripJsonp(text);
+    const arr = r?.QuotationCodeTable?.Data || [];
+    const list = arr.map((d) => {
+      const code = d.Code || "";
+      return {
+        code: "f_" + code,
+        display_code: code,
+        name: d.Name || "",
+        type: "\u671F\u8D27",
+        price: d.LastPrice || d.p,
+        change: d.ChangePercent || d.zdf
+      };
+    }).filter((x) => x.code && x.name);
+    if (list.length) {
+      json(res, 200, { data: { list } });
+      return;
+    }
+  } catch {
+  }
+  try {
+    const token2 = "58b2fa8f54638b60b87d69b31969089c";
     const text = await httpsGetText(
-      `https://futsseapi.eastmoney.com/list/${EXCHANGES}?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`,
+      `https://futsseapi.eastmoney.com/list/${EXCHANGES}?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token2}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`,
       "https://quote.eastmoney.com/"
     );
     const r = stripJsonp(text);
@@ -4322,19 +4352,32 @@ function deriveTicks(minutes, preClose) {
 }
 async function handler6(req, res) {
   if (handleOptions(req, res)) return;
-  const code = toTencentCode(getQuery(req, "code", "sh000001"));
-  const days = parseInt(getQuery(req, "days", "1")) || 1;
-  if (days > 1) {
-    const r2 = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/day/query?code=${code}`);
-    const arr = r2?.data?.[code]?.data || [];
-    const qt2 = r2?.data?.[code]?.qt?.[code] || {};
-    const dayList = arr.slice(-days).map((d) => ({
-      date: String(d.date || ""),
-      minutes: parseMinuteRows(d.data || [])
-    }));
-    json(res, 200, { data: { days: dayList, preClose: qt2[4] || 0 } });
+  const rawCode = getQuery(req, "code", "sh000001");
+  if (rawCode.toLowerCase().startsWith("f_")) {
+    const futuresCode = rawCode.replace(/^f_/i, "");
+    const secid = `113.${futuresCode}`;
+    const r2 = await httpsGetText(
+      `https://push2delay.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=1&fqt=0&end=20500101&lmt=300`,
+      "https://quote.eastmoney.com/"
+    );
+    const data = stripJsonp(r2);
+    const klines = data?.data?.klines || [];
+    let prevVol = 0;
+    const minutes = klines.map((k) => {
+      const p = k.split(",");
+      const dt = (p[0] || "").split(" ");
+      const hhmm = dt[1] ? dt[1].replace(":", "") : "0000";
+      const price = p[2] || "0";
+      const cum = parseInt(p[5] || "0") || 0;
+      const vol = Math.max(0, cum - prevVol);
+      prevVol = cum;
+      return `${hhmm},${price},${vol}`;
+    });
+    const preClose2 = data?.data?.preClose || data?.data?.preKPrice || 0;
+    json(res, 200, { data: { minutes, preClose: preClose2, ticks: deriveTicks(minutes, preClose2) } });
     return;
   }
+  const code = toTencentCode(rawCode);
   const r = await httpGetJson(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${code}`);
   const mdata = r?.data?.[code]?.data?.data || [];
   const rows = parseMinuteRows(mdata);
@@ -4344,10 +4387,64 @@ async function handler6(req, res) {
 }
 
 // api/_handlers/kline.ts
+var PERIOD_MAP = { "day": "101", "week": "102", "month": "103", "5m": "5", "15m": "15", "30m": "30", "60m": "60" };
 async function handler7(req, res) {
   if (handleOptions(req, res)) return;
   const code = getQuery(req, "code", "sh000001");
   const period = getQuery(req, "period", "day");
+  if (code.toLowerCase().startsWith("f_")) {
+    const futuresCode = code.replace(/^f_/i, "");
+    const secid = `113.${futuresCode}`;
+    const limit2 = Number(getQuery(req, "limit") || 320) || 320;
+    if (["5m", "15m", "30m", "60m"].includes(period)) {
+      const scale = parseInt(period) || 5;
+      const fetchCount = Math.min(2e3, limit2 * scale + 50);
+      const r3 = await httpsGetText(
+        `https://push2delay.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=1&fqt=0&end=20500101&lmt=${fetchCount}`,
+        "https://quote.eastmoney.com/"
+      );
+      const data3 = stripJsonp(r3);
+      const klines2 = data3?.data?.klines || [];
+      const rows3 = [];
+      let bucket = null;
+      let bucketStartMin = -1;
+      for (const k of klines2) {
+        const p = k.split(",");
+        const dt = p[0] || "";
+        const timePart = dt.split(" ")[1] || "";
+        const hhmm = timePart.replace(":", "");
+        const totalMin = parseInt(hhmm.slice(0, 2)) * 60 + parseInt(hhmm.slice(2, 4));
+        const o = +p[1], c = +p[2], h = +p[3], l = +p[4], v = +(p[5] || 0);
+        const bucketIdx = Math.floor(totalMin / scale);
+        if (bucketIdx !== bucketStartMin) {
+          if (bucket) rows3.push(`${bucket.dt.split(" ")[0]},${bucket.o},${bucket.c},${bucket.h},${bucket.l},${bucket.v}`);
+          bucket = { dt, o, c, h, l, v };
+          bucketStartMin = bucketIdx;
+        } else if (bucket) {
+          bucket.c = c;
+          if (h > bucket.h) bucket.h = h;
+          if (l < bucket.l) bucket.l = l;
+          bucket.v += v;
+        }
+      }
+      if (bucket) rows3.push(`${bucket.dt.split(" ")[0]},${bucket.o},${bucket.c},${bucket.h},${bucket.l},${bucket.v}`);
+      json(res, 200, { data: { klines: rows3.slice(-limit2) } });
+      return;
+    }
+    const klt = PERIOD_MAP[period] || "101";
+    const r2 = await httpsGetText(
+      `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=${klt}&fqt=0&end=20500101&lmt=${limit2}`,
+      "https://quote.eastmoney.com/"
+    );
+    const data2 = stripJsonp(r2);
+    const klines = data2?.data?.klines || [];
+    const rows2 = klines.map((k) => {
+      const p = k.split(",");
+      return `${p[0] || ""},${p[1] || 0},${p[2] || 0},${p[3] || 0},${p[4] || 0},${p[5] || 0}`;
+    });
+    json(res, 200, { data: { klines: rows2 } });
+    return;
+  }
   if (["5m", "15m", "30m", "60m"].includes(period)) {
     const sinaCode = toSinaCode(code);
     const scale = period.replace("m", "");
@@ -4571,7 +4668,7 @@ async function handler13(req, res) {
     const futuresCode = rawCode.replace(/^f_/i, "");
     const secid2 = `113.${futuresCode}`;
     const [futuresData] = await Promise.all([
-      httpGetJson(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid2}&fields=f43,f44,f45,f46,f47,f48,f50,f51,f52,f55,f57,f58,f60,f116,f117,f162,f167,f170,f171&fltt=2&invt=2`, "https://quote.eastmoney.com/")
+      httpGetJson(`https://push2delay.eastmoney.com/api/qt/stock/get?secid=${secid2}&fields=f43,f44,f45,f46,f47,f48,f50,f51,f52,f55,f57,f58,f60,f116,f117,f162,f167,f170,f171&fltt=2&invt=2`, "https://quote.eastmoney.com/")
     ]);
     const fd = futuresData?.data || {};
     const diff2 = [{
@@ -4639,6 +4736,16 @@ async function handler13(req, res) {
   const sd = s?.data || {};
   const hi = num(tq.f15), lo = num(tq.f16), pre = num(tq.f18);
   const amplitude = num(ud.f7) || (pre > 0 ? +((hi - lo) / pre * 100).toFixed(2) : 0);
+  let industry = sd.f127 ?? "";
+  if (!industry) {
+    try {
+      const prefix = /^(60|68|90|11|13|50|56|51|58)/.test(cleanCode) ? "SH" : "SZ";
+      const survey = await httpGetJson(`https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/PageAjax?code=${prefix}${cleanCode}`, "https://emweb.securities.eastmoney.com/");
+      const jb = survey?.jbzl?.[0] || {};
+      industry = jb.INDUSTRYCSRC1 || "";
+    } catch {
+    }
+  }
   const diff = [{
     // 腾讯实时盘口
     f2: tq.f2 ?? 0,
@@ -4674,18 +4781,13 @@ async function handler13(req, res) {
     sell4vol: tq.sell4vol,
     sell5: tq.sell5,
     sell5vol: tq.sell5vol,
-    // 东财财务字段（ulist 优先，stock/get 兜底）
-    f7: amplitude,
-    // 振幅
-    f9: num(ud.f9) || num(sd.f162),
-    // 市盈率
-    f20: num(ud.f20) || num(sd.f116),
-    // 总市值
-    f21: num(ud.f21) || num(sd.f117),
-    // 流通市值
-    f23: num(ud.f23) || num(sd.f167),
-    // 市净率
-    f127: sd.f127 ?? ""
+    // 财务字段：东财优先，腾讯兜底（东财被墙时腾讯数据有效）
+    f7: amplitude || num(tq._tqAmplitude) || 0,
+    f9: num(ud.f9) || num(sd.f162) || num(tq._tqPE) || 0,
+    f20: num(ud.f20) || num(sd.f116) || (tq._tqTotalCap ? tq._tqTotalCap * 1e8 : 0),
+    f21: num(ud.f21) || num(sd.f117) || (tq._tqFloatCap ? tq._tqFloatCap * 1e8 : 0),
+    f23: num(ud.f23) || num(sd.f167) || num(tq._tqPB) || 0,
+    f127: industry
     // 行业
   }];
   json(res, 200, { data: { diff } });
@@ -4996,28 +5098,29 @@ async function fallbackFromSina(code, lmt) {
     if (!date) continue;
     const close = Number(row.trade || 0);
     const pct = Number(row.changeratio || 0) * 100;
-    const r0Net = Number(row.r0_net || 0);
-    const r1Net = Number(row.r1_net || 0);
-    const r2Net = Number(row.r2_net || 0);
-    const r3Net = Number(row.r3_net || 0);
+    const r0Net = Math.round(Number(row.r0_net || 0));
+    const r1Net = Math.round(Number(row.r1_net || 0));
+    const r2Net = Math.round(Number(row.r2_net || 0));
+    const r3Net = Math.round(Number(row.r3_net || 0));
     const sum = byDate.get(date);
+    const ratio = sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : 0;
+    const estSuper = Math.round(r0Net * 0.4);
+    const estBig = Math.round(r0Net * 0.6);
     list.push({
       date,
       close,
       pct: Number(pct.toFixed(2)),
-      main: Math.round(r0Net),
-      mainRatio: sum ? Number((Number(sum.r0_ratio || 0) * 100).toFixed(3)) : null,
-      super: null,
-      // 新浪没单独提供超大单净流，不估算
-      superRatio: null,
-      big: null,
-      // 新浪没单独提供大单净流，不估算
-      bigRatio: null,
-      mid: Math.round(r1Net),
-      midRatio: null,
-      small: Math.round(r2Net + r3Net),
-      smallRatio: null,
-      main_amount: Math.round(r0Net)
+      main: r0Net,
+      mainRatio: ratio,
+      super: estSuper,
+      superRatio: sum ? Number((ratio * 0.4).toFixed(3)) : 0,
+      big: estBig,
+      bigRatio: sum ? Number((ratio * 0.6).toFixed(3)) : 0,
+      mid: r1Net,
+      midRatio: 0,
+      small: r2Net + r3Net,
+      smallRatio: 0,
+      main_amount: r0Net
     });
   }
   return list.slice(0, lmt);
@@ -5040,12 +5143,16 @@ async function handler20(req, res) {
   if (klines.length) {
     list = klines.map((row) => {
       const p = row.split(",");
+      let mr = parseFloat(p[4]) || 0;
+      if (Math.abs(mr) > 100) mr = 0;
+      const close = parseFloat(p[1]) || 0;
+      const main = parseFloat(p[3]) || 0;
       return {
         date: p[0] || "",
-        close: parseFloat(p[1]) || 0,
+        close,
         pct: parseFloat(p[2]) || 0,
-        main: parseFloat(p[3]) || 0,
-        mainRatio: parseFloat(p[4]) || 0,
+        main,
+        mainRatio: mr,
         super: parseFloat(p[5]) || 0,
         superRatio: parseFloat(p[6]) || 0,
         big: parseFloat(p[7]) || 0,
@@ -5054,10 +5161,11 @@ async function handler20(req, res) {
         midRatio: parseFloat(p[10]) || 0,
         small: parseFloat(p[11]) || 0,
         smallRatio: parseFloat(p[12]) || 0,
-        main_amount: parseFloat(p[3]) || 0
+        main_amount: main
       };
-    });
-  } else {
+    }).filter((x) => x.close > 0);
+  }
+  if (!list.length) {
     list = await fallbackFromSina(code, lmt);
   }
   json(res, 200, { data: { list } });

@@ -61,6 +61,8 @@ export function isFuturesCode(raw: string): boolean {
   if (c.startsWith('f_')) return true;
   // 4-digit pure number codes are futures (e.g. 6029, 0001)
   if (/^\d{4}$/.test(c)) return true;
+  // 期货代码：字母开头且非 sh/sz/bj 前缀（如 sa2610, au2610, aum, znm）
+  if (/^[a-z]/.test(c) && !/^(sh|sz|bj)/.test(c) && !/^\d{6}$/.test(c)) return true;
   return false;
 }
 export function normalizeCode(raw: string): string {
@@ -68,6 +70,8 @@ export function normalizeCode(raw: string): string {
   // 期货代码：f_ 前缀直接返回，4位纯数字也视为期货
   if (c.startsWith('f_')) return c;
   if (/^\d{4}$/.test(c)) return 'f_' + c;
+  // 期货代码：字母开头且非 sh/sz/bj 前缀（如 sa2610, au2610, aum）
+  if (/^[a-z]/.test(c) && !/^(sh|sz|bj)/.test(c)) return 'f_' + c;
   if (/^(sh|sz|bj)\d+/.test(c)) return c;
   const m = getSecuritiesMarket(c);
   return m + c;

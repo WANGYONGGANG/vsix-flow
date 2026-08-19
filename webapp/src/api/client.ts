@@ -34,7 +34,7 @@ export const api = {
   marketOverviewDetail: () => request<any>('/api/market-overview-detail'),
   kline: (code: string, period = 'day', limit?: number, fq = 'qfq') =>
     request<any>(`/api/kline?code=${code}&period=${period}${limit ? `&limit=${limit}` : ''}&fq=${fq}`),
-  intraday: (code: string, days = 1) => request<any>(`/api/intraday?code=${code}${days > 1 ? `&days=${days}` : ''}`),
+  intraday: (code: string) => request<any>(`/api/intraday?code=${code}`),
   emNews: (page = 1, pageSize = 60) => request<any>(`/api/em-news?page=${page}&pageSize=${pageSize}`),
   emNewsSearch: (keyword = 'A股', page = 1, pageSize = 50) => request<any>(`/api/em-news-search?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`),
   ztPool: (date?: string) => request<any>(`/api/zt-pool${date ? `?date=${date}` : ''}`),

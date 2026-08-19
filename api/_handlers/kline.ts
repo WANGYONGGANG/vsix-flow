@@ -3,11 +3,71 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { json, handleOptions, getQuery } from './_shared/response';
 import { httpsGetText, httpGetJson, toSinaCode, toTencentCode, stripJsonp } from './_shared/http';
 
+const PERIOD_MAP: Record<string, string> = { 'day': '101', 'week': '102', 'month': '103', '5m': '5', '15m': '15', '30m': '30', '60m': '60' };
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
 
   const code = getQuery(req, 'code', 'sh000001');
   const period = getQuery(req, 'period', 'day');
+
+  // 期货 K线：用东财 push2his kline API（push2his 不可达时自动切 push2delay 镜像）
+  if (code.toLowerCase().startsWith('f_')) {
+    const futuresCode = code.replace(/^f_/i, '');
+    const secid = `113.${futuresCode}`;
+    const limit = Number(getQuery(req, 'limit') || 320) || 320;
+
+    // 分钟级 K线（5m/15m/30m/60m）：push2delay 只支持 klt=1（1分钟），需聚合
+    if (['5m', '15m', '30m', '60m'].includes(period)) {
+      const scale = parseInt(period) || 5;
+      const fetchCount = Math.min(2000, limit * scale + 50);
+      const r = await httpsGetText(
+        `https://push2delay.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=1&fqt=0&end=20500101&lmt=${fetchCount}`,
+        'https://quote.eastmoney.com/'
+      );
+      const data = stripJsonp(r);
+      const klines: string[] = data?.data?.klines || [];
+      // 聚合 1 分钟 K 线为 N 分钟
+      const rows: string[] = [];
+      let bucket: { dt: string; o: number; c: number; h: number; l: number; v: number } | null = null;
+      let bucketStartMin = -1;
+      for (const k of klines) {
+        const p = k.split(',');
+        const dt = p[0] || '';
+        const timePart = dt.split(' ')[1] || '';
+        const hhmm = timePart.replace(':', '');
+        const totalMin = parseInt(hhmm.slice(0, 2)) * 60 + parseInt(hhmm.slice(2, 4));
+        const o = +p[1], c = +p[2], h = +p[3], l = +p[4], v = +(p[5] || 0);
+        const bucketIdx = Math.floor(totalMin / scale);
+        if (bucketIdx !== bucketStartMin) {
+          if (bucket) rows.push(`${bucket.dt.split(' ')[0]},${bucket.o},${bucket.c},${bucket.h},${bucket.l},${bucket.v}`);
+          bucket = { dt, o, c, h, l, v };
+          bucketStartMin = bucketIdx;
+        } else if (bucket) {
+          bucket.c = c; if (h > bucket.h) bucket.h = h; if (l < bucket.l) bucket.l = l; bucket.v += v;
+        }
+      }
+      if (bucket) rows.push(`${bucket.dt.split(' ')[0]},${bucket.o},${bucket.c},${bucket.h},${bucket.l},${bucket.v}`);
+      json(res, 200, { data: { klines: rows.slice(-limit) } });
+      return;
+    }
+
+    // 日/周/月 K线：先试 push2his（Vercel 上可能可达），失败则用 push2delay
+    const klt = PERIOD_MAP[period] || '101';
+    const r = await httpsGetText(
+      `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58&klt=${klt}&fqt=0&end=20500101&lmt=${limit}`,
+      'https://quote.eastmoney.com/'
+    );
+    const data = stripJsonp(r);
+    const klines: string[] = data?.data?.klines || [];
+    // 东财格式：日期,开盘,收盘,最高,最低,成交量,成交额,振幅 → 转为 日期,开盘,收盘,最高,最低,成交量
+    const rows: string[] = klines.map((k: string) => {
+      const p = k.split(',');
+      return `${p[0] || ''},${p[1] || 0},${p[2] || 0},${p[3] || 0},${p[4] || 0},${p[5] || 0}`;
+    });
+    json(res, 200, { data: { klines: rows } });
+    return;
+  }
 
   if (['5m', '15m', '30m', '60m'].includes(period)) {
     const sinaCode = toSinaCode(code);
