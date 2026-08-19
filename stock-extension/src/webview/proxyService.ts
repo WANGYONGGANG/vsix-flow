@@ -512,6 +512,19 @@ export class ProxyService {
 if (targetUrl.startsWith('/api/futures-search')) {
         const kw = String(parsed.query.kw || '').trim();
         if (!kw) { this.json(res, 200, { data: { list: [] } }); return; }
+
+        // 本地常用上期所期货（网络阻断时兜底，含氧化铝 AO 等）
+        const localSHFE = [
+          { dm: 'AO', name: '氧化铝' }, { dm: 'AL', name: '沪铝' }, { dm: 'CU', name: '沪铜' },
+          { dm: 'ZN', name: '沪锌' }, { dm: 'PB', name: '沪铅' }, { dm: 'NI', name: '沪镍' },
+          { dm: 'SN', name: '沪锡' }, { dm: 'RB', name: '螺纹钢' }, { dm: 'HC', name: '热卷' },
+          { dm: 'SS', name: '不锈钢' }, { dm: 'WR', name: '线材' }, { dm: 'FU', name: '燃油' },
+          { dm: 'BU', name: '沥青' }, { dm: 'RU', name: '橡胶' }, { dm: 'NR', name: '20号胶' },
+          { dm: 'SP', name: '纸浆' }, { dm: 'SA', name: '纯碱' }, { dm: 'PG', name: '液化气' },
+          { dm: 'LH', name: '生猪' },
+        ];
+
+        // 先尝试网络请求
         try {
           const token = '58b2fa8f54638b60b87d69b31969089c';
           const text = await httpsGetText(
@@ -533,10 +546,14 @@ if (targetUrl.startsWith('/api/futures-search')) {
               price: x.p,
               change: x.zdf,
             }));
-          this.json(res, 200, { data: { list } });
-        } catch {
-          this.json(res, 200, { data: { list: [] } });
-        }
+          if (list.length) { this.json(res, 200, { data: { list } }); return; }
+        } catch { /* fall through to local */ }
+
+        // 网络失败：本地常用上期所期货兜底
+        const list = localSHFE
+          .filter((x) => x.name.toLowerCase().includes(kw.toLowerCase().trim()) || x.dm.toLowerCase().includes(kw.toLowerCase().trim()))
+          .map((x) => ({ code: String(x.dm), name: x.name, type: '期货' }));
+        this.json(res, 200, { data: { list } });
         return;
       }
 
