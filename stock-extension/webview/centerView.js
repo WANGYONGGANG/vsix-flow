@@ -2006,7 +2006,11 @@ function setupChartDrag(){
   var el=document.getElementById('klChart');if(!el)return;
   if(el.__crossBound)return;el.__crossBound=true;
   // 分时图禁止拖动平移
-  if(_klPeriod==='intraday') return;
+  if(_klPeriod==='intraday'){
+    // 但仍需绑定十字光标
+    setupCrosshair();
+    return;
+  }
   el.addEventListener('mousedown',function(e){if(e.button!==0)return;_kl.dragging=true;_kl.dragX=e.clientX;e.preventDefault()});
   window.addEventListener('mousemove',function(e){
     if(!_kl.dragging)return;
@@ -2018,6 +2022,16 @@ function setupChartDrag(){
     redrawChart();
   });
   window.addEventListener('mouseup',function(){_kl.dragging=false});
+  // 双击切换十字光标
+  var lastClick=0;
+  el.addEventListener('dblclick',function(e){
+    var now=Date.now();
+    if(now-lastClick<400)return;
+    lastClick=now;
+    var r=el.getBoundingClientRect();
+    drawCrosshair(document.getElementById('klOverlay'),e.clientX-r.left,e.clientY-r.top);
+    _kl.crosshair=!_kl.crosshair;
+  });
   el.addEventListener('wheel',function(e){
     e.preventDefault();
     if(_klPeriod==='intraday'){
@@ -2026,7 +2040,6 @@ function setupChartDrag(){
       var g=_intradayGeo;if(!g)return;
       var frac=(x-g.padL)/g.cW;frac=Math.max(0,Math.min(1,frac));
       var span=_idView.e-_idView.s;
-      // 向下滚动=缩小(0.85)，向上滚动=放大(1.15)
       var factor=e.deltaY>0?0.85:1.15;
       var newSpan=span/factor;
       newSpan=Math.max(_idMinSpan,Math.min(_idMaxSpan,newSpan));
@@ -2040,7 +2053,6 @@ function setupChartDrag(){
       var W=main?main.parentElement.clientWidth-12:300;
       var cW=W-54;
       if(!_kl.gap)_kl.gap=cW/60;
-      // 向下滚动=缩小(0.85)，向上滚动=放大(1.15)
       var factor=e.deltaY>0?0.85:1.15;
       _kl.gap=Math.max(cW/Math.min(_kl.data.length,200),Math.min(cW/10,_kl.gap*factor));
       var maxS=Math.max(0,_kl.data.length-Math.floor(cW/_kl.gap));
@@ -2048,6 +2060,44 @@ function setupChartDrag(){
       redrawChart();
     }
   },{passive:false});
+  // 触摸支持：双指缩放、单指拖动
+  var touchStart=null;
+  var pinchStart=null;
+  el.addEventListener('touchstart',function(e){
+    var touches=e.touches;
+    if(touches.length===2){
+      var dx=touches[0].clientX-touches[1].clientX;
+      var dy=touches[0].clientY-touches[1].clientY;
+      pinchStart={dist:Math.sqrt(dx*dx+dy*dy),gap:_kl.gap||cW/60};
+      touchStart=null;
+      e.preventDefault();
+    }else if(touches.length===1){
+      touchStart={x:touches[0].clientX,scroll:_kl.scroll};
+      pinchStart=null;
+    }
+  },{passive:false});
+  el.addEventListener('touchmove',function(e){
+    var touches=e.touches;
+    if(touches.length===2&&pinchStart){
+      var dx=touches[0].clientX-touches[1].clientX;
+      var dy=touches[0].clientY-touches[1].clientY;
+      var dist=Math.sqrt(dx*dx+dy*dy);
+      var factor=pinchStart.dist/dist;
+      var cW=(_klCanvases.main?_klCanvases.main.clientWidth:300)-54;
+      _kl.gap=Math.max(cW/Math.min(_kl.data.length,200),Math.min(cW/10,pinchStart.gap*factor));
+      var maxS=Math.max(0,_kl.data.length-Math.floor(cW/_kl.gap));
+      _kl.scroll=Math.max(0,Math.min(_kl.scroll,maxS));
+      redrawChart();
+      e.preventDefault();
+    }else if(touches.length===1&&touchStart){
+      var dx=touches[0].clientX-touchStart.x;
+      var gap=_kl.gap||cW/60;
+      _kl.scroll=Math.max(0,Math.min(touchStart.scroll-dx/gap,Math.max(0,_kl.data.length-Math.floor(cW/gap))));
+      redrawChart();
+      e.preventDefault();
+    }
+  },{passive:false});
+  el.addEventListener('touchend',function(){touchStart=null;pinchStart=null});
   var mc=document.getElementById('klMain');
   if(mc)mc.addEventListener('mouseleave',function(){if(!_kl.dragging)document.getElementById('klChart').style.cursor='crosshair'});
   setupCrosshair();
