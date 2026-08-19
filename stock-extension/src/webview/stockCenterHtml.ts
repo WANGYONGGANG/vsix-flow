@@ -48,6 +48,7 @@ td:first-child,th:first-child{text-align:left}
 .wl-price .pr{font-size:15px;font-weight:700}
 .wl-chg{text-align:right;min-width:64px}
 .wl-chg .tag{font-size:11px;padding:2px 8px;border-radius:4px;display:inline-block}
+.wl-spark{flex-shrink:0;width:74px;display:flex;align-items:center}
 .wl-del{padding:4px 10px;border:none;border-radius:4px;background:rgba(255,77,79,.12);color:var(--up);font-size:11px;cursor:pointer;transition:background .15s;flex-shrink:0}
 .wl-del:hover{background:rgba(255,77,79,.3)}
 .wl-acts{display:flex;gap:4px;flex-shrink:0}

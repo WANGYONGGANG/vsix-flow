@@ -456,7 +456,7 @@ function detailSearch(kw){
   var rs=$('#detailSearchResults');
   if(!kw||!kw.trim()){if(rs)rs.classList.remove('show');_detailSearchResults=[];return}
   _detailSearchDeb=setTimeout(function(){
-    vscode.postMessage({type:'stockSearch',kw:kw.trim()});
+    vscode.postMessage({type:'stockSearch',kw:kw.trim(),searchAll:true});
   },300);
 }
 function showDetailSearchResults(list){
@@ -1266,6 +1266,7 @@ function renderWatchlist(d){
   var list=d&&d.indices?d.indices:(d&&d.data?d.data.diff:[]);
   _wlAlerts=d&&d.alerts?d.alerts:{};
   _statusBarCodes=(d&&d.statusBarCodes)||[];
+  var sparks=d&&d.sparks?d.sparks:{};
   _wlData=[];
   var html='';
   if(!list||!list.length){
@@ -1284,8 +1285,21 @@ function renderWatchlist(d){
         alertHtml+='<span class="wl-alert-tag">'+(al.isUp?'▲':'▼')+esc(al.label)+'</span>';
       }
       var inSb=_statusBarCodes.indexOf(prefixCode(x.f12))>=0;
-      var sbTag=inSb?'<span class="wl-alert-tag" style="background:rgba(53,150,240,.18);color:#5cabff">📌 状态栏</span>':'';
-      html+='<div class="wl-card '+flash+'" draggable="true" data-code="'+code+'" data-idx="'+i+'"><div class="wl-row"><div class="wl-name"><div class="nm">'+name+(alertHtml?'<span>'+alertHtml+'</span>':'')+'</div><div class="cd">'+code+'</div></div><div class="wl-price"><div class="pr '+(up?'text-up':'text-down')+'">'+price+'</div></div><div class="wl-chg"><span class="tag '+(up?'tag-up':'tag-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span></div><div class="wl-acts"><button class="wl-code-act wl-sb-toggle" data-code="'+code+'" title="'+(inSb?'移出状态栏':'加入状态栏')+'">'+sbTag+'</button><button class="wl-code-act" data-code="'+code+'" data-dir="top" title="置顶">⤒ 置顶</button><button class="wl-code-act" data-code="'+code+'" data-dir="bottom" title="置底">⤓ 置底</button></div><button class="wl-del" data-code="'+code+'">删除</button></div></div>';
+      // sparkline SVG
+      var sparkData=sparks[code]||sparks[prefixCode(code)]||[];
+      var sparkSvg='';
+      if(sparkData.length>1){
+        var sMin=Math.min.apply(null,sparkData);var sMax=Math.max.apply(null,sparkData);var sRange=sMax-sMin||1;
+        var sW=74,sH=28,sP=2;
+        var pts=[];
+        for(var si=0;si<sparkData.length;si++){
+          var sx=sP+(si/(sparkData.length-1))*(sW-sP*2);
+          var sy=sH-sP-((sparkData[si]-sMin)/sRange)*(sH-sP*2);
+          pts.push(sx.toFixed(1)+','+sy.toFixed(1));
+        }
+        sparkSvg='<svg viewBox="0 0 '+sW+' '+sH+'" style="width:74px;height:28px;display:block"><polyline points="'+pts.join(' ')+'" fill="none" stroke="'+(up?'#ef5350':'#26a69a')+'" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      }
+      html+='<div class="wl-card '+flash+'" draggable="true" data-code="'+code+'" data-idx="'+i+'"><div class="wl-row"><div class="wl-name"><div class="nm">'+name+(alertHtml?'<span>'+alertHtml+'</span>':'')+'</div><div class="cd">'+code.replace(/^(sh|sz|bj)/,'')+'</div></div><div class="wl-spark">'+sparkSvg+'</div><div class="wl-price"><div class="pr '+(up?'text-up':'text-down')+'">'+price+'</div></div><div class="wl-chg"><span class="tag '+(up?'tag-up':'tag-down')+'">'+(up?'+':'')+rate.toFixed(2)+'%</span></div><div class="wl-acts"><button class="wl-code-act wl-sb-toggle" data-code="'+code+'" title="'+(inSb?'移出状态栏':'加入状态栏')+'">'+(inSb?'📌':'☆')+'</button></div><button class="wl-del" data-code="'+code+'">✕</button></div></div>';
     }
   }
   html+='<div id="wlAddBtn" style="position:sticky;bottom:0;padding:10px 0;text-align:center;background:var(--bg);border-top:1px solid var(--border);z-index:10"><button id="wlAddBtnInner" style="padding:8px 24px;border:1px solid #3596f0;border-radius:6px;background:transparent;color:#5cabff;font-size:13px;cursor:pointer;width:100%;max-width:200px">+ 添加自选</button></div>';
@@ -1554,7 +1568,7 @@ function renderStockDetail(s){
   html+='<div class="detail-search-drag" id="detailSearchDrag" title="拖动移动位置"><span class="ds-drag-label">拖动移动</span></div>';
   html+='<div class="detail-search-results" id="detailSearchResults"></div>';
   html+='<div class="detail-search-input">';
-  html+='<input id="detailSearchInput" placeholder="搜索股票名称/代码..." oninput="detailSearch(this.value)" onkeydown="if(event.key===\'Enter\')detailSearchConfirm()">';
+  html+='<input id="detailSearchInput" placeholder="搜索股票/期货名称或代码..." oninput="detailSearch(this.value)" onkeydown="if(event.key===\'Enter\')detailSearchConfirm()">';
   html+='<button onclick="detailSearchConfirm()">→</button>';
   html+='</div>';
   html+='</div>';

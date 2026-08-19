@@ -304,7 +304,18 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
             alerts[key].push({ t, label, isUp, info: a.i || '' });
           }
         } catch {}
-        return { indices, alerts, statusBarCodes: cfg.get<string[]>('statusBarStock') || [] };
+        // 加载分时 sparkline
+        const sparkMap: Record<string, number[]> = {};
+        await Promise.all(codes.slice(0, 15).map(async (code) => {
+          try {
+            const intr = await proxyGet(`/api/intraday?code=${encodeURIComponent(code)}`);
+            const mins: string[] = intr?.data?.minutes || [];
+            if (mins.length) {
+              sparkMap[code] = mins.map((m: string) => Number(m.split(',')[1]) || 0);
+            }
+          } catch {}
+        }));
+        return { indices, alerts, statusBarCodes: cfg.get<string[]>('statusBarStock') || [], sparks: sparkMap };
       }
       case 'settings': {
         const config = vscode.workspace.getConfiguration('stock-ext');
