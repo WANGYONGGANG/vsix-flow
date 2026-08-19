@@ -539,7 +539,8 @@ if (targetUrl.startsWith('/api/futures-search')) {
           const token2 = '58b2fa8f54638b60b87d69b31969089c';
           const text = await httpsGetText(
             `https://futsseapi.eastmoney.com/list/COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE,SHFE?orderBy=dm&sort=desc&pageSize=100&pageIndex=0&token=${token2}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`,
-            'https://quote.eastmoney.com/'
+            'https://quote.eastmoney.com/',
+            'utf8'
           );
           const r = stripJsonp(text);
           const raw = r?.list || r || [];
