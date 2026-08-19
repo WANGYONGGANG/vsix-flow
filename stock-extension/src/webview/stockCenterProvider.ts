@@ -124,6 +124,13 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
           const r = await proxyGet(`/api/kline?code=${msg.code}&period=${period}&fq=1`);
           webviewView.webview.postMessage({ type: 'klineData', code: msg.code, data: r?.data?.klines || [] });
         }
+      } else if (msg.type === 'fetchFuturesQuote' && msg.code) {
+        const r = await proxyGet(`/api/futures-quote?code=${encodeURIComponent(msg.code)}`);
+        webviewView.webview.postMessage({ type: 'quoteData', code: msg.code, data: r?.data || {} });
+      } else if (msg.type === 'fetchFuturesKline' && msg.code) {
+        const period = msg.period || 'day';
+        const r = await proxyGet(`/api/futures-kline?code=${encodeURIComponent(msg.code)}&period=${period}`);
+        webviewView.webview.postMessage({ type: 'klineData', code: msg.code, data: r?.data?.klines || [] });
       } else if (msg.type === 'fetchStockNews' && msg.code) {
         const r = await proxyGet(`/api/stock-news?code=${msg.code}&pageSize=20`);
         webviewView.webview.postMessage({ type: 'stockNewsData', code: msg.code, data: r?.data?.list || [] });

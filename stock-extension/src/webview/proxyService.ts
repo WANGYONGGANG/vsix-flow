@@ -551,7 +551,7 @@ if (targetUrl.startsWith('/api/futures-search')) {
               return dm.includes(kw.toLowerCase()) || name.includes(kw.toLowerCase());
             })
             .map((x: any) => ({
-              code: 'f_' + String(x.dm || ''),
+              code: String(x.dm || ''),
               name: x.name || '',
               type: '期货',
               display_code: String(x.dm || ''),
@@ -574,7 +574,7 @@ if (targetUrl.startsWith('/api/futures-search')) {
         ];
         const list = localSHFE
           .filter((x) => x.name.toLowerCase().includes(kw.toLowerCase().trim()) || x.dm.toLowerCase().includes(kw.toLowerCase().trim()))
-          .map((x) => ({ code: 'f_' + x.dm, display_code: x.dm, name: x.name, type: '期货' }));
+          .map((x) => ({ code: x.dm, display_code: x.dm, name: x.name, type: '期货' }));
         this.json(res, 200, { data: { list } });
 return;
       }
