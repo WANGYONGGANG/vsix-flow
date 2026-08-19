@@ -480,7 +480,11 @@ function detailSearchSelect(idx){
   var inp=$('#detailSearchInput');if(inp)inp.value='';
   var box=$('#detailSearchBox');if(box)box.classList.remove('show');
   _detailSearchResults=[];_detailSearchIdx=-1;
-  openStockDetail(code,name);
+  if(/^[A-Za-z]{2}\d{3,4}$/.test(code)){
+    openFuturesDetail(code,name);
+  }else{
+    openStockDetail(code,name);
+  }
 }
 function detailSearchConfirm(){
   if(_detailSearchIdx>=0&&_detailSearchResults[_detailSearchIdx]){detailSearchSelect(_detailSearchIdx);return}
@@ -1249,11 +1253,14 @@ var _wlAlerts={};
 var _statusBarCodes=[];
 var _wlDragIdx=null;
 function prefixCode(code){
-  var c=String(code||'').replace(/^(sh|sz|bj)/,'');
-  if(/^(60|68|90|11|13|50|56|51|58)/.test(c))return 'sh'+c;
-  if(/^(00|30|20|12|15|16|18|159)/.test(c))return 'sz'+c;
-  if(/^(43|83|87|92|88)/.test(c))return 'bj'+c;
-  return 'sh'+c;
+  var c=String(code||'').trim().toLowerCase();
+  if(c.startsWith('f_'))return c;
+  var noPrefix=c.replace(/^(sh|sz|bj)/,'');
+  if(/^(60|68|90|11|13|50|56|51|58)/.test(noPrefix))return 'sh'+noPrefix;
+  if(/^(00|30|20|12|15|16|18|159)/.test(noPrefix))return 'sz'+noPrefix;
+  if(/^(43|83|87|92|88)/.test(noPrefix))return 'bj'+noPrefix;
+  if(/^[a-z]/.test(noPrefix))return 'f_'+noPrefix;
+  return 'sh'+noPrefix;
 }
 function renderWatchlist(d){
   var list=d&&d.indices?d.indices:(d&&d.data?d.data.diff:[]);

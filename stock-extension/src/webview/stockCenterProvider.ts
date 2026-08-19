@@ -321,11 +321,16 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
   }
 
   private normCode(code: string): string {
-    const c = String(code || '').trim().toLowerCase().replace(/^(sh|sz|bj)/, '');
-    if (/^(60|68|90|11|13|50|56|51|58)/.test(c)) return `sh${c}`;
-    if (/^(00|30|20|12|15|16|18|159)/.test(c)) return `sz${c}`;
-    if (/^(43|83|87|92|88)/.test(c)) return `bj${c}`;
-    return `sh${c}`;
+    const c = String(code || '').trim().toLowerCase();
+    // 期货代码：f_ 前缀直接返回
+    if (c.startsWith('f_')) return c;
+    const noPrefix = c.replace(/^(sh|sz|bj)/, '');
+    if (/^(60|68|90|11|13|50|56|51|58)/.test(noPrefix)) return `sh${noPrefix}`;
+    if (/^(00|30|20|12|15|16|18|159)/.test(noPrefix)) return `sz${noPrefix}`;
+    if (/^(43|83|87|92|88)/.test(noPrefix)) return `bj${noPrefix}`;
+    // 期货代码：字母开头且非 sh/sz/bj（如 ao2609、IF2608）
+    if (/^[a-z]/.test(noPrefix)) return 'f_' + noPrefix;
+    return `sh${noPrefix}`;
   }
 
   private async addWatch(code: string): Promise<void> {

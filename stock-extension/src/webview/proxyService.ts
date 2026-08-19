@@ -266,40 +266,73 @@ export class ProxyService {
         const codes = targetUrl.startsWith('/api/market-overview')
           ? 'sh000001,sz399001,sz399006,sh000016,sh000688,sh000300,sz399005'
           : ((parsed.query.codes as string) || '');
-        const list = codes.split(',').filter(Boolean).map(toTencentCode).join(',');
-        if (!list) { this.json(res, 200, { data: { diff: [] } }); return; }
-        const text = await httpsGetText(`https://qt.gtimg.cn/q=${list}`, 'https://finance.qq.com/');
-        const diff = text.split('\n').filter((l) => l.trim()).map((line) => {
-          const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
-          if (!m) return null;
-          const p = m[2].split('~');
-          return {
-            f2: parseFloat(p[3]) || 0,
-            f3: parseFloat(p[32]) || 0,
-            f4: parseFloat(p[31]) || 0,
-            f5: (parseFloat(p[6]) || 0) * 100,
-            f6: (parseFloat(p[37]) || 0) * 10000,
-            f8: parseFloat(p[38]) || 0,
-            f12: toCleanCode(m[1]),
-            f14: p[1] || '',
-            f15: parseFloat(p[33]) || 0,
-            f16: parseFloat(p[34]) || 0,
-            f17: parseFloat(p[5]) || 0,
-            f18: parseFloat(p[4]) || 0,
-            f72: parseInt(p[72]) || 0,
-            // Buy/Sell 1-5
-            buy1: parseFloat(p[9]) || 0, buy1vol: parseInt(p[10]) || 0,
-            buy2: parseFloat(p[11]) || 0, buy2vol: parseInt(p[12]) || 0,
-            buy3: parseFloat(p[13]) || 0, buy3vol: parseInt(p[14]) || 0,
-            buy4: parseFloat(p[15]) || 0, buy4vol: parseInt(p[16]) || 0,
-            buy5: parseFloat(p[17]) || 0, buy5vol: parseInt(p[18]) || 0,
-            sell1: parseFloat(p[19]) || 0, sell1vol: parseInt(p[20]) || 0,
-            sell2: parseFloat(p[21]) || 0, sell2vol: parseInt(p[22]) || 0,
-            sell3: parseFloat(p[23]) || 0, sell3vol: parseInt(p[24]) || 0,
-            sell4: parseFloat(p[25]) || 0, sell4vol: parseInt(p[26]) || 0,
-            sell5: parseFloat(p[27]) || 0, sell5vol: parseInt(p[28]) || 0,
-          };
-        }).filter(Boolean);
+        const allCodes = codes.split(',').filter(Boolean);
+        const stockCodes: string[] = [];
+        const futuresRaw: string[] = [];
+        for (const c of allCodes) {
+          if (c.toLowerCase().startsWith('f_')) {
+            futuresRaw.push(c.replace(/^f_/i, ''));
+          } else {
+            stockCodes.push(c);
+          }
+        }
+        const diff: any[] = [];
+        // 股票：腾讯API
+        if (stockCodes.length) {
+          const list = stockCodes.map(toTencentCode).join(',');
+          const text = await httpsGetText(`https://qt.gtimg.cn/q=${list}`, 'https://finance.qq.com/');
+          const stockDiff = text.split('\n').filter((l) => l.trim()).map((line) => {
+            const m = line.match(/v_([a-z]{2}\d+)="(.*)"/);
+            if (!m) return null;
+            const p = m[2].split('~');
+            return {
+              f2: parseFloat(p[3]) || 0,
+              f3: parseFloat(p[32]) || 0,
+              f4: parseFloat(p[31]) || 0,
+              f5: (parseFloat(p[6]) || 0) * 100,
+              f6: (parseFloat(p[37]) || 0) * 10000,
+              f8: parseFloat(p[38]) || 0,
+              f12: toCleanCode(m[1]),
+              f14: p[1] || '',
+              f15: parseFloat(p[33]) || 0,
+              f16: parseFloat(p[34]) || 0,
+              f17: parseFloat(p[5]) || 0,
+              f18: parseFloat(p[4]) || 0,
+              f72: parseInt(p[72]) || 0,
+              buy1: parseFloat(p[9]) || 0, buy1vol: parseInt(p[10]) || 0,
+              buy2: parseFloat(p[11]) || 0, buy2vol: parseInt(p[12]) || 0,
+              buy3: parseFloat(p[13]) || 0, buy3vol: parseInt(p[14]) || 0,
+              buy4: parseFloat(p[15]) || 0, buy4vol: parseInt(p[16]) || 0,
+              buy5: parseFloat(p[17]) || 0, buy5vol: parseInt(p[18]) || 0,
+              sell1: parseFloat(p[19]) || 0, sell1vol: parseInt(p[20]) || 0,
+              sell2: parseFloat(p[21]) || 0, sell2vol: parseInt(p[22]) || 0,
+              sell3: parseFloat(p[23]) || 0, sell3vol: parseInt(p[24]) || 0,
+              sell4: parseFloat(p[25]) || 0, sell4vol: parseInt(p[26]) || 0,
+              sell5: parseFloat(p[27]) || 0, sell5vol: parseInt(p[28]) || 0,
+            };
+          }).filter(Boolean);
+          diff.push(...stockDiff);
+        }
+        // 期货：futsseapi批量获取
+        if (futuresRaw.length) {
+          try {
+            const token2 = '58b2fa8f54638b60b87d69b31969089c';
+            const r = await httpGetJson(`https://futsseapi.eastmoney.com/list/COMEX,NYMEX,COBOT,SGX,NYBOT,LME,MDEX,TOCOM,IPE,CFFEX,SHFE,DCE,CZCE,INE?orderBy=dm&sort=desc&pageSize=2000&pageIndex=0&token=${token2}&field=dm,sc,name,p,zsjd,zde,zdf,f152,o,h,l,zjsj,vol,wp,np,ccl&blockName=callback`);
+            const raw: any[] = r?.list || r || [];
+            for (const fc of futuresRaw) {
+              const item = raw.find((x: any) => String(x.dm || '') === fc);
+              if (item) {
+                diff.push({
+                  f2: item.p || 0, f3: item.zdf || 0, f4: item.zde || 0,
+                  f5: item.vol || 0, f6: item.np || 0, f8: 0,
+                  f12: fc, f14: item.name || '',
+                  f15: item.h || 0, f16: item.l || 0, f17: item.o || 0, f18: item.zjsj || 0,
+                  f7: 0, f9: 0, f20: 0, f21: 0, f23: 0, f127: '',
+                });
+              }
+            }
+          } catch {}
+        }
         this.json(res, 200, { data: { diff } });
         return;
       }
