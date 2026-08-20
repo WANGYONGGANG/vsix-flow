@@ -2469,7 +2469,7 @@ function drawIntraday(d){
   }
   _intradayTimer=setInterval(function(){
     if(_klPeriod==='intraday'&&_detailCode){
-      vscode.postMessage({type:'fetchKline',code:_detailCode,period:'intraday'});
+      vscode.postMessage({type:_isFutures?'fetchFuturesKline':'fetchKline',code:_detailCode,period:'intraday'});
     }
   },3000);
 }
