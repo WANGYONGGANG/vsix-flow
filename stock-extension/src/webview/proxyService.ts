@@ -46,6 +46,29 @@ function httpGetJson(fullUrl: string, referer?: string, timeout?: number): Promi
   });
 }
 
+function httpGetText(fullUrl: string, referer?: string, encoding?: string): Promise<string> {
+  let settled = false;
+  return new Promise((resolve) => {
+    const done = (val: string) => { if (!settled) { settled = true; resolve(val); } };
+    const headers: Record<string, string> = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
+    if (referer) headers['Referer'] = referer;
+    const mod = fullUrl.startsWith('https') ? https : http;
+    const req = mod.get(fullUrl, { headers }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c) => { chunks.push(c); });
+      res.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        try {
+          if (encoding === 'gbk' || encoding === 'gb18030') { done(gbDec.decode(buf)); }
+          else { done(new TextDecoder('utf-8').decode(buf)); }
+        } catch { done(buf.toString('utf-8')); }
+      });
+    });
+    req.on('error', () => done(''));
+    req.setTimeout(8000, () => { req.destroy(); done(''); });
+  });
+}
+
 function httpsGetText(fullUrl: string, referer: string, encoding?: string, method?: string, body?: string, contentType?: string): Promise<string> {
   let settled = false;
   return new Promise((resolve) => {
@@ -679,44 +702,96 @@ return;
         const limitRaw = parsed.query.limit;
         const limit = Number(Array.isArray(limitRaw) ? limitRaw[0] : (limitRaw || 320)) || 320;
         if (!rawCode) { this.json(res, 200, { data: { klines: [] } }); return; }
+        // 判断是否主力连续合约（rb0, au0, IF0 等：字母+0结尾）
+        const isMain = /^[a-z]+0$/i.test(rawCode);
         try {
-          let url = '';
-          let isJsonp = false;
-          if (period === '5m') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine5m?symbol=${rawCode}`;
-          } else if (period === '15m') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine15m?symbol=${rawCode}`;
-          } else if (period === '30m') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine30m?symbol=${rawCode}`;
-          } else if (period === '60m') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine60m?symbol=${rawCode}`;
-          } else if (period === 'intraday') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine1m?symbol=${rawCode}`;
-          } else {
-            url = `https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_${rawCode}=/InnerFuturesNewService.getDailyKLine?symbol=${rawCode}`;
-            isJsonp = true;
+          if (period === 'intraday') {
+            // 分时
+            let rows: string[] = [];
+            if (isMain) {
+              // IndexService.getInnerFuturesMinLine 返回 [price,price,0,volume,time]
+              const url = `http://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMinLine?symbol=${rawCode}`;
+              const r = await httpGetText(url);
+              try {
+                const arr: any[] = JSON.parse(r || '[]');
+                rows = arr.map((d: any[]) => `${d[4]||''},${d[0]||0},${d[3]||0},0`);
+              } catch {}
+            } else {
+              // InnerFuturesNewService.getMinLine 返回 [time,price,avg_price,volume,cum_vol,price2?,date?]
+              const url = `http://stock2.finance.sina.com.cn/futures/api/json.php/InnerFuturesNewService.getMinLine?symbol=${rawCode}`;
+              const r = await httpGetText(url);
+              try {
+                const arr: any[] = JSON.parse(r || '[]');
+                rows = arr.map((d: any[]) => `${d[0]||''},${d[1]||0},${d[4]||d[3]||0},0`);
+              } catch {}
+            }
+            this.json(res, 200, { data: { klines: rows } });
+            return;
           }
-          const r = await httpsGetText(url, 'https://finance.sina.com.cn/', 'utf8');
-          let arr: any[] = [];
-          if (isJsonp) {
+          if (period === '5m' || period === '15m' || period === '30m' || period === '60m') {
+            // 分钟K线
+            let rows: string[] = [];
+            if (isMain) {
+              // IndexService 直接返回分钟K线数组
+              const method = `getInnerFuturesMiniKLine${period}`;
+              const url = `http://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.${method}?symbol=${rawCode}`;
+              const r = await httpGetText(url);
+              try {
+                const arr: any[] = JSON.parse(r || '[]');
+                rows = arr.map((d: any[]) => `${d[0]||''},${d[1]||0},${d[2]||0},${d[3]||0},${d[4]||0},${d[5]||0}`);
+              } catch {}
+            } else {
+              // 具体合约：用InnerFuturesNewService.getMinLine获取分时数据，再聚合
+              const url = `http://stock2.finance.sina.com.cn/futures/api/json.php/InnerFuturesNewService.getMinLine?symbol=${rawCode}`;
+              const r = await httpGetText(url);
+              try {
+                const arr: any[] = JSON.parse(r || '[]');
+                const mins = period === '5m' ? 5 : period === '15m' ? 15 : period === '30m' ? 30 : 60;
+                const buckets: any[][] = [];
+                let cur: any[] = [];
+                for (const d of arr) {
+                  const time = String(d[0] || '');
+                  const price = Number(d[1] || 0);
+                  const vol = Number(d[3] || 0);
+                  const [hh, mm] = time.split(':').map(Number);
+                  const slot = Math.floor((hh * 60 + (mm || 0)) / mins);
+                  if (!cur.length || cur[7] !== slot) {
+                    if (cur.length) buckets.push(cur);
+                    cur = [slot, time, price, price, price, price, vol, slot];
+                  } else {
+                    cur[3] = Math.max(cur[3], price);
+                    cur[4] = Math.min(cur[4], price);
+                    cur[5] = price;
+                    cur[6] += vol;
+                  }
+                }
+                if (cur.length) buckets.push(cur);
+                rows = buckets.map(b => `${b[1]},${b[2]},${b[5]},${b[3]},${b[4]},${b[6]}`);
+              } catch {}
+            }
+            this.json(res, 200, { data: { klines: rows.slice(-limit) } });
+            return;
+          }
+          // 日K/周K/月K
+          let rows: string[] = [];
+          if (isMain) {
+            const url = `http://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesDailyKLine?symbol=${rawCode}`;
+            const r = await httpGetText(url);
+            try {
+              const arr: any[] = JSON.parse(r || '[]');
+              rows = arr.map((d: any[]) => `${d[0]||''},${d[1]||0},${d[4]||0},${d[2]||0},${d[3]||0},${d[5]||0}`);
+            } catch {}
+          } else {
+            // InnerFuturesNewService.getDailyKLine 返回JSONP对象 [{d,o,h,l,c,v,...}]
+            const url = `http://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_${rawCode}=/InnerFuturesNewService.getDailyKLine?symbol=${rawCode}`;
+            const r = await httpsGetText(url, 'https://finance.sina.com.cn/', 'utf8');
             const match = (r || '').match(/\[[\s\S]*\]/);
-            if (match) arr = JSON.parse(match[0]);
-          } else {
-            try { arr = JSON.parse(r || '[]'); } catch { arr = []; }
-          }
-          // 分钟级接口：具体合约可能无数据，降级到连续合约（rb2510→rb0）
-          if (!arr.length && !isJsonp && rawCode !== rawCode.replace(/\d+$/, '0')) {
-            const contCode = rawCode.replace(/\d+$/, '0');
-            const r2 = await httpsGetText(url.replace(`symbol=${rawCode}`, `symbol=${contCode}`), 'https://finance.sina.com.cn/', 'utf8');
-            try { arr = JSON.parse(r2 || '[]'); } catch { arr = []; }
-          }
-          if (!arr.length) { this.json(res, 200, { data: { klines: [] } }); return; }
-          // 日K是对象数组 [{d,o,h,l,c,v,...}]，分钟K是数组 [["date","o","c","h","l","v"]]
-          let rows: string[];
-          if (arr.length && Array.isArray(arr[0])) {
-            rows = arr.map((d: any[]) => `${d[0]||''},${d[1]||0},${d[2]||0},${d[3]||0},${d[4]||0},${d[5]||0}`);
-          } else {
-            rows = arr.map((d: any) => `${d.d||''},${d.o||0},${d.c||0},${d.h||0},${d.l||0},${d.v||0}`);
+            if (match) {
+              try {
+                const arr: any[] = JSON.parse(match[0]);
+                rows = arr.map((d: any) => `${d.d||''},${d.o||0},${d.c||0},${d.h||0},${d.l||0},${d.v||0}`);
+              } catch {}
+            }
           }
           let result = rows;
           if (period === 'week') {
@@ -728,10 +803,10 @@ return;
               if (!buckets[wk]) buckets[wk] = [];
               buckets[wk].push(r);
             }
-            result = Object.values(buckets).map((arr) => {
-              const first = arr[0].split(','); const last = arr[arr.length - 1].split(',');
+            result = Object.values(buckets).map((a) => {
+              const first = a[0].split(','); const last = a[a.length - 1].split(',');
               let hi = -Infinity, lo = Infinity, vol = 0;
-              for (const s of arr) { const p = s.split(','); const h = +p[3], l = +p[4], v = +p[5]; if (h > hi) hi = h; if (l < lo) lo = l; vol += v; }
+              for (const s of a) { const p = s.split(','); const h = +p[3], l = +p[4], v = +p[5]; if (h > hi) hi = h; if (l < lo) lo = l; vol += v; }
               return `${first[0]},${first[1]},${last[2]},${hi},${lo},${vol}`;
             });
           } else if (period === 'month') {
@@ -741,10 +816,10 @@ return;
               if (!buckets[dt]) buckets[dt] = [];
               buckets[dt].push(r);
             }
-            result = Object.values(buckets).map((arr) => {
-              const first = arr[0].split(','); const last = arr[arr.length - 1].split(',');
+            result = Object.values(buckets).map((a) => {
+              const first = a[0].split(','); const last = a[a.length - 1].split(',');
               let hi = -Infinity, lo = Infinity, vol = 0;
-              for (const s of arr) { const p = s.split(','); const h = +p[3], l = +p[4], v = +p[5]; if (h > hi) hi = h; if (l < lo) lo = l; vol += v; }
+              for (const s of a) { const p = s.split(','); const h = +p[3], l = +p[4], v = +p[5]; if (h > hi) hi = h; if (l < lo) lo = l; vol += v; }
               return `${first[0]},${first[1]},${last[2]},${hi},${lo},${vol}`;
             });
           }

@@ -18,12 +18,58 @@ export class StatusBarManager {
 
   constructor(openDetailFn: OpenDetailFn) {
     this._openDetailFn = openDetailFn;
-    this._codes = vscode.workspace.getConfiguration('stock-ext').get<string[]>('statusBarStock') || [];
+    const cfg = vscode.workspace.getConfiguration('stock-ext');
+    const raw: string[] = cfg.get<string[]>('statusBarStock') || [];
+    // 迁移：旧bug把sh000001变成sz000001，统一用normCode修正
+    const fixed = raw.map(c => this.fixOldBugCode(c));
+    this._codes = fixed;
+    if (JSON.stringify(fixed) !== JSON.stringify(raw)) {
+      cfg.update('statusBarStock', fixed, vscode.ConfigurationTarget.Global);
+    }
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('stock-ext.statusBarStock')) {
         this._codes = vscode.workspace.getConfiguration('stock-ext').get<string[]>('statusBarStock') || [];
       }
     });
+  }
+
+  private fixOldBugCode(code: string): string {
+    const c = code.toLowerCase();
+    if (c.startsWith('f_')) return c;
+    if (/^(sh|sz|bj)\d/.test(c)) return c;
+    const noPrefix = c.replace(/^(sh|sz|bj)/, '');
+    if (/^(60|68|90|11|13|50|56|51|58)/.test(noPrefix)) return `sh${noPrefix}`;
+    if (/^(00|30|20|12|15|16|18|159)/.test(noPrefix)) return `sz${noPrefix}`;
+    if (/^(43|83|87|92|88)/.test(noPrefix)) return `bj${noPrefix}`;
+    if (/^[a-z]/.test(noPrefix)) return 'f_' + noPrefix;
+    return `sh${noPrefix}`;
+  }
+
+  /** 迁移旧bug: sz000001(sh000001被错误转换) → sh000001 */
+  static migrateConfig() {
+    const cfg = vscode.workspace.getConfiguration('stock-ext');
+    // 修复statusBarStock
+    const sb: string[] = cfg.get<string[]>('statusBarStock') || [];
+    const fixedSb = sb.map(c => c === 'sz000001' ? 'sh000001' : c);
+    if (JSON.stringify(fixedSb) !== JSON.stringify(sb)) {
+      cfg.update('statusBarStock', fixedSb, vscode.ConfigurationTarget.Global);
+    }
+    // 修复stockPortfolio.groups.codes
+    const portfolio: any = cfg.get('stockPortfolio') || {};
+    if (portfolio?.groups) {
+      let changed = false;
+      for (const g of portfolio.groups) {
+        if (g?.codes) {
+          g.codes = g.codes.map((c: string) => {
+            if (c === 'sz000001') { changed = true; return 'sh000001'; }
+            return c;
+          });
+        }
+      }
+      if (changed) {
+        cfg.update('stockPortfolio', portfolio, vscode.ConfigurationTarget.Global);
+      }
+    }
   }
 
   start(context: vscode.ExtensionContext) {

@@ -15,6 +15,8 @@ export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel('Stock Center');
   output.appendLine('Stock Center activated');
 
+  StatusBarManager.migrateConfig();
+
   const proxyService = new ProxyService(19101);
   proxyService.start().then((port) => {
     setProxyPort(port);
