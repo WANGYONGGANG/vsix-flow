@@ -1622,7 +1622,7 @@ function renderStockDetail(s){
       if(_intradayTimer){clearInterval(_intradayTimer);_intradayTimer=null}
       if(_isFutures){
         setSideTab('book');
-        vscode.postMessage({type:'fetchFuturesKline',code:s.code,period:_klPeriod==='intraday'?'day':_klPeriod});
+        vscode.postMessage({type:'fetchFuturesKline',code:s.code,period:_klPeriod});
       }else if(_klPeriod==='chips'){
         setSideTab('chips');
         if(_chipsData)renderChips(_chipsData);

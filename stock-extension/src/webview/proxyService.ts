@@ -540,7 +540,16 @@ export class ProxyService {
           const raw = sugJson?.QuotationCodeTable?.Data || [];
           list = raw
             .filter((x: any) => x.SecurityTypeName === '沪A' || x.SecurityTypeName === '深A' || x.SecurityTypeName === '京A' || x.SecurityTypeName === '北A' || x.SecurityTypeName === '沪深A股' || x.SecurityTypeName === '上证指数' || x.SecurityTypeName === '深证指数' || x.SecurityTypeName === '指数' || x.SecurityTypeName === '板块')
-            .map((x: any) => ({ code: String(x.Code || ''), name: x.Name || '', marketType: x.MarketType }));
+            .map((x: any) => {
+              const code = String(x.Code || '');
+              const mkt = x.MarketType;
+              let prefix = '';
+              if (mkt === 1 || mkt === '1' || /^(60|68|90|11|13|50|56|51|58)/.test(code)) prefix = 'sh';
+              else if (mkt === 0 || mkt === '0' || /^(00|30|20|12|15|16|18|159)/.test(code)) prefix = 'sz';
+              else if (mkt === 9 || mkt === '9' || /^(43|83|87|92|88)/.test(code)) prefix = 'bj';
+              else prefix = 'sh';
+              return { code: prefix + code, name: x.Name || '', marketType: x.MarketType };
+            });
         } catch {}
         // 方案2: 腾讯搜索回退
         if (!list.length) {
@@ -555,11 +564,8 @@ export class ProxyService {
                 if (parts.length < 3) continue;
                 const tc = parts[1] || ''; const tn = parts[2] || '';
                 if (!tc || !tn) continue;
-                let code = '';
-                if (/^sh\d/.test(tc)) code = tc.substring(2);
-                else if (/^sz\d/.test(tc)) code = tc.substring(2);
-                else code = tc;
-                list.push({ code, name: tn, marketType: tc.startsWith('sh') ? '1' : tc.startsWith('sz') ? '0' : '' });
+                // tc 格式: sh000001, sz000001 等，保留完整代码
+                list.push({ code: tc, name: tn, marketType: tc.startsWith('sh') ? '1' : tc.startsWith('sz') ? '0' : '' });
               }
             }
           } catch {}
@@ -673,15 +679,21 @@ return;
         const limitRaw = parsed.query.limit;
         const limit = Number(Array.isArray(limitRaw) ? limitRaw[0] : (limitRaw || 320)) || 320;
         if (!code) { this.json(res, 200, { data: { klines: [] } }); return; }
-        // 期货用新浪API
+        // 期货用新浪API，不同周期用不同接口
         try {
-          const url = `https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_${code}=/InnerFuturesNewService.getDailyKLine?symbol=${code}`;
+          let apiMethod = 'getDailyKLine';
+          if (period === '5m') apiMethod = 'getInnerFuturesMiniKLine5m';
+          else if (period === '15m') apiMethod = 'getInnerFuturesMiniKLine15m';
+          else if (period === '30m') apiMethod = 'getInnerFuturesMiniKLine30m';
+          else if (period === '60m') apiMethod = 'getInnerFuturesMiniKLine60m';
+          else if (period === 'intraday') apiMethod = 'getInnerFuturesMiniKLine1m';
+          const url = `https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_${code}=/InnerFuturesNewService.${apiMethod}?symbol=${code}`;
           const r = await httpsGetText(url, 'https://finance.sina.com.cn/', 'utf8');
           const match = (r || '').match(/\[[\s\S]*\]/);
           if (!match) { this.json(res, 200, { data: { klines: [] } }); return; }
           const arr: any[] = JSON.parse(match[0]);
           const rows: string[] = arr.map((d: any) => `${d.d || ''},${d.o || 0},${d.c || 0},${d.h || 0},${d.l || 0},${d.v || 0}`);
-          // 周/月K线聚合
+          // 日K时周/月聚合
           let result = rows;
           if (period === 'week') {
             const buckets: Record<string, string[]> = {};
