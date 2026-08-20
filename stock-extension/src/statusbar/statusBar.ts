@@ -18,17 +18,10 @@ export class StatusBarManager {
 
   constructor(openDetailFn: OpenDetailFn) {
     this._openDetailFn = openDetailFn;
-    const cfg = vscode.workspace.getConfiguration('stock-ext');
-    const raw: string[] = cfg.get<string[]>('statusBarStock') || [];
-    // 迁移：旧bug把sh000001变成sz000001，统一用normCode修正
-    const fixed = raw.map(c => this.fixOldBugCode(c));
-    this._codes = fixed;
-    if (JSON.stringify(fixed) !== JSON.stringify(raw)) {
-      cfg.update('statusBarStock', fixed, vscode.ConfigurationTarget.Global);
-    }
+    this._codes = this.readCodes();
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('stock-ext.statusBarStock')) {
-        this._codes = vscode.workspace.getConfiguration('stock-ext').get<string[]>('statusBarStock') || [];
+        this._codes = this.readCodes();
       }
     });
   }
@@ -71,6 +64,13 @@ export class StatusBarManager {
     if (pfChanged) {
       await cfg.update('stockPortfolio', portfolio, vscode.ConfigurationTarget.Global);
     }
+  }
+
+  /** 从config读取codes时，统一修正旧bug */
+  private readCodes(): string[] {
+    const cfg = vscode.workspace.getConfiguration('stock-ext');
+    const list: string[] = cfg.get<string[]>('statusBarStock') || [];
+    return list.map(c => c.toLowerCase() === 'sz000001' ? 'sh000001' : c);
   }
 
   start(context: vscode.ExtensionContext) {

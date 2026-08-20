@@ -412,14 +412,11 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     const config = vscode.workspace.getConfiguration('stock-ext');
     const list: string[] = config.get('statusBarStock') || ['sh000001'];
     const norm = this.normCode(code);
-    // 也尝试去掉前缀后的纯数字匹配，防止sz000001/sh000001不一致
     const raw = code.replace(/^(sh|sz|bj)/, '');
-    const idx = list.findIndex(c => {
-      if (this.normCode(c) === norm) return true;
-      if (c.replace(/^(sh|sz|bj)/, '') === raw) return true;
-      return false;
-    });
+    // 用纯数字匹配，兼容旧的sz000001和新的sh000001
+    const idx = list.findIndex(c => c.replace(/^(sh|sz|bj)/, '') === raw || this.normCode(c) === norm);
     if (idx >= 0) {
+      // 删除时也修正旧的错误代码
       list.splice(idx, 1);
     } else {
       list.push(norm);

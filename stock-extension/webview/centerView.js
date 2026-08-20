@@ -1250,6 +1250,7 @@ var _wlDragIdx=null;
 function prefixCode(code){
   var c=String(code||'').trim().toLowerCase();
   if(c.startsWith('f_'))return c;
+  if(/^(sh|sz|bj)\d/.test(c))return c;
   var noPrefix=c.replace(/^(sh|sz|bj)/,'');
   if(/^(60|68|90|11|13|50|56|51|58)/.test(noPrefix))return 'sh'+noPrefix;
   if(/^(00|30|20|12|15|16|18|159)/.test(noPrefix))return 'sz'+noPrefix;
