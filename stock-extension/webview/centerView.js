@@ -1250,7 +1250,6 @@ var _wlDragIdx=null;
 function prefixCode(code){
   var c=String(code||'').trim().toLowerCase();
   if(c.startsWith('f_'))return c;
-  if(/^(sh|sz|bj)\d/.test(c))return c;
   var noPrefix=c.replace(/^(sh|sz|bj)/,'');
   if(/^(60|68|90|11|13|50|56|51|58)/.test(noPrefix))return 'sh'+noPrefix;
   if(/^(00|30|20|12|15|16|18|159)/.test(noPrefix))return 'sz'+noPrefix;
@@ -2396,10 +2395,14 @@ function drawIntraday(d){
   if(!minutes.length){ctx.fillStyle='#666';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('暂无分时数据',W/2,mainH/2);return}
   function timeToMin(t){
     var h=Number(t.slice(0,2)),m=Number(t.slice(2,4));
-    if(h<9||(h===9&&m<30))return 0;
+    if(isNaN(h)||isNaN(m))return 0;
+    // 期货夜盘: 21:00-23:00 → 映射到负数区域
+    if(h>=21)return (h-21)*60+m-240;
+    // 期货白天: 09:00-11:30, 13:30-15:00
     if(h>=13)return(h-13)*60+m+120;
     if(h>=11&&m>30)return 120;
-    return(h-9)*60+m-30;
+    if(h>=9)return(h-9)*60+m;
+    return 0;
   }
   function minToClock(m){
     if(m>=120){

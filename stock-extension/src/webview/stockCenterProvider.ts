@@ -412,7 +412,13 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     const config = vscode.workspace.getConfiguration('stock-ext');
     const list: string[] = config.get('statusBarStock') || ['sh000001'];
     const norm = this.normCode(code);
-    const idx = list.findIndex(c => this.normCode(c) === norm);
+    // 也尝试去掉前缀后的纯数字匹配，防止sz000001/sh000001不一致
+    const raw = code.replace(/^(sh|sz|bj)/, '');
+    const idx = list.findIndex(c => {
+      if (this.normCode(c) === norm) return true;
+      if (c.replace(/^(sh|sz|bj)/, '') === raw) return true;
+      return false;
+    });
     if (idx >= 0) {
       list.splice(idx, 1);
     } else {

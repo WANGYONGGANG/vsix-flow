@@ -722,7 +722,10 @@ return;
               const r = await httpGetText(url);
               try {
                 const arr: any[] = JSON.parse(r || '[]');
-                rows = arr.map((d: any[]) => `${d[0]||''},${d[1]||0},${d[4]||d[3]||0},0`);
+                rows = arr.map((d: any[]) => {
+                  const t = String(d[0]||'').replace(':',''); // HH:MM → HHMM
+                  return `${t},${d[1]||0},${d[4]||d[3]||0},0`;
+                });
               } catch {}
             }
             this.json(res, 200, { data: { klines: rows } });
