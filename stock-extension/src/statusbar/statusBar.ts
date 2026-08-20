@@ -46,29 +46,30 @@ export class StatusBarManager {
   }
 
   /** 迁移旧bug: sz000001(sh000001被错误转换) → sh000001 */
-  static migrateConfig() {
+  static async migrateConfig() {
     const cfg = vscode.workspace.getConfiguration('stock-ext');
+    let changed = false;
     // 修复statusBarStock
     const sb: string[] = cfg.get<string[]>('statusBarStock') || [];
-    const fixedSb = sb.map(c => c.toLowerCase() === 'sz000001' ? 'sh000001' : c);
-    if (JSON.stringify(fixedSb) !== JSON.stringify(sb)) {
-      cfg.update('statusBarStock', fixedSb, vscode.ConfigurationTarget.Global);
+    const fixedSb = sb.map(c => { if (c.toLowerCase() === 'sz000001') { changed = true; return 'sh000001'; } return c; });
+    if (changed) {
+      await cfg.update('statusBarStock', fixedSb, vscode.ConfigurationTarget.Global);
     }
     // 修复stockPortfolio.groups.codes
     const portfolio: any = cfg.get('stockPortfolio') || {};
+    let pfChanged = false;
     if (portfolio?.groups) {
-      let changed = false;
       for (const g of portfolio.groups) {
         if (g?.codes) {
           g.codes = g.codes.map((c: string) => {
-            if (c.toLowerCase() === 'sz000001') { changed = true; return 'sh000001'; }
+            if (c.toLowerCase() === 'sz000001') { pfChanged = true; return 'sh000001'; }
             return c;
           });
         }
       }
-      if (changed) {
-        cfg.update('stockPortfolio', portfolio, vscode.ConfigurationTarget.Global);
-      }
+    }
+    if (pfChanged) {
+      await cfg.update('stockPortfolio', portfolio, vscode.ConfigurationTarget.Global);
     }
   }
 
