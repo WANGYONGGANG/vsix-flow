@@ -531,13 +531,39 @@ export class ProxyService {
       if (targetUrl.startsWith('/api/search')) {
         const kw = String(parsed.query.kw || '').trim();
         if (!kw) { this.json(res, 200, { data: { list: [] } }); return; }
-        const sug = await httpsGetText(`https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=14&token=D43BF722C8E33BDC906FB84D85E326E8&count=10`, 'https://quote.eastmoney.com/', 'utf8');
-        let sugJson: any = null;
-        try { sugJson = JSON.parse(sug); } catch {}
-        const raw = sugJson?.QuotationCodeTable?.Data || [];
-        const list = raw
-          .filter((x: any) => x.SecurityTypeName === '沪A' || x.SecurityTypeName === '深A' || x.SecurityTypeName === '京A' || x.SecurityTypeName === '北A' || x.SecurityTypeName === '沪深A股')
-          .map((x: any) => ({ code: String(x.Code || ''), name: x.Name || '', marketType: x.MarketType }));
+        // 方案1: 东方财富 suggest API
+        let list: any[] = [];
+        try {
+          const sug = await httpsGetText(`https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(kw)}&type=14&token=D43BF722C8E33BDC906FB84D85E326E8&count=10`, 'https://quote.eastmoney.com/', 'utf8');
+          let sugJson: any = null;
+          try { sugJson = JSON.parse(sug); } catch {}
+          const raw = sugJson?.QuotationCodeTable?.Data || [];
+          list = raw
+            .filter((x: any) => x.SecurityTypeName === '沪A' || x.SecurityTypeName === '深A' || x.SecurityTypeName === '京A' || x.SecurityTypeName === '北A' || x.SecurityTypeName === '沪深A股' || x.SecurityTypeName === '上证指数' || x.SecurityTypeName === '深证指数' || x.SecurityTypeName === '指数' || x.SecurityTypeName === '板块')
+            .map((x: any) => ({ code: String(x.Code || ''), name: x.Name || '', marketType: x.MarketType }));
+        } catch {}
+        // 方案2: 腾讯搜索回退
+        if (!list.length) {
+          try {
+            const tUrl = `https://smartbox.gtimg.cn/s3/?v=2&q=${encodeURIComponent(kw)}&t=all&c=1`;
+            const tText = await httpsGetText(tUrl, 'https://finance.qq.com/', 'utf8');
+            const tMatch = (tText || '').match(/v_hint="([^"]*)"/);
+            if (tMatch && tMatch[1]) {
+              const items = tMatch[1].split('^');
+              for (const item of items) {
+                const parts = item.split('~');
+                if (parts.length < 3) continue;
+                const tc = parts[1] || ''; const tn = parts[2] || '';
+                if (!tc || !tn) continue;
+                let code = '';
+                if (/^sh\d/.test(tc)) code = tc.substring(2);
+                else if (/^sz\d/.test(tc)) code = tc.substring(2);
+                else code = tc;
+                list.push({ code, name: tn, marketType: tc.startsWith('sh') ? '1' : tc.startsWith('sz') ? '0' : '' });
+              }
+            }
+          } catch {}
+        }
         this.json(res, 200, { data: { list } });
         return;
       }

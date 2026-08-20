@@ -415,7 +415,6 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
     } else {
       list.push(code);
     }
-    if (!list.length) list.push('sh000001');
     await config.update('statusBarStock', list, vscode.ConfigurationTarget.Global);
   }
 
