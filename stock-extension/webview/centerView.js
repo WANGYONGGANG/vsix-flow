@@ -2926,10 +2926,11 @@ window.addEventListener('message',function(e){
     vscode.postMessage({type:'switchTab',tab:'watchlist'});
   }else if(msg.type==='klineData'&&msg.code===_detailCode){
     if(msg.period==='chips'){_chipsData=msg.data||[];setSideTab('chips');try{getFloatShares();}catch(e){}renderChips(msg.data||[]);}
-    else if(_isFutures&&_klPeriod==='intraday'&&msg.data&&msg.data.length){
+    else if(_isFutures&&_klPeriod==='intraday'&&msg.period==='intraday'&&msg.data&&msg.data.length){
       drawIntraday({minutes:msg.data,preClose:Number(msg.data[0].split(',')[1]||0)});
     }
-    else drawKline(msg.data||[]);
+    else if(_isFutures&&_klPeriod!=='intraday'&&msg.period!=='intraday'){drawKline(msg.data||[]);}
+    else if(!_isFutures){drawKline(msg.data||[]);}
   }else if(msg.type==='intradayData'&&msg.code===_detailCode){
     drawIntraday(msg.data||{});
   }else if(msg.type==='stockNewsData'&&msg.code===_detailCode){
