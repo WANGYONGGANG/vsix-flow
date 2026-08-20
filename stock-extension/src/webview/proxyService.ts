@@ -673,29 +673,27 @@ return;
       }
 
       if (targetUrl.startsWith('/api/futures-kline')) {
-        const code = String(parsed.query.code || '').replace(/^f_/i, '');
+        const rawCode = String(parsed.query.code || '').replace(/^f_/i, '');
         const periodRaw = parsed.query.period;
         const period = Array.isArray(periodRaw) ? periodRaw[0] : (periodRaw || 'day');
         const limitRaw = parsed.query.limit;
         const limit = Number(Array.isArray(limitRaw) ? limitRaw[0] : (limitRaw || 320)) || 320;
-        if (!code) { this.json(res, 200, { data: { klines: [] } }); return; }
-        // 期货用新浪API，不同周期用不同接口
+        if (!rawCode) { this.json(res, 200, { data: { klines: [] } }); return; }
         try {
           let url = '';
           let isJsonp = false;
           if (period === '5m') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine5m?symbol=${code}`;
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine5m?symbol=${rawCode}`;
           } else if (period === '15m') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine15m?symbol=${code}`;
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine15m?symbol=${rawCode}`;
           } else if (period === '30m') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine30m?symbol=${code}`;
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine30m?symbol=${rawCode}`;
           } else if (period === '60m') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine60m?symbol=${code}`;
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine60m?symbol=${rawCode}`;
           } else if (period === 'intraday') {
-            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine1m?symbol=${code}`;
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine1m?symbol=${rawCode}`;
           } else {
-            // 日K/周K/月K 用 JSONP 接口
-            url = `https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_${code}=/InnerFuturesNewService.getDailyKLine?symbol=${code}`;
+            url = `https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_${rawCode}=/InnerFuturesNewService.getDailyKLine?symbol=${rawCode}`;
             isJsonp = true;
           }
           const r = await httpsGetText(url, 'https://finance.sina.com.cn/', 'utf8');
@@ -704,12 +702,22 @@ return;
             const match = (r || '').match(/\[[\s\S]*\]/);
             if (match) arr = JSON.parse(match[0]);
           } else {
-            // 分钟级接口直接返回 JSON 数组
             try { arr = JSON.parse(r || '[]'); } catch { arr = []; }
           }
+          // 分钟级接口：具体合约可能无数据，降级到连续合约（rb2510→rb0）
+          if (!arr.length && !isJsonp && rawCode !== rawCode.replace(/\d+$/, '0')) {
+            const contCode = rawCode.replace(/\d+$/, '0');
+            const r2 = await httpsGetText(url.replace(`symbol=${rawCode}`, `symbol=${contCode}`), 'https://finance.sina.com.cn/', 'utf8');
+            try { arr = JSON.parse(r2 || '[]'); } catch { arr = []; }
+          }
           if (!arr.length) { this.json(res, 200, { data: { klines: [] } }); return; }
-          const rows: string[] = arr.map((d: any) => `${d.d || d.date || ''},${d.o || d.open || 0},${d.c || d.close || 0},${d.h || d.high || 0},${d.l || d.low || 0},${d.v || d.volume || 0}`);
-          // 周/月K线聚合（仅日K接口走这里）
+          // 日K是对象数组 [{d,o,h,l,c,v,...}]，分钟K是数组 [["date","o","c","h","l","v"]]
+          let rows: string[];
+          if (arr.length && Array.isArray(arr[0])) {
+            rows = arr.map((d: any[]) => `${d[0]||''},${d[1]||0},${d[2]||0},${d[3]||0},${d[4]||0},${d[5]||0}`);
+          } else {
+            rows = arr.map((d: any) => `${d.d||''},${d.o||0},${d.c||0},${d.h||0},${d.l||0},${d.v||0}`);
+          }
           let result = rows;
           if (period === 'week') {
             const buckets: Record<string, string[]> = {};
