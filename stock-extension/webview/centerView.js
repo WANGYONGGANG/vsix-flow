@@ -960,11 +960,6 @@ document.addEventListener('click',function(e){
     return;
   }
 });
-function openStockDetail(code,name){
-  _detailCode=code;_detailName=name;_detailTab='news';
-  renderStockDetail({code:code,name:name,price:0,changeRate:0,open:0,preClose:0,high:0,low:0,volume:0,amount:0,turnover:0});
-}
-
 var _marketCache={};
 function renderMarket(d){
   var list=d.diff||d.indices||d;if(!list||!list.length){$('#content').innerHTML='<div class="loading">暂无数据</div>';return}
@@ -1734,7 +1729,7 @@ function renderDetailFundFlow(){
   el.innerHTML=html;
 }
 
-var _detailCode='';var _detailName='';var _detailTab='news';var _klPeriod='intraday';
+var _detailCode='';var _detailName='';var _detailTab='news';var _klPeriod='intraday';var _isFutures=false;
 var _floatShares=0;
 var _lastQuote=null;
 var _chipsData=null;
