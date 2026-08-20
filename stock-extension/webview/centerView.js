@@ -1602,9 +1602,9 @@ function renderStockDetail(s){
     _klPeriod='day';
   }else{
     vscode.postMessage({type:'fetchKline',code:s.code,period:'intraday'});
-    vscode.postMessage({type:'fetchStockNews',code:s.code});
-    vscode.postMessage({type:'fetchFundFlow',code:s.code});
   }
+  vscode.postMessage({type:'fetchStockNews',code:s.code});
+  vscode.postMessage({type:'fetchFundFlow',code:s.code});
   if(_quoteTimer){clearInterval(_quoteTimer);_quoteTimer=null}
   _quoteTimer=setInterval(function(){
     if(_detailCode)vscode.postMessage({type:_isFutures?'fetchFuturesQuote':'fetchQuote',code:_detailCode});

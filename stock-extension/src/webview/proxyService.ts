@@ -681,19 +681,35 @@ return;
         if (!code) { this.json(res, 200, { data: { klines: [] } }); return; }
         // 期货用新浪API，不同周期用不同接口
         try {
-          let apiMethod = 'getDailyKLine';
-          if (period === '5m') apiMethod = 'getInnerFuturesMiniKLine5m';
-          else if (period === '15m') apiMethod = 'getInnerFuturesMiniKLine15m';
-          else if (period === '30m') apiMethod = 'getInnerFuturesMiniKLine30m';
-          else if (period === '60m') apiMethod = 'getInnerFuturesMiniKLine60m';
-          else if (period === 'intraday') apiMethod = 'getInnerFuturesMiniKLine1m';
-          const url = `https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_${code}=/InnerFuturesNewService.${apiMethod}?symbol=${code}`;
+          let url = '';
+          let isJsonp = false;
+          if (period === '5m') {
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine5m?symbol=${code}`;
+          } else if (period === '15m') {
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine15m?symbol=${code}`;
+          } else if (period === '30m') {
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine30m?symbol=${code}`;
+          } else if (period === '60m') {
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine60m?symbol=${code}`;
+          } else if (period === 'intraday') {
+            url = `https://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMiniKLine1m?symbol=${code}`;
+          } else {
+            // 日K/周K/月K 用 JSONP 接口
+            url = `https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_${code}=/InnerFuturesNewService.getDailyKLine?symbol=${code}`;
+            isJsonp = true;
+          }
           const r = await httpsGetText(url, 'https://finance.sina.com.cn/', 'utf8');
-          const match = (r || '').match(/\[[\s\S]*\]/);
-          if (!match) { this.json(res, 200, { data: { klines: [] } }); return; }
-          const arr: any[] = JSON.parse(match[0]);
-          const rows: string[] = arr.map((d: any) => `${d.d || ''},${d.o || 0},${d.c || 0},${d.h || 0},${d.l || 0},${d.v || 0}`);
-          // 日K时周/月聚合
+          let arr: any[] = [];
+          if (isJsonp) {
+            const match = (r || '').match(/\[[\s\S]*\]/);
+            if (match) arr = JSON.parse(match[0]);
+          } else {
+            // 分钟级接口直接返回 JSON 数组
+            try { arr = JSON.parse(r || '[]'); } catch { arr = []; }
+          }
+          if (!arr.length) { this.json(res, 200, { data: { klines: [] } }); return; }
+          const rows: string[] = arr.map((d: any) => `${d.d || d.date || ''},${d.o || d.open || 0},${d.c || d.close || 0},${d.h || d.high || 0},${d.l || d.low || 0},${d.v || d.volume || 0}`);
+          // 周/月K线聚合（仅日K接口走这里）
           let result = rows;
           if (period === 'week') {
             const buckets: Record<string, string[]> = {};
