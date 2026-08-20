@@ -784,7 +784,7 @@ return;
           } else {
             // InnerFuturesNewService.getDailyKLine 返回JSONP对象 [{d,o,h,l,c,v,...}]
             const url = `http://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20_${rawCode}=/InnerFuturesNewService.getDailyKLine?symbol=${rawCode}`;
-            const r = await httpsGetText(url, 'https://finance.sina.com.cn/', 'utf8');
+            const r = await httpGetText(url, 'https://finance.sina.com.cn/');
             const match = (r || '').match(/\[[\s\S]*\]/);
             if (match) {
               try {

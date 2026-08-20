@@ -50,7 +50,7 @@ export class StatusBarManager {
     const cfg = vscode.workspace.getConfiguration('stock-ext');
     // 修复statusBarStock
     const sb: string[] = cfg.get<string[]>('statusBarStock') || [];
-    const fixedSb = sb.map(c => c === 'sz000001' ? 'sh000001' : c);
+    const fixedSb = sb.map(c => c.toLowerCase() === 'sz000001' ? 'sh000001' : c);
     if (JSON.stringify(fixedSb) !== JSON.stringify(sb)) {
       cfg.update('statusBarStock', fixedSb, vscode.ConfigurationTarget.Global);
     }
@@ -61,7 +61,7 @@ export class StatusBarManager {
       for (const g of portfolio.groups) {
         if (g?.codes) {
           g.codes = g.codes.map((c: string) => {
-            if (c === 'sz000001') { changed = true; return 'sh000001'; }
+            if (c.toLowerCase() === 'sz000001') { changed = true; return 'sh000001'; }
             return c;
           });
         }

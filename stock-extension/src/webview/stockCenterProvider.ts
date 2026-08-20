@@ -411,11 +411,12 @@ export class StockCenterViewProvider implements vscode.WebviewViewProvider {
   private async toggleStatusBarStock(code: string): Promise<void> {
     const config = vscode.workspace.getConfiguration('stock-ext');
     const list: string[] = config.get('statusBarStock') || ['sh000001'];
-    const idx = list.indexOf(code);
+    const norm = this.normCode(code);
+    const idx = list.findIndex(c => this.normCode(c) === norm);
     if (idx >= 0) {
       list.splice(idx, 1);
     } else {
-      list.push(code);
+      list.push(norm);
     }
     await config.update('statusBarStock', list, vscode.ConfigurationTarget.Global);
   }
