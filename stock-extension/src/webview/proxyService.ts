@@ -709,22 +709,33 @@ return;
             // 分时
             let rows: string[] = [];
             if (isMain) {
-              // IndexService.getInnerFuturesMinLine 返回 [price,price,0,volume,time]
+              // IndexService.getInnerFuturesMinLine 返回 [price,price,0,cumulative_volume,time]
               const url = `http://stock2.finance.sina.com.cn/futures/api/json.php/IndexService.getInnerFuturesMinLine?symbol=${rawCode}`;
               const r = await httpGetText(url);
               try {
                 const arr: any[] = JSON.parse(r || '[]');
-                rows = arr.map((d: any[]) => `${d[4]||''},${d[0]||0},${d[3]||0},0`);
+                let prevCum = 0;
+                rows = arr.map((d: any[]) => {
+                  const cumVol = Number(d[3]||0);
+                  const barVol = prevCum > 0 ? Math.max(0, prevCum - cumVol) : 0;
+                  prevCum = cumVol;
+                  return `${d[4]||''},${d[0]||0},${barVol},0`;
+                });
               } catch {}
             } else {
               // InnerFuturesNewService.getMinLine 返回 [time,price,avg_price,volume,cum_vol,price2?,date?]
+              // volume是累计成交量(递减)，需要转为每分钟增量
               const url = `http://stock2.finance.sina.com.cn/futures/api/json.php/InnerFuturesNewService.getMinLine?symbol=${rawCode}`;
               const r = await httpGetText(url);
               try {
                 const arr: any[] = JSON.parse(r || '[]');
+                let prevCum = 0;
                 rows = arr.map((d: any[]) => {
-                  const t = String(d[0]||'').replace(':',''); // HH:MM → HHMM
-                  return `${t},${d[1]||0},${d[4]||d[3]||0},0`;
+                  const t = String(d[0]||'').replace(':','');
+                  const cumVol = Number(d[4]||d[3]||0);
+                  const barVol = prevCum > 0 ? Math.max(0, prevCum - cumVol) : 0;
+                  prevCum = cumVol;
+                  return `${t},${d[1]||0},${barVol},0`;
                 });
               } catch {}
             }
